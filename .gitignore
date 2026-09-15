@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+.venv/
+venv/
+ENV/
+
+# Entornos y datos locales
+*.log
+*.sqlite3
+data_dumps/
+*.csv
+*.xlsx
+
+# Configuración IDEs
+.idea/
+.vscode/
+*.swp
+
+# Docker volumes locales
+.docker/
