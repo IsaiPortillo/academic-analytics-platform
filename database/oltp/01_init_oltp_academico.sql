@@ -9,8 +9,8 @@
 -- -----------------------------------------------------------------------------
 -- 1. CONFIGURACIÓN INICIAL Y ESQUEMAS
 -- -----------------------------------------------------------------------------
-CREATE SCHEMA IF NOT EXISTS academico_oltp;
-CREATE SCHEMA IF NOT EXISTS auditoria;
+CREATE SCHEMA academico_oltp;
+CREATE SCHEMA auditoria;
 
 SET search_path TO academico_oltp, public;
 

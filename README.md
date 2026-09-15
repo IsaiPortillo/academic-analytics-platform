@@ -46,3 +46,33 @@ academic-analytics-platform/
 │   └── benchmark/
 ├── etl/                       # Pipelines de extracción, transformación y carga
 └── dashboard/                 # Interfaz interactiva de analítica en Streamlit
+
+---
+
+## 🚀 Estado del Desarrollo (Fases)
+
+- [x] **Fase 1.1:** Definición del DDL operacional OLTP (PostgreSQL 17), RBAC y disparadores de negocio.
+- [x] **Fase 1.2:** Generador de datos sintéticos realistas con Faker y carga masiva (~100k+ registros).
+- [ ] **Fase 1.3:** Modelado y carga de la red curricular en Neo4j (Cypher).
+- [ ] **Fase 1.4:** Pruebas de rendimiento y optimización con `EXPLAIN ANALYZE`.
+- [ ] **Fase 2:** Sistema transaccional liviano de gestión académica.
+- [ ] **Fase 3:** Pipeline ETL y construcción del Data Warehouse.
+- [ ] **Fase 4:** Dashboard analítico de toma de decisiones (Streamlit).
+- [ ] **Fase 5:** Memoria técnica final y preparación de defensa.
+
+---
+
+## ⚙️ Requisitos Previos e Instalación
+
+- **PostgreSQL** 17
+- **Python** >= 3.11
+- **Neo4j** Community / Enterprise
+
+### Ejecución del Generador Sintético (Fase 1.2):
+```bash
+# 1. Instalar dependencias requeridas
+pip install psycopg2-binary faker numpy
+
+# 2. Configurar credenciales en scripts/generator/02_generador_datos_sinteticos.py
+# 3. Poblar la base de datos operacional
+python scripts/generator/02_generador_datos_sinteticos.py
