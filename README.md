@@ -71,7 +71,7 @@ academic-analytics-platform/
 ### Ejecución del Generador Sintético (Fase 1.2):
 ```bash
 # 1. Instalar dependencias requeridas
-pip install psycopg2-binary faker numpy
+pip install -r requirements.txt
 
 # 2. Configurar credenciales en scripts/generator/02_generador_datos_sinteticos.py
 # 3. Poblar la base de datos operacional
