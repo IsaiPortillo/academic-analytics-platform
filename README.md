@@ -46,6 +46,7 @@ academic-analytics-platform/
 │   └── benchmark/
 ├── etl/                       # Pipelines de extracción, transformación y carga
 └── dashboard/                 # Interfaz interactiva de analítica en Streamlit
+```
 
 ---
 
@@ -68,7 +69,8 @@ academic-analytics-platform/
 - **Python** >= 3.11
 - **Neo4j** Community / Enterprise
 
-### Ejecución del Generador Sintético (Fase 1.2):
+### Ejecución del Generador Sintético (Fase 1.2)
+
 ```bash
 # 1. Instalar dependencias requeridas
 pip install -r requirements.txt
