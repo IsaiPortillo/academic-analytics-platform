@@ -16,7 +16,7 @@ import numpy as np
 DB_CONFIG = {
     "dbname": "academico_db",
     "user": "postgres",
-    "password": "tu_password",
+    "password": "admin123",
     "host": "localhost",
     "port": 5432
 }
