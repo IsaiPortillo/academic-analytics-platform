@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------------------------------------------
+  # MOTOR RELACIONAL: PostgreSQL (OLTP y posterior Data Warehouse OLAP)
+  # ----------------------------------------------------------------------------
+  postgres_db:
+    image: postgres:17-alpine
+    container_name: academico_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: academico_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: tu_password_seguro
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_academico:/var/lib/postgresql/data
+      # Si colocas tus scripts SQL en una carpeta local ./init-scripts, se ejecutan automáticamente al levantar por primera vez
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - red_academica
+
+  # ----------------------------------------------------------------------------
+  # MOTOR NOSQL: Neo4j (Malla Curricular y Prerrequisitos)
+  # ----------------------------------------------------------------------------
+  neo4j_db:
+    image: neo4j:5.20-community
+    container_name: academico_neo4j
+    restart: unless-stopped
+    environment:
+      - NEO4J_AUTH=neo4j/tu_password_seguro
+      - NEO4J_PLUGINS=["apoc"]  # Biblioteca recomendada para algoritmos de grafos
+    ports:
+      - "7474:7474" # Interfaz Web (Neo4j Browser)
+      - "7687:7687" # Protocolo Bolt (Conexión Python)
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    networks:
+      - red_academica
+
+# ------------------------------------------------------------------------------
+# RED Y VOLÚMENES PERSISTENTES
+# ------------------------------------------------------------------------------
+networks:
+  red_academica:
+    driver: bridge
+
+volumes:
+  pgdata_academico:
+    driver: local
+  neo4j_data:
+    driver: local
+  neo4j_logs:
+    driver: local
