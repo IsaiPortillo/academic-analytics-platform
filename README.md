@@ -55,8 +55,8 @@ academic-analytics-platform/
 ### Fase 1: Base de Datos Operacional y Scripts de Datos
 - [x] **1.1:** Definición del DDL operacional OLTP (PostgreSQL 17), esquemas, PK/FK, checks, roles y disparadores de integridad.
 - [x] **1.2:** Generador de datos sintéticos realistas con Python (`Faker` + inserción por lotes masiva ~100k+ registros).
-- [ ] **1.3:** Modelado y carga del grafo de la malla curricular en Neo4j (Cypher: asignaturas y relaciones de prerrequisitos).
-- [ ] **1.4:** Pruebas de rendimiento y optimización con `EXPLAIN ANALYZE` (documentación comparativa antes/después de índices).
+- [x] **1.3:** Modelado y carga del grafo de la malla curricular en Neo4j (Cypher: asignaturas y relaciones de prerrequisitos).
+- [x] **1.4:** Pruebas de rendimiento y optimización con `EXPLAIN ANALYZE` (documentación comparativa antes/después de índices).
 
 ### Fase 2: Sistema Transaccional de Gestión (CRUD Operacional)
 - [ ] **2.1:** Backend y frontend liviano transaccional (FastAPI + Bootstrap o Streamlit Admin).
