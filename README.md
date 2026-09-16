@@ -79,11 +79,25 @@ academic-analytics-platform/
 
 ---
 
+---
+
 ## ⚙️ Requisitos Previos e Instalación
 
-- **PostgreSQL** 17
 - **Python** >= 3.11
-- **Neo4j** Community / Enterprise
+- **PostgreSQL** 17
+- **Neo4j** >= 5.x (Community, Enterprise o Neo4j Desktop)
+- **Docker & Docker Compose** (Opcional, pero recomendado para levantar servicios)
+
+---
+
+### 📦 1. Despliegue de Motores de Base de Datos
+
+#### Opción A: Usando Docker Compose (Recomendada)
+Si utilizas el archivo `docker-compose.yml` del repositorio:
+```bash
+# Levantar PostgreSQL 17 y Neo4j en segundo plano
+docker compose up -d
+```
 
 ### Ejecución del Generador Sintético (Fase 1.2)
 
