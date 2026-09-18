@@ -184,6 +184,33 @@ Consecuencias del diseño:
 - `SET LOCAL` (y no `SET`) limita el cambio a la transacción, evitando que una conexión
   reutilizada del pool arrastre el rol del usuario anterior.
 
+### Comprobación del modelo (demostrable ante el jurado)
+
+```bash
+docker exec -i -e PGPASSWORD="$APP_DB_PASSWORD" academico_postgres \
+    psql -U "$APP_DB_USER" -d "$POSTGRES_DB" <<'SQL'
+-- Sin SET ROLE: el rol de servicio no puede leer nada (falla cerrado)
+SELECT count(*) FROM academico_oltp.inscripciones;
+
+-- Como docente: leer sí, borrar no
+BEGIN;
+SET LOCAL ROLE rol_docente;
+SELECT count(*) FROM academico_oltp.inscripciones;
+DELETE FROM academico_oltp.inscripciones WHERE inscripcion_id = 1;
+ROLLBACK;
+SQL
+```
+
+Resultado esperado:
+
+| Operación | Resultado |
+|---|---|
+| `SELECT` sin `SET ROLE` | `ERROR: permission denied for table inscripciones` |
+| `SELECT` como `rol_docente` | 36 704 filas |
+| `DELETE` como `rol_docente` | `ERROR: permission denied for table inscripciones` |
+| `DELETE` como `rol_coordinador` | `DELETE 1` |
+| Leer `auditoria` como `rol_docente` | `ERROR: permission denied for schema auditoria` |
+
 ---
 
 ## 🧱 Decisión de stack (Fase 2.1)
