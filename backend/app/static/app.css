@@ -1,0 +1,13 @@
+/* Ajustes mínimos sobre Bootstrap. */
+
+body {
+    min-height: 100vh;
+}
+
+.navbar-brand {
+    letter-spacing: -0.01em;
+}
+
+.card {
+    border-color: rgba(0, 0, 0, 0.08);
+}
