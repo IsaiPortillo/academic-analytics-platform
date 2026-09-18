@@ -26,7 +26,7 @@ def get_db(request: Request):
     """
     db = SessionLocal()
     try:
-        rol = request.session.get("rol_db")
+        rol = (request.session.get("usuario") or {}).get("rol_db")
         if rol is not None:
             if rol not in ROLES_VALIDOS:
                 raise HTTPException(
