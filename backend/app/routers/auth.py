@@ -63,8 +63,8 @@ def procesar_login(
         rol_db=usuario.rol_db,
         docente_id=usuario.docente_id,
     )
+    # De aquí lo lee get_db para aplicar el SET LOCAL ROLE de cada transacción.
     request.session["usuario"] = asdict(sesion)
-    request.session["rol_db"] = usuario.rol_db  # lo lee get_db para el SET LOCAL ROLE
 
     return RedirectResponse("/", status_code=303)
 
