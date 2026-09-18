@@ -21,7 +21,9 @@ CREATE TABLE academico_oltp.usuarios (
     nombre_completo VARCHAR(120) NOT NULL,
     rol_db VARCHAR(30) NOT NULL CHECK (rol_db IN ('rol_coordinador', 'rol_docente')),
     docente_id INT NULL,                          -- solo aplica si rol_db = 'rol_docente'
-    activo BOOLEAN DEFAULT TRUE,
+    -- NOT NULL a proposito: un INSERT que pase NULL explicito anularia el DEFAULT
+    -- y crearia una cuenta imposible de autenticar. Mejor que falle de inmediato.
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
     creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_usuario_docente FOREIGN KEY (docente_id)
         REFERENCES academico_oltp.docentes (docente_id) ON DELETE RESTRICT,

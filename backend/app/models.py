@@ -2,18 +2,38 @@
 
 IMPORTANTE: la fuente de verdad del esquema son los scripts de database/oltp/.
 Estos modelos solo lo mapean; nunca se debe invocar Base.metadata.create_all().
+
+Las columnas que tienen DEFAULT en el DDL se declaran aquí con server_default.
+No es decorativo: sin esa marca, SQLAlchemy incluye la columna en el INSERT con
+un NULL explícito, y un NULL explícito ANULA el DEFAULT de PostgreSQL. Eso
+dejaría, por ejemplo, usuarios con activo NULL (imposibles de autenticar) o
+inscripciones con numero_intento NULL (violando su NOT NULL).
 """
 
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
 
 ESQUEMA = {"schema": "academico_oltp"}
+
+AHORA = text("CURRENT_TIMESTAMP")
+VERDADERO = text("TRUE")
+FALSO = text("FALSE")
 
 
 class Departamento(Base):
@@ -23,7 +43,9 @@ class Departamento(Base):
     departamento_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     codigo_departamento: Mapped[str] = mapped_column(String(10), unique=True)
     nombre: Mapped[str] = mapped_column(String(100))
-    creado_en: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    creado_en: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=AHORA
+    )
 
 
 class Carrera(Base):
@@ -38,7 +60,7 @@ class Carrera(Base):
     )
     plan_anio: Mapped[int] = mapped_column(Integer)
     total_uv_carrera: Mapped[int] = mapped_column(Integer)
-    activo: Mapped[Optional[bool]] = mapped_column(Boolean)
+    activo: Mapped[Optional[bool]] = mapped_column(Boolean, server_default=VERDADERO)
 
     departamento: Mapped["Departamento"] = relationship()
 
@@ -53,7 +75,7 @@ class Materia(Base):
     unidades_valorativas: Mapped[int] = mapped_column(Integer)
     ciclo_plan: Mapped[int] = mapped_column(Integer)
     carrera_id: Mapped[int] = mapped_column(ForeignKey("academico_oltp.carreras.carrera_id"))
-    activo: Mapped[Optional[bool]] = mapped_column(Boolean)
+    activo: Mapped[Optional[bool]] = mapped_column(Boolean, server_default=VERDADERO)
 
     carrera: Mapped["Carrera"] = relationship()
 
@@ -66,10 +88,14 @@ class Estudiante(Base):
     carnet_hash: Mapped[str] = mapped_column(String(64), unique=True)
     anio_ingreso: Mapped[int] = mapped_column(Integer)
     carrera_id: Mapped[int] = mapped_column(ForeignKey("academico_oltp.carreras.carrera_id"))
-    trabaja: Mapped[Optional[bool]] = mapped_column(Boolean)
-    condicion_academica: Mapped[Optional[str]] = mapped_column(String(20))
-    activo: Mapped[Optional[bool]] = mapped_column(Boolean)
-    creado_en: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    trabaja: Mapped[Optional[bool]] = mapped_column(Boolean, server_default=FALSO)
+    condicion_academica: Mapped[Optional[str]] = mapped_column(
+        String(20), server_default=text("'REGULAR'")
+    )
+    activo: Mapped[Optional[bool]] = mapped_column(Boolean, server_default=VERDADERO)
+    creado_en: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=AHORA
+    )
 
     carrera: Mapped["Carrera"] = relationship()
 
@@ -84,8 +110,10 @@ class Docente(Base):
     departamento_id: Mapped[int] = mapped_column(
         ForeignKey("academico_oltp.departamentos.departamento_id")
     )
-    activo: Mapped[Optional[bool]] = mapped_column(Boolean)
-    creado_en: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    activo: Mapped[Optional[bool]] = mapped_column(Boolean, server_default=VERDADERO)
+    creado_en: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=AHORA
+    )
 
     departamento: Mapped["Departamento"] = relationship()
 
@@ -100,7 +128,8 @@ class PeriodoAcademico(Base):
     ciclo_romano: Mapped[str] = mapped_column(String(5))
     fecha_inicio: Mapped[date] = mapped_column(Date)
     fecha_fin: Mapped[date] = mapped_column(Date)
-    activo: Mapped[Optional[bool]] = mapped_column(Boolean)
+    # Ojo: aquí el DDL usa FALSE, no TRUE como en el resto de tablas.
+    activo: Mapped[Optional[bool]] = mapped_column(Boolean, server_default=FALSO)
 
 
 class Seccion(Base):
@@ -117,7 +146,9 @@ class Seccion(Base):
     turno: Mapped[str] = mapped_column(String(15))
     aula: Mapped[str] = mapped_column(String(30))
     cupo_maximo: Mapped[int] = mapped_column(Integer)
-    creado_en: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    creado_en: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=AHORA
+    )
 
     materia: Mapped["Materia"] = relationship()
     docente: Mapped["Docente"] = relationship()
@@ -133,9 +164,13 @@ class Inscripcion(Base):
         ForeignKey("academico_oltp.estudiantes.estudiante_id")
     )
     seccion_id: Mapped[int] = mapped_column(ForeignKey("academico_oltp.secciones.seccion_id"))
-    fecha_inscripcion: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    numero_intento: Mapped[int] = mapped_column(Integer)
-    estado_inscripcion: Mapped[Optional[str]] = mapped_column(String(20))
+    fecha_inscripcion: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=AHORA
+    )
+    numero_intento: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+    estado_inscripcion: Mapped[Optional[str]] = mapped_column(
+        String(20), server_default=text("'INSCRITO'")
+    )
 
     estudiante: Mapped["Estudiante"] = relationship()
     seccion: Mapped["Seccion"] = relationship()
@@ -166,7 +201,9 @@ class Calificacion(Base):
         ForeignKey("academico_oltp.evaluaciones.evaluacion_id")
     )
     nota: Mapped[Decimal] = mapped_column(Numeric(4, 2))
-    fecha_registro: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    fecha_registro: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=AHORA
+    )
 
     inscripcion: Mapped["Inscripcion"] = relationship()
     evaluacion: Mapped["Evaluacion"] = relationship()
@@ -198,8 +235,10 @@ class Usuario(Base):
     docente_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("academico_oltp.docentes.docente_id")
     )
-    activo: Mapped[Optional[bool]] = mapped_column(Boolean)
-    creado_en: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    activo: Mapped[bool] = mapped_column(Boolean, server_default=VERDADERO)
+    creado_en: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=AHORA
+    )
 
     docente: Mapped[Optional["Docente"]] = relationship()
 
@@ -212,5 +251,9 @@ class LogCambioNota(Base):
     calificacion_id: Mapped[int] = mapped_column(BigInteger)
     nota_anterior: Mapped[Optional[Decimal]] = mapped_column(Numeric(4, 2))
     nota_nueva: Mapped[Optional[Decimal]] = mapped_column(Numeric(4, 2))
-    usuario_db: Mapped[Optional[str]] = mapped_column(String(50))
-    fecha_modificacion: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    usuario_db: Mapped[Optional[str]] = mapped_column(
+        String(50), server_default=text("CURRENT_USER")
+    )
+    fecha_modificacion: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=AHORA
+    )

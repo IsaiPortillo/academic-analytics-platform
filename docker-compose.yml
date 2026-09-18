@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ----------------------------------------------------------------------------
   # MOTOR RELACIONAL: PostgreSQL (OLTP y posterior Data Warehouse OLAP)
