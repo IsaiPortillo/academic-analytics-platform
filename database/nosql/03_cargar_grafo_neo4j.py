@@ -4,12 +4,22 @@ ESPECIALIZACIÓN EN BD & BI 2026
 FASE 1 - PUNTO 1.3: AUTOMATIZACIÓN DE CARGA EN NEO4J
 """
 
+import os
 import sys
+from pathlib import Path
+
+from dotenv import load_dotenv
 from neo4j import GraphDatabase
 
-NEO4J_URI = "bolt://localhost:7687"
-NEO4J_USER = "neo4j"
-NEO4J_PASSWORD = "tu_password_aqui"  # Reemplazar por tu contraseña local
+# Credenciales desde el archivo .env de la raíz del proyecto (ver .env.example)
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+
+NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
+
+if not NEO4J_PASSWORD:
+    sys.exit("ERROR: NEO4J_PASSWORD no está definida. Copia .env.example a .env y complétalo.")
 
 MATERIAS_DATA = [
     {"codigo": "MAT115", "nombre": "Matemática I", "uv": 4, "ciclo": 1, "area": "Ciencias Básicas"},
