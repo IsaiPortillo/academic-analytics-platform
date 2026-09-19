@@ -44,6 +44,9 @@ academic-analytics-platform/
 ├── scripts/                   # Generación de datos sintéticos y benchmarking
 │   ├── generator/
 │   └── benchmark/
+├── backend/                   # Sistema transaccional operacional (FastAPI)
+│   ├── app/                   # Configuración, modelos, routers y plantillas
+│   └── scripts/               # Utilidades de administración (alta de usuarios)
 ├── etl/                       # Pipelines de extracción, transformación y carga
 └── dashboard/                 # Interfaz interactiva de analítica en Streamlit
 ```
@@ -59,7 +62,7 @@ academic-analytics-platform/
 - [x] **1.4:** Pruebas de rendimiento y optimización con `EXPLAIN ANALYZE` (documentación comparativa antes/después de índices).
 
 ### Fase 2: Sistema Transaccional de Gestión (CRUD Operacional)
-- [ ] **2.1:** Backend y frontend liviano transaccional (FastAPI + Bootstrap o Streamlit Admin).
+- [x] **2.1:** Backend y frontend liviano transaccional (FastAPI + Jinja2 + Bootstrap).
 - [ ] **2.2:** Módulos de matrícula, registro de calificaciones, control de asistencia y reportes operacionales.
 
 ### Fase 3: Ingeniería de Datos (ETL y Data Warehouse)
@@ -90,21 +93,136 @@ academic-analytics-platform/
 
 ---
 
-### 📦 1. Despliegue de Motores de Base de Datos
+### 🔑 1. Configuración de credenciales
 
-#### Opción A: Usando Docker Compose (Recomendada)
-Si utilizas el archivo `docker-compose.yml` del repositorio:
+Todas las credenciales del proyecto viven en un único archivo `.env` en la raíz
+(no versionado). Nunca se escriben dentro del código.
+
 ```bash
-# Levantar PostgreSQL 17 y Neo4j en segundo plano
+cp .env.example .env
+```
+
+Edita `.env` y reemplaza los valores marcados como `cambiar_...`. Para la clave de sesión:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+### 📦 2. Despliegue de los motores de base de datos
+
+```bash
+# Levanta PostgreSQL 17 y Neo4j en segundo plano
 docker compose up -d
 ```
 
-### Ejecución del Generador Sintético (Fase 1.2)
+En el **primer arranque**, PostgreSQL ejecuta automáticamente los scripts de `database/oltp/`
+en orden alfabético: crea el esquema operacional, la tabla de usuarios de la aplicación y el
+rol de servicio. No hay que ejecutar ningún `.sql` a mano.
+
+> Si ya tenías el contenedor creado desde antes, los scripts de inicialización **no** se
+> vuelven a ejecutar. Para reinicializar desde cero (⚠️ borra todos los datos):
+> `docker compose down -v && docker compose up -d`
+
+### 🐍 3. Dependencias de Python
 
 ```bash
-# 1. Instalar dependencias requeridas
-pip install -r requirements.txt
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r backend/requirements.txt -r scripts/generator/requirements.txt
+```
 
-# 2. Configurar credenciales en scripts/generator/02_generador_datos_sinteticos.py
-# 3. Poblar la base de datos operacional
+### 🎲 4. Poblar con datos sintéticos (Fase 1.2)
+
+```bash
 python scripts/generator/02_generador_datos_sinteticos.py
+python database/nosql/03_cargar_grafo_neo4j.py   # grafo curricular en Neo4j
+```
+
+Ambos scripts toman las credenciales del `.env`; ya no hay que editarlos.
+
+### 👤 5. Crear los usuarios de la aplicación
+
+```bash
+python backend/scripts/crear_usuario.py --demo --password demo1234
+```
+
+Crea dos usuarios de prueba para entorno local: `coordinador` y `docente` (este último
+requiere que el generador de datos se haya ejecutado antes). Para dar de alta usuarios
+reales, sin el flag `--demo`:
+
+```bash
+python backend/scripts/crear_usuario.py --username jperez \
+    --nombre "Jose Perez" --rol rol_docente --docente-id 3
+```
+
+### 🚀 6. Levantar el sistema transaccional (Fase 2)
+
+```bash
+cd backend
+uvicorn app.main:app --reload
+```
+
+Disponible en `http://localhost:8000` (documentación de la API en `/api/docs`).
+
+---
+
+## 🔐 Modelo de seguridad de la aplicación
+
+La autorización **no se resuelve en Python, sino en el motor de base de datos**:
+
+1. La aplicación se conecta siempre con un rol de servicio (`rol_app`) creado con `NOINHERIT`,
+   que por sí solo únicamente puede leer la tabla de usuarios.
+2. Al autenticar, se recupera el rol asignado al usuario (`rol_coordinador` o `rol_docente`).
+3. En cada transacción se ejecuta `SET LOCAL ROLE <rol>`, de modo que los `GRANT` definidos en
+   `01_init_oltp_academico.sql` son los que autorizan o rechazan cada operación.
+
+Consecuencias del diseño:
+
+- Si un docente intenta una operación fuera de sus permisos, quien la rechaza es PostgreSQL
+  (`permission denied`), no una validación de la interfaz.
+- `NOINHERIT` hace que el sistema falle **cerrado**: si la aplicación omitiera el `SET ROLE`,
+  la sesión se queda sin privilegios en lugar de acumular los de todos los roles.
+- `SET LOCAL` (y no `SET`) limita el cambio a la transacción, evitando que una conexión
+  reutilizada del pool arrastre el rol del usuario anterior.
+
+### Comprobación del modelo (demostrable ante el jurado)
+
+```bash
+docker exec -i -e PGPASSWORD="$APP_DB_PASSWORD" academico_postgres \
+    psql -U "$APP_DB_USER" -d "$POSTGRES_DB" <<'SQL'
+-- Sin SET ROLE: el rol de servicio no puede leer nada (falla cerrado)
+SELECT count(*) FROM academico_oltp.inscripciones;
+
+-- Como docente: leer sí, borrar no
+BEGIN;
+SET LOCAL ROLE rol_docente;
+SELECT count(*) FROM academico_oltp.inscripciones;
+DELETE FROM academico_oltp.inscripciones WHERE inscripcion_id = 1;
+ROLLBACK;
+SQL
+```
+
+Resultado esperado:
+
+| Operación | Resultado |
+|---|---|
+| `SELECT` sin `SET ROLE` | `ERROR: permission denied for table inscripciones` |
+| `SELECT` como `rol_docente` | 36 704 filas |
+| `DELETE` como `rol_docente` | `ERROR: permission denied for table inscripciones` |
+| `DELETE` como `rol_coordinador` | `DELETE 1` |
+| Leer `auditoria` como `rol_docente` | `ERROR: permission denied for schema auditoria` |
+
+---
+
+## 🧱 Decisión de stack (Fase 2.1)
+
+Se optó por **FastAPI + Jinja2 + Bootstrap** sobre la alternativa de Streamlit Admin:
+
+| Criterio | FastAPI + Bootstrap | Streamlit Admin |
+|---|---|---|
+| Separación backend/frontend | Sí, con capa de rutas y plantillas | No, todo en un script |
+| Control de sesión y roles | Middleware y dependencias propias | Limitado |
+| Manejo de formularios y validación | Completo | Restringido a widgets |
+| Representatividad de un OLTP real | Alta | Baja |
+
+Streamlit se reserva para la **Fase 4 (dashboard analítico)**, donde su orientación a la
+exploración de datos sí es la herramienta adecuada.
