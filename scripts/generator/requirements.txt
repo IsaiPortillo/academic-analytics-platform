@@ -2,3 +2,4 @@ psycopg2-binary>=2.9.9
 faker>=24.0.0
 numpy>=1.26.0
 neo4j>=5.0.0
+python-dotenv>=1.0.1

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ----------------------------------------------------------------------------
   # MOTOR RELACIONAL: PostgreSQL (OLTP y posterior Data Warehouse OLAP)
@@ -9,16 +7,19 @@ services:
     container_name: academico_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: academico_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: tu_password_seguro
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      APP_DB_USER: ${APP_DB_USER}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT}:5432"
     volumes:
       - pgdata_academico:/var/lib/postgresql/data
-      # Si colocas tus scripts SQL en una carpeta local ./init-scripts, se ejecutan automáticamente al levantar por primera vez
-      - ./init-scripts:/docker-entrypoint-initdb.d
+      # Los scripts de database/oltp se ejecutan en orden alfabético durante el
+      # primer arranque (01_init... -> 05_usuarios_auth -> 06_bootstrap_rol_app)
+      - ./database/oltp:/docker-entrypoint-initdb.d
     networks:
       - red_academica
 
@@ -30,7 +31,7 @@ services:
     container_name: academico_neo4j
     restart: unless-stopped
     environment:
-      - NEO4J_AUTH=neo4j/tu_password_seguro
+      - NEO4J_AUTH=${NEO4J_USER}/${NEO4J_PASSWORD}
       - NEO4J_PLUGINS=["apoc"]  # Biblioteca recomendada para algoritmos de grafos
     ports:
       - "7474:7474" # Interfaz Web (Neo4j Browser)

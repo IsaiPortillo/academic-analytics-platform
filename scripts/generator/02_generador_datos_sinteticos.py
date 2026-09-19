@@ -5,21 +5,30 @@ FASE 1 - PUNTO 1.2: GENERACIÓN DE DATOS SINTÉTICOS REALISTAS (OLTP)
 """
 
 import hashlib
+import os
 import random
+import sys
 from datetime import date, timedelta
+from pathlib import Path
 import psycopg2
 from psycopg2.extras import execute_values
 from faker import Faker
+from dotenv import load_dotenv
 import numpy as np
 
-# Configuración de conexión PostgreSQL
+# Credenciales desde el archivo .env de la raíz del proyecto (ver .env.example)
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+
 DB_CONFIG = {
-    "dbname": "academico_db",
-    "user": "postgres",
-    "password": "admin123",
-    "host": "localhost",
-    "port": 5432
+    "dbname": os.getenv("POSTGRES_DB", "academico_db"),
+    "user": os.getenv("POSTGRES_USER", "postgres"),
+    "password": os.getenv("POSTGRES_PASSWORD"),
+    "host": os.getenv("POSTGRES_HOST", "localhost"),
+    "port": int(os.getenv("POSTGRES_PORT", 5432))
 }
+
+if not DB_CONFIG["password"]:
+    sys.exit("ERROR: POSTGRES_PASSWORD no está definida. Copia .env.example a .env y complétalo.")
 
 fake = Faker('es_ES')
 random.seed(42)
