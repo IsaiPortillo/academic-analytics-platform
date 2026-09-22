@@ -178,7 +178,12 @@ def generar_secciones_y_evaluaciones(cursor):
     )
 
     # Evaluaciones estándar por sección (Exactamente 100% de ponderación)
-    cursor.execute("SELECT seccion_id, periodo_id FROM academico_oltp.secciones")
+    cursor.execute("""
+        SELECT s.seccion_id, s.periodo_id 
+        FROM academico_oltp.secciones s
+        LEFT JOIN academico_oltp.evaluaciones e ON s.seccion_id = e.seccion_id
+        WHERE e.evaluacion_id IS NULL
+    """)
     secciones = cursor.fetchall()
 
     eval_params = []
