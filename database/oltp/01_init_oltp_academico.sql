@@ -253,7 +253,7 @@ $$;
 
 -- Permisos de esquema
 GRANT USAGE ON SCHEMA academico_oltp TO rol_coordinador, rol_docente, rol_etl;
-GRANT USAGE ON SCHEMA auditoria TO rol_coordinador;
+GRANT USAGE ON SCHEMA auditoria TO rol_coordinador, rol_docente;
 
 -- Rol Coordinador: Control total sobre el esquema operacional
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA academico_oltp TO rol_coordinador;
@@ -261,15 +261,25 @@ GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA academico_oltp TO rol_coordinado
 GRANT SELECT ON ALL TABLES IN SCHEMA auditoria TO rol_coordinador;
 
 -- Rol Docente: Gestión de evaluaciones, calificaciones y asistencias
-GRANT SELECT ON academico_oltp.departamentos, academico_oltp.carreras, 
-                academico_oltp.materias, academico_oltp.periodos_academicos, 
-                academico_oltp.secciones, academico_oltp.estudiantes, 
+GRANT SELECT ON academico_oltp.departamentos, academico_oltp.carreras,
+                academico_oltp.materias, academico_oltp.periodos_academicos,
+                academico_oltp.secciones, academico_oltp.estudiantes,
                 academico_oltp.inscripciones TO rol_docente;
 
-GRANT SELECT, INSERT, UPDATE ON academico_oltp.evaluaciones, 
-                                 academico_oltp.calificaciones, 
+GRANT SELECT, INSERT, UPDATE ON academico_oltp.evaluaciones,
+                                 academico_oltp.calificaciones,
                                  academico_oltp.asistencias TO rol_docente;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA academico_oltp TO rol_docente;
+
+-- trg_auditoria_cambio_nota (definido arriba) hace INSERT INTO
+-- auditoria.log_cambios_notas en cada UPDATE de calificaciones, con los
+-- privilegios de quien ejecuta el UPDATE (no es SECURITY DEFINER). Sin este
+-- INSERT explícito, editar una nota falla con "permission denied for schema
+-- auditoria" para AMBOS roles — coordinador solo tenía SELECT sobre auditoria,
+-- pensado para poder revisarla, nunca para escribir en ella directamente; solo
+-- el trigger inserta. rol_docente nunca tuvo ni USAGE sobre el esquema.
+GRANT INSERT ON auditoria.log_cambios_notas TO rol_coordinador, rol_docente;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA auditoria TO rol_coordinador, rol_docente;
 
 -- Rol ETL: Solo lectura para extracción sin alterar el estado operacional
 GRANT SELECT ON ALL TABLES IN SCHEMA academico_oltp TO rol_etl;

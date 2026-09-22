@@ -23,3 +23,8 @@ data_dumps/
 
 # Docker volumes locales
 .docker/
+
+#Carpetas de contextos de ia
+graphify-out/
+.claude/
+.impeccable/

@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block titulo %}Registro de calificaciones{% endblock %}
+
+{% block contenido %}
+<h1 class="h3 mb-3">Registro de calificaciones</h1>
+
+{% if ok %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    {{ ok }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    {{ error }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get" action="/calificaciones" class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label for="periodo_id" class="form-label small mb-0">Periodo</label>
+                <select id="periodo_id" name="periodo_id" class="form-select" onchange="this.form.submit()">
+                    {% for p in periodos %}
+                    <option value="{{ p.periodo_id }}" {% if p.periodo_id == periodo_id %}selected{% endif %}>
+                        {{ p.codigo_periodo }}{% if p.activo %} (activo){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">Secciones a cargo</div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>Materia</th>
+                            <th>Secc.</th>
+                            <th>Ponderación</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s, materia, ponderacion in secciones %}
+                        <tr class="{% if seccion and seccion.seccion_id == s.seccion_id %}table-active{% endif %}">
+                            <td>
+                                <div class="fw-semibold">{{ materia.codigo_materia }}</div>
+                                <div class="small text-body-secondary">{{ materia.nombre }}</div>
+                            </td>
+                            <td>{{ s.numero_seccion }}</td>
+                            <td>
+                                <span class="badge {% if ponderacion >= 100 %}text-bg-success{% elif ponderacion > 0 %}text-bg-warning{% else %}text-bg-secondary{% endif %}">
+                                    {{ ponderacion }}%
+                                </span>
+                            </td>
+                            <td>
+                                <a class="btn btn-sm btn-outline-primary"
+                                   href="/calificaciones?periodo_id={{ periodo_id }}&amp;seccion_id={{ s.seccion_id }}">
+                                    Ver
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-body-secondary text-center py-3">No hay secciones asignadas en este periodo.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        {% if seccion %}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Evaluaciones de la sección</span>
+                <span class="badge {% if ponderacion_usada >= 100 %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+                    {{ ponderacion_usada }}% / 100%
+                </span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead>
+                        <tr><th>Nombre</th><th>%</th><th>Fecha</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for e in evaluaciones %}
+                        <tr>
+                            <td>{{ e.nombre_evaluacion }}</td>
+                            <td>{{ e.porcentaje }}%</td>
+                            <td class="small">{{ e.fecha_evaluacion.strftime('%d/%m/%Y') }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="text-body-secondary text-center py-3">Sin evaluaciones registradas.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-body border-top">
+                <form method="post" action="/calificaciones/evaluaciones" class="row g-2 align-items-end">
+                    <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
+                    <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
+                    <div class="col-md-5">
+                        <label class="form-label small mb-0">Nombre de la evaluación</label>
+                        <input type="text" name="nombre_evaluacion" class="form-control form-control-sm" required maxlength="100">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small mb-0">%</label>
+                        <input type="number" name="porcentaje" class="form-control form-control-sm"
+                               required min="0.01" max="100" step="0.01">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small mb-0">Fecha</label>
+                        <input type="date" name="fecha_evaluacion" class="form-control form-control-sm" required>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-sm btn-primary w-100">Agregar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header">Registrar notas</div>
+            <div class="card-body">
+                {% if evaluaciones %}
+                <form method="get" action="/calificaciones" class="row g-2 align-items-end mb-3">
+                    <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
+                    <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
+                    <div class="col-auto">
+                        <label class="form-label small mb-0">Evaluación</label>
+                        <select name="evaluacion_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                            {% for e in evaluaciones %}
+                            <option value="{{ e.evaluacion_id }}"
+                                {% if evaluacion_actual and evaluacion_actual.evaluacion_id == e.evaluacion_id %}selected{% endif %}>
+                                {{ e.nombre_evaluacion }} ({{ e.porcentaje }}%)
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+
+                {% if evaluacion_actual %}
+                <form method="post" action="/calificaciones/registrar">
+                    <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
+                    <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
+                    <input type="hidden" name="evaluacion_id" value="{{ evaluacion_actual.evaluacion_id }}">
+                    <div class="table-responsive mb-2" style="max-height: 280px;">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead><tr><th>ID estudiante</th><th style="width:140px;">Nota</th></tr></thead>
+                            <tbody>
+                                {% for inscripcion, estudiante in roster %}
+                                <tr>
+                                    <td>{{ estudiante.estudiante_id }}</td>
+                                    <td>
+                                        <input type="hidden" name="inscripcion_id" value="{{ inscripcion.inscripcion_id }}">
+                                        <input type="number" name="nota" class="form-control form-control-sm"
+                                               min="0" max="10" step="0.01"
+                                               value="{{ notas_evaluacion_actual.get(inscripcion.inscripcion_id, '') }}">
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="2" class="text-body-secondary text-center py-3">Ningún estudiante matriculado todavía.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-success">Guardar notas</button>
+                </form>
+                {% endif %}
+                {% else %}
+                <p class="text-body-secondary small mb-0">
+                    Esta sección todavía no tiene evaluaciones creadas — agrega una arriba para poder registrar notas.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">Vista de notas por sección</div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            {% for e in evaluaciones %}
+                            <th class="text-center">
+                                {{ e.nombre_evaluacion }}<br>
+                                <span class="small text-body-secondary">{{ e.porcentaje }}%</span>
+                            </th>
+                            {% endfor %}
+                            <th class="text-center">Acumulado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for fila in tabla %}
+                        <tr>
+                            <td>{{ fila.estudiante.estudiante_id }}</td>
+                            {% for celda in fila.celdas %}
+                            <td class="text-center">{{ '%.2f'|format(celda) if celda is not none else '—' }}</td>
+                            {% endfor %}
+                            <td class="text-center fw-semibold">{{ '%.2f'|format(fila.acumulado) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="{{ evaluaciones|length + 2 }}" class="text-body-secondary text-center py-3">Ningún estudiante matriculado todavía.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="card">
+            <div class="card-body text-body-secondary text-center py-5">
+                Selecciona una sección de la lista para gestionar sus evaluaciones y calificaciones.
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
