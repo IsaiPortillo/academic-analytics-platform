@@ -2,19 +2,19 @@
 {% block titulo %}{{ titulo }}{% endblock %}
 
 {% block contenido %}
-<div class="d-flex align-items-center gap-2 mb-1">
-    <h1 class="h3 mb-0">{{ titulo }}</h1>
-    <span class="badge text-bg-warning">Pendiente</span>
+<div class="flex items-center gap-2 mb-1">
+    <h1 class="text-2xl font-medium">{{ titulo }}</h1>
+    <span class="badge badge-warning">Pendiente</span>
 </div>
-<p class="text-body-secondary">{{ descripcion }}</p>
+<p class="text-quiet-gray mb-4">{{ descripcion }}</p>
 
-<div class="card border-warning-subtle">
+<div class="card card-pending">
     <div class="card-body">
         <p class="mb-2">
             Este módulo aún no está implementado. Corresponde al ticket
             <strong>{{ ticket }}</strong>, asignado a <strong>{{ responsable }}</strong>.
         </p>
-        <p class="mb-0 small text-body-secondary">
+        <p class="mb-0 text-sm text-quiet-gray">
             El esqueleto ya está listo en <code>backend/app/routers/</code>: los modelos
             SQLAlchemy y la sesión de base de datos con el rol aplicado vienen resueltos,
             solo falta construir las vistas y operaciones del ticket.
@@ -22,5 +22,5 @@
     </div>
 </div>
 
-<a href="/" class="btn btn-sm btn-outline-secondary mt-3">Volver al inicio</a>
+<a href="/" class="btn-outline-neutral inline-block mt-4">Volver al inicio</a>
 {% endblock %}

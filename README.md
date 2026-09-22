@@ -5,6 +5,7 @@ Sistema integral de analítica de datos e inteligencia de negocios orientado a l
 ---
 
 ## 📌 Contexto del Proyecto
+
 Proyecto de graduación desarrollado en el marco del Curso de Especialización en **Administración de Bases de Datos e Inteligencia de Negocios** de la Universidad de El Salvador (Facultad Multidisciplinaria Oriental).
 
 El proyecto aborda la brecha entre los sistemas operacionales transaccionales y la analítica estratégica, integrando modelos relacionales (OLTP), modelado en grafos (NoSQL) para mallas curriculares, bodegas de datos (OLAP) y visualización interactiva.
@@ -28,28 +29,45 @@ El sistema se compone de cuatro capas fundamentales:
    - **Almacenamiento:** Modelo estrella en esquema dimensional (`dw_academico`).
    - **Dashboard:** Streamlit (KPIs ejecutivos, matrices de correlación, alertas de deserción y visualización de redes curriculares).
 
+Backend transaccional (Fase 2): **FastAPI + Jinja2 + Tailwind CSS**, con autorización resuelta en PostgreSQL — ver [Modelo de seguridad](#modelo-de-seguridad-de-la-aplicación) más abajo.
+
 ---
 
 ## 📂 Estructura del Repositorio
 
 ```text
 academic-analytics-platform/
+├── PRODUCT.md                 # Contexto de producto (usuarios, propósito, alcance)
+├── DESIGN.md                  # Sistema de diseño de la interfaz (tokens, componentes)
+├── docker-compose.yml         # PostgreSQL 17 + Neo4j, con init automático de database/oltp
+├── .env.example                # Plantilla de variables de entorno (copiar a .env)
 ├── docs/                      # Documentación académica, diagramas y memorias
-│   ├── diagramas/
-│   └── memoria/
+│   ├── diagramas/              # (pendiente — Fase 5)
+│   └── memoria/                 # (pendiente — Fase 5)
 ├── database/                  # Definición de persistencia y migraciones
-│   ├── oltp/                  # Scripts DDL, triggers y roles operacionales
-│   ├── nosql/                 # Scripts Cypher y esquemas de grafo
-│   └── dw/                    # DDL del modelo dimensional (Data Mart)
-├── scripts/                   # Generación de datos sintéticos y benchmarking
-│   ├── generator/
-│   └── benchmark/
+│   ├── oltp/                  # Scripts DDL, triggers y roles operacionales (se auto-ejecutan)
+│   ├── nosql/                 # Script de carga (Python) y consultas Cypher del grafo
+│   └── dw/                    # DDL del modelo dimensional (Data Mart) — Fase 3
+├── scripts/                   # Utilidades de datos y de desarrollo
+│   ├── generator/              # Generador de datos sintéticos (Fase 1.2)
+│   ├── benchmark/               # Benchmarks EXPLAIN ANALYZE (Fase 1.4)
+│   └── setup-tailwind.sh       # Descarga el CLI de Tailwind y compila los estilos
 ├── backend/                   # Sistema transaccional operacional (FastAPI)
 │   ├── app/                   # Configuración, modelos, routers y plantillas
-│   └── scripts/               # Utilidades de administración (alta de usuarios)
-├── etl/                       # Pipelines de extracción, transformación y carga
-└── dashboard/                 # Interfaz interactiva de analítica en Streamlit
+│   │   ├── routers/            # matricula, calificaciones, asistencia, reportes, auth
+│   │   ├── templates/          # Jinja2 (base.html + un template por módulo)
+│   │   └── static/src/         # input.css (tokens Tailwind) -> se compila a static/app.css
+│   └── scripts/                # Utilidades de administración (alta de usuarios)
+├── etl/                       # Pipelines de extracción, transformación y carga — Fase 3
+└── dashboard/                  # Interfaz interactiva de analítica en Streamlit — Fase 4
 ```
+
+---
+
+## 📚 Documentación adicional
+
+- **[`PRODUCT.md`](PRODUCT.md)** — quiénes son los usuarios, qué resuelve el producto, y qué principios no deben romperse al agregar una funcionalidad (p. ej. "la autorización nunca se mueve a Python").
+- **[`DESIGN.md`](DESIGN.md)** — el sistema de diseño de la interfaz: paleta, tipografía, y el catálogo de componentes Tailwind (`.btn-save`, `.badge-danger`, `.card`, …) usados en todas las plantillas.
 
 ---
 
@@ -62,8 +80,12 @@ academic-analytics-platform/
 - [x] **1.4:** Pruebas de rendimiento y optimización con `EXPLAIN ANALYZE` (documentación comparativa antes/después de índices).
 
 ### Fase 2: Sistema Transaccional de Gestión (CRUD Operacional)
-- [x] **2.1:** Backend y frontend liviano transaccional (FastAPI + Jinja2 + Bootstrap).
-- [ ] **2.2:** Módulos de matrícula, registro de calificaciones, control de asistencia y reportes operacionales.
+- [x] **2.1:** Backend y frontend liviano transaccional (FastAPI + Jinja2 + Tailwind CSS).
+- **2.2:** Módulos operacionales:
+  - [x] Matrícula (SCRUM-7) — inscribir y retirar estudiantes de secciones.
+  - [x] Registro de calificaciones (SCRUM-8) — evaluaciones ponderadas y notas por sección.
+  - [x] Control de asistencia (SCRUM-9) — asistencia por sesión y resumen de faltas.
+  - [ ] Reportes operacionales (SCRUM-10) — notas finales y asistencia acumulada.
 
 ### Fase 3: Ingeniería de Datos (ETL y Data Warehouse)
 - [ ] **3.1:** Conexión y extracción híbrida (SQLAlchemy para PostgreSQL y driver oficial Neo4j).
@@ -82,18 +104,19 @@ academic-analytics-platform/
 
 ---
 
----
+## ⚙️ Puesta en marcha
 
-## ⚙️ Requisitos Previos e Instalación
+### Requisitos previos
 
 - **Python** >= 3.11
-- **PostgreSQL** 17
-- **Neo4j** >= 5.x (Community, Enterprise o Neo4j Desktop)
-- **Docker & Docker Compose** (Opcional, pero recomendado para levantar servicios)
+- **Docker & Docker Compose** — esta guía asume Docker para levantar PostgreSQL y Neo4j; sin él tendrías que instalar y configurar ambos motores a mano y ejecutar los scripts de `database/oltp/` manualmente, un camino que este README no cubre.
 
----
+> Nota: varios comandos de esta guía (verificación del modelo de seguridad, solución de problemas) usan variables como `$APP_DB_PASSWORD` directamente en la terminal. Para que existan en tu shell, expórtalas primero desde `.env`:
+> ```bash
+> set -a && source .env && set +a
+> ```
 
-### 🔑 1. Configuración de credenciales
+### 1. Configuración de credenciales
 
 Todas las credenciales del proyecto viven en un único archivo `.env` en la raíz
 (no versionado). Nunca se escriben dentro del código.
@@ -108,29 +131,32 @@ Edita `.env` y reemplaza los valores marcados como `cambiar_...`. Para la clave 
 python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-### 📦 2. Despliegue de los motores de base de datos
+### 2. Despliegue de los motores de base de datos
 
 ```bash
 # Levanta PostgreSQL 17 y Neo4j en segundo plano
 docker compose up -d
 ```
 
-En el **primer arranque**, PostgreSQL ejecuta automáticamente los scripts de `database/oltp/`
-en orden alfabético: crea el esquema operacional, la tabla de usuarios de la aplicación y el
-rol de servicio. No hay que ejecutar ningún `.sql` a mano.
+En el **primer arranque sobre un volumen vacío**, PostgreSQL ejecuta automáticamente los
+scripts de `database/oltp/` en orden alfabético (`01_init...` → `05_usuarios_auth` →
+`06_bootstrap_rol_app`): crea el esquema operacional, la tabla de usuarios de la aplicación y
+el rol de servicio. No hay que ejecutar ningún `.sql` a mano.
 
-> Si ya tenías el contenedor creado desde antes, los scripts de inicialización **no** se
-> vuelven a ejecutar. Para reinicializar desde cero (⚠️ borra todos los datos):
-> `docker compose down -v && docker compose up -d`
+> ⚠️ Esos scripts **solo corren la primera vez**. Si ya tenías el contenedor creado desde
+> antes (por ejemplo, de un clone anterior) y cambias algo en `.env`, el cambio **no** se
+> aplica solo. Para reinicializar desde cero (⚠️ borra todos los datos):
+> `docker compose down -v && docker compose up -d`. Si no quieres perder datos, ver
+> [Solución de problemas](#solución-de-problemas) más abajo.
 
-### 🐍 3. Dependencias de Python
+### 3. Dependencias de Python
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r backend/requirements.txt -r scripts/generator/requirements.txt
 ```
 
-### 🎲 4. Poblar con datos sintéticos (Fase 1.2)
+### 4. Poblar con datos sintéticos (Fase 1.2)
 
 ```bash
 python scripts/generator/02_generador_datos_sinteticos.py
@@ -139,22 +165,34 @@ python database/nosql/03_cargar_grafo_neo4j.py   # grafo curricular en Neo4j
 
 Ambos scripts toman las credenciales del `.env`; ya no hay que editarlos.
 
-### 👤 5. Crear los usuarios de la aplicación
+### 5. Crear los usuarios de la aplicación
 
 ```bash
 python backend/scripts/crear_usuario.py --demo --password demo1234
 ```
 
 Crea dos usuarios de prueba para entorno local: `coordinador` y `docente` (este último
-requiere que el generador de datos se haya ejecutado antes). Para dar de alta usuarios
-reales, sin el flag `--demo`:
+requiere que el generador de datos se haya ejecutado antes — paso 4). Para dar de alta
+usuarios reales, sin el flag `--demo`:
 
 ```bash
 python backend/scripts/crear_usuario.py --username jperez \
     --nombre "Jose Perez" --rol rol_docente --docente-id 3
 ```
 
-### 🚀 6. Levantar el sistema transaccional (Fase 2)
+### 6. Compilar los estilos (Tailwind CSS)
+
+```bash
+./scripts/setup-tailwind.sh
+```
+
+Descarga el binario standalone de Tailwind CSS (no requiere Node.js) en `.tools/` la primera
+vez, y compila `backend/app/static/src/input.css` a `backend/app/static/app.css`. `app.css`
+sí está versionado, así que un clone limpio ya tiene una versión compilada funcionando —
+este paso solo hace falta si vas a tocar clases de Tailwind en `backend/app/templates/` o en
+`input.css`.
+
+### 7. Levantar el sistema transaccional (Fase 2)
 
 ```bash
 cd backend
@@ -162,6 +200,43 @@ uvicorn app.main:app --reload
 ```
 
 Disponible en `http://localhost:8000` (documentación de la API en `/api/docs`).
+
+---
+
+## 🆘 Solución de problemas
+
+**`password authentication failed for user "rol_app"` (o similar) al iniciar sesión o abrir el sitio**
+Editaste `.env` después de que el contenedor de PostgreSQL ya se había inicializado una vez;
+los scripts de `docker-entrypoint-initdb.d/` no se vuelven a ejecutar sobre un volumen
+existente, así que el rol sigue con la contraseña anterior. Dos opciones:
+- Sin perder datos, sincroniza la contraseña del rol a mano:
+  ```bash
+  docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" academico_postgres \
+      psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+      -c "ALTER ROLE $APP_DB_USER WITH PASSWORD '$APP_DB_PASSWORD';"
+  ```
+- O reinicializa desde cero (⚠️ borra todos los datos): `docker compose down -v && docker compose up -d`.
+
+**`role "rol_app" does not exist`**
+El contenedor de PostgreSQL ya existía de antes de que `.env` tuviera `APP_DB_PASSWORD`
+definida — `06_bootstrap_rol_app.sh` se niega a correr sin esa variable, y al ser un script
+de primer-arranque no se reintenta solo. Ejecútalo manualmente contra el contenedor ya
+corriendo:
+```bash
+docker exec -i -e PGPASSWORD="$POSTGRES_PASSWORD" -e POSTGRES_USER -e POSTGRES_DB \
+    -e APP_DB_USER -e APP_DB_PASSWORD \
+    academico_postgres bash -s < database/oltp/06_bootstrap_rol_app.sh
+```
+
+**`set: pipefail: invalid option name` al correr el script anterior (Windows)**
+Tu copia local de `06_bootstrap_rol_app.sh` tiene saltos de línea CRLF — el `.gitattributes`
+del repo fuerza LF para `*.sh`, así que un clone limpio no debería tener este problema, pero
+si tu checkout es antiguo o algún editor reescribió el archivo, corrígelo con
+`git checkout -- database/oltp/06_bootstrap_rol_app.sh` (o `dos2unix`) y vuelve a intentar.
+
+**`No hay docentes en la base: omito el usuario docente` al crear los usuarios demo**
+Ejecutaste el paso 5 antes que el paso 4. Corre primero el generador de datos sintéticos y
+vuelve a correr `crear_usuario.py --demo`.
 
 ---
 
@@ -213,7 +288,9 @@ Resultado esperado:
 
 ---
 
-## 🧱 Decisión de stack (Fase 2.1)
+## 🧱 Decisiones de stack
+
+### Backend y frontend (Fase 2.1)
 
 Se optó por **FastAPI + Jinja2 + Bootstrap** sobre la alternativa de Streamlit Admin:
 
@@ -226,3 +303,9 @@ Se optó por **FastAPI + Jinja2 + Bootstrap** sobre la alternativa de Streamlit 
 
 Streamlit se reserva para la **Fase 4 (dashboard analítico)**, donde su orientación a la
 exploración de datos sí es la herramienta adecuada.
+
+> **Actualización (septiembre 2026):** la capa visual migró de Bootstrap 5.3 (CDN) a
+> **Tailwind CSS v4**, compilado con el binario standalone (`scripts/setup-tailwind.sh`, sin
+> Node.js) hacia `backend/app/static/app.css`. La decisión de FastAPI + Jinja2 sigue vigente
+> sin cambios; solo se reemplazó el framework de CSS. El sistema de diseño resultante está
+> documentado en [`DESIGN.md`](DESIGN.md).

@@ -2,11 +2,11 @@
 {% block titulo %}Error {{ codigo }}{% endblock %}
 
 {% block contenido %}
-<div class="row justify-content-center">
-    <div class="col-md-6 text-center py-5">
-        <div class="display-6 text-body-secondary">{{ codigo }}</div>
-        <p class="lead">{{ mensaje }}</p>
-        <a href="/" class="btn btn-outline-secondary">Volver al inicio</a>
+<div class="flex justify-center">
+    <div class="w-full max-w-md py-16 text-center">
+        <div class="text-5xl font-semibold text-quiet-gray">{{ codigo }}</div>
+        <p class="mt-3 text-lg">{{ mensaje }}</p>
+        <a href="/" class="btn-outline-neutral inline-block mt-4">Volver al inicio</a>
     </div>
 </div>
 {% endblock %}

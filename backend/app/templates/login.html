@@ -2,34 +2,34 @@
 {% block titulo %}Iniciar sesión{% endblock %}
 
 {% block contenido %}
-<div class="row justify-content-center">
-    <div class="col-md-5 col-lg-4">
+<div class="flex justify-center">
+    <div class="w-full max-w-sm">
 
-        <div class="text-center mb-4">
-            <h1 class="h4 mt-5">Gestión Académica</h1>
-            <p class="text-body-secondary small mb-0">
+        <div class="text-center mb-4 mt-8">
+            <h1 class="text-xl font-medium">Gestión Académica</h1>
+            <p class="text-sm text-quiet-gray mt-1">
                 Universidad de El Salvador — Facultad Multidisciplinaria Oriental
             </p>
         </div>
 
-        <div class="card shadow-sm">
-            <div class="card-body p-4">
+        <div class="card">
+            <div class="card-body">
                 {% if error %}
-                <div class="alert alert-danger py-2 small" role="alert">{{ error }}</div>
+                <div class="alert alert-danger mb-4" role="alert">{{ error }}</div>
                 {% endif %}
 
                 <form method="post" action="/login">
                     <div class="mb-3">
-                        <label for="username" class="form-label">Usuario</label>
-                        <input type="text" class="form-control" id="username" name="username"
+                        <label for="username" class="field-label">Usuario</label>
+                        <input type="text" class="input" id="username" name="username"
                                required autofocus autocomplete="username">
                     </div>
                     <div class="mb-4">
-                        <label for="password" class="form-label">Contraseña</label>
-                        <input type="password" class="form-control" id="password" name="password"
+                        <label for="password" class="field-label">Contraseña</label>
+                        <input type="password" class="input" id="password" name="password"
                                required autocomplete="current-password">
                     </div>
-                    <button type="submit" class="btn btn-dark w-100">Ingresar</button>
+                    <button type="submit" class="btn-login w-full">Ingresar</button>
                 </form>
             </div>
         </div>

@@ -2,27 +2,27 @@
 {% block titulo %}Gestión de matrícula{% endblock %}
 
 {% block contenido %}
-<h1 class="h3 mb-3">Gestión de matrícula</h1>
+<h1 class="text-2xl font-medium mb-4">Gestión de matrícula</h1>
 
 {% if ok %}
-<div class="alert alert-success alert-dismissible fade show" role="alert">
-    {{ ok }}
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+<div class="alert alert-success mb-3" role="alert">
+    <span>{{ ok }}</span>
+    <button type="button" class="alert-close" data-alert-close aria-label="Cerrar">&times;</button>
 </div>
 {% endif %}
 {% if error %}
-<div class="alert alert-danger alert-dismissible fade show" role="alert">
-    {{ error }}
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+<div class="alert alert-danger mb-3" role="alert">
+    <span>{{ error }}</span>
+    <button type="button" class="alert-close" data-alert-close aria-label="Cerrar">&times;</button>
 </div>
 {% endif %}
 
 <div class="card mb-3">
     <div class="card-body">
-        <form method="get" action="/matricula" class="row g-2 align-items-end">
-            <div class="col-auto">
-                <label for="periodo_id" class="form-label small mb-0">Periodo</label>
-                <select id="periodo_id" name="periodo_id" class="form-select" onchange="this.form.submit()">
+        <form method="get" action="/matricula" class="flex items-end gap-2">
+            <div>
+                <label for="periodo_id" class="field-label">Periodo</label>
+                <select id="periodo_id" name="periodo_id" class="select" onchange="this.form.submit()">
                     {% for p in periodos %}
                     <option value="{{ p.periodo_id }}" {% if p.periodo_id == periodo_id %}selected{% endif %}>
                         {{ p.codigo_periodo }}{% if p.activo %} (activo){% endif %}
@@ -34,108 +34,106 @@
     </div>
 </div>
 
-<div class="row g-3">
-    <div class="col-lg-6">
-        <div class="card h-100">
-            <div class="card-header">Secciones ofertadas</div>
-            <div class="table-responsive">
-                <table class="table table-sm table-hover mb-0 align-middle">
-                    <thead>
-                        <tr>
-                            <th>Materia</th>
-                            <th>Secc.</th>
-                            <th>Turno</th>
-                            <th>Cupo</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for s, materia, inscritos in secciones %}
-                        <tr class="{% if seccion and seccion.seccion_id == s.seccion_id %}table-active{% endif %}">
-                            <td>
-                                <div class="fw-semibold">{{ materia.codigo_materia }}</div>
-                                <div class="small text-body-secondary">{{ materia.nombre }}</div>
-                            </td>
-                            <td>{{ s.numero_seccion }}</td>
-                            <td>{{ s.turno }}</td>
-                            <td>
-                                <span class="badge {% if inscritos >= s.cupo_maximo %}text-bg-danger{% elif inscritos >= s.cupo_maximo * 0.8 %}text-bg-warning{% else %}text-bg-success{% endif %}">
-                                    {{ inscritos }}/{{ s.cupo_maximo }}
-                                </span>
-                            </td>
-                            <td>
-                                <a class="btn btn-sm btn-outline-primary"
-                                   href="/matricula?periodo_id={{ periodo_id }}&amp;seccion_id={{ s.seccion_id }}">
-                                    Ver
-                                </a>
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="5" class="text-body-secondary text-center py-3">No hay secciones ofertadas en este periodo.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+    <div class="card">
+        <div class="card-header">Secciones ofertadas</div>
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Materia</th>
+                        <th>Secc.</th>
+                        <th>Turno</th>
+                        <th>Cupo</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s, materia, inscritos in secciones %}
+                    <tr class="{% if seccion and seccion.seccion_id == s.seccion_id %}bg-neutral-paper{% endif %}">
+                        <td>
+                            <div class="font-semibold">{{ materia.codigo_materia }}</div>
+                            <div class="text-xs text-quiet-gray">{{ materia.nombre }}</div>
+                        </td>
+                        <td>{{ s.numero_seccion }}</td>
+                        <td>{{ s.turno }}</td>
+                        <td>
+                            <span class="badge {% if inscritos >= s.cupo_maximo %}badge-danger{% elif inscritos >= s.cupo_maximo * 0.8 %}badge-warning{% else %}badge-success{% endif %}">
+                                {{ inscritos }}/{{ s.cupo_maximo }}
+                            </span>
+                        </td>
+                        <td>
+                            <a class="btn-view"
+                               href="/matricula?periodo_id={{ periodo_id }}&amp;seccion_id={{ s.seccion_id }}">
+                                Ver
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5" class="text-quiet-gray text-center py-3">No hay secciones ofertadas en este periodo.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 
-    <div class="col-lg-6">
+    <div>
         {% if seccion %}
         <div class="card mb-3">
             <div class="card-header">Matricular estudiante</div>
             <div class="card-body">
-                <p class="small text-body-secondary mb-2">
+                <p class="text-sm text-quiet-gray mb-2">
                     Sección {{ seccion.numero_seccion }} &middot;
                     Cupo: {{ roster|length }}/{{ seccion.cupo_maximo }}
                 </p>
 
-                <form method="get" action="/matricula" class="input-group input-group-sm mb-2">
+                <form method="get" action="/matricula" class="flex gap-2 mb-2">
                     <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
                     <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
-                    <input type="text" name="buscar" value="{{ buscar }}" class="form-control"
+                    <input type="text" name="buscar" value="{{ buscar }}" class="input"
                            placeholder="Buscar por ID de estudiante o carnet...">
-                    <button class="btn btn-outline-secondary" type="submit">Buscar</button>
+                    <button class="btn-outline-neutral shrink-0" type="submit">Buscar</button>
                 </form>
 
                 {% if buscar %}
-                <div class="table-responsive mb-3" style="max-height: 200px;">
-                    <table class="table table-sm">
+                <div class="table-wrap mb-3" style="max-height: 200px;">
+                    <table class="table">
                         <thead><tr><th>ID</th><th>Carnet (hash)</th><th>Año ingreso</th><th></th></tr></thead>
                         <tbody>
                             {% for e in resultados_busqueda %}
                             <tr>
                                 <td>{{ e.estudiante_id }}</td>
-                                <td class="text-truncate" style="max-width:140px;"><code>{{ e.carnet_hash[:12] }}…</code></td>
+                                <td class="max-w-[140px] truncate"><code>{{ e.carnet_hash[:12] }}…</code></td>
                                 <td>{{ e.anio_ingreso }}</td>
                                 <td>
                                     <button type="submit" form="form-inscribir" name="estudiante_id"
-                                            value="{{ e.estudiante_id }}" class="btn btn-sm btn-primary">
+                                            value="{{ e.estudiante_id }}" class="btn-save">
                                         Elegir
                                     </button>
                                 </td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="4" class="text-body-secondary text-center">Sin resultados.</td></tr>
+                            <tr><td colspan="4" class="text-quiet-gray text-center">Sin resultados.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
                 {% endif %}
 
-                <form id="form-inscribir" method="post" action="/matricula/inscribir" class="input-group input-group-sm">
+                <form id="form-inscribir" method="post" action="/matricula/inscribir" class="flex gap-2">
                     <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
                     <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
-                    <span class="input-group-text">ID estudiante</span>
-                    <input type="number" name="estudiante_id" class="form-control" required min="1">
-                    <button class="btn btn-success" type="submit">Matricular</button>
+                    <span class="field-label self-center whitespace-nowrap">ID estudiante</span>
+                    <input type="number" name="estudiante_id" class="input" required min="1">
+                    <button class="btn-save shrink-0" type="submit">Matricular</button>
                 </form>
             </div>
         </div>
 
         <div class="card">
             <div class="card-header">Estudiantes matriculados</div>
-            <div class="table-responsive">
-                <table class="table table-sm mb-0 align-middle">
+            <div class="table-wrap">
+                <table class="table">
                     <thead>
                         <tr>
                             <th>ID</th>
@@ -149,18 +147,18 @@
                         <tr>
                             <td>{{ estudiante.estudiante_id }}</td>
                             <td>{{ inscripcion.numero_intento }}</td>
-                            <td class="small">{{ inscripcion.fecha_inscripcion.strftime('%d/%m/%Y') if inscripcion.fecha_inscripcion else '—' }}</td>
+                            <td class="text-sm">{{ inscripcion.fecha_inscripcion.strftime('%d/%m/%Y') if inscripcion.fecha_inscripcion else '—' }}</td>
                             <td>
                                 <form method="post" action="/matricula/retirar/{{ inscripcion.inscripcion_id }}"
                                       onsubmit="return confirm('¿Retirar al estudiante {{ estudiante.estudiante_id }} de esta sección?');">
                                     <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
                                     <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">Retirar</button>
+                                    <button type="submit" class="btn-destructive">Retirar</button>
                                 </form>
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="4" class="text-body-secondary text-center py-3">Ningún estudiante matriculado todavía.</td></tr>
+                        <tr><td colspan="4" class="text-quiet-gray text-center py-3">Ningún estudiante matriculado todavía.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -168,7 +166,7 @@
         </div>
         {% else %}
         <div class="card">
-            <div class="card-body text-body-secondary text-center py-5">
+            <div class="card-body text-quiet-gray text-center py-12">
                 Selecciona una sección de la lista para ver y gestionar su matrícula.
             </div>
         </div>

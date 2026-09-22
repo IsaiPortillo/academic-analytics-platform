@@ -24,6 +24,9 @@ data_dumps/
 # Docker volumes locales
 .docker/
 
+# Binario standalone de Tailwind CSS (~110MB, se descarga con setup-tailwind.sh)
+.tools/
+
 #Carpetas de contextos de ia
 graphify-out/
 .claude/

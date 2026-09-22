@@ -2,63 +2,57 @@
 {% block titulo %}Inicio{% endblock %}
 
 {% block contenido %}
-<div class="mb-4">
-    <h1 class="h3 mb-1">Hola, {{ usuario.nombre_completo }}</h1>
-    <p class="text-body-secondary">
-        Sesión activa con el rol <code>{{ usuario.rol_db }}</code> de PostgreSQL.
+<div class="mb-6">
+    <h1 class="text-2xl font-medium mb-1">Hola, {{ usuario.nombre_completo }}</h1>
+    <p class="text-sm text-quiet-gray">
+        Sesión activa con el rol <code class="text-slate-authority">{{ usuario.rol_db }}</code> de PostgreSQL.
         Las operaciones permitidas las determina el motor, no la interfaz.
     </p>
 </div>
 
-<div class="row g-3 mb-4">
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="text-body-secondary small text-uppercase">Estudiantes</div>
-                <div class="fs-3 fw-semibold">{{ "{:,}".format(resumen.estudiantes) }}</div>
-            </div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+    <div class="card">
+        <div class="card-body">
+            <div class="text-xs uppercase text-quiet-gray">Estudiantes</div>
+            <div class="text-2xl font-semibold mt-1">{{ "{:,}".format(resumen.estudiantes) }}</div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="text-body-secondary small text-uppercase">Secciones ofertadas</div>
-                <div class="fs-3 fw-semibold">{{ "{:,}".format(resumen.secciones) }}</div>
-            </div>
+    <div class="card">
+        <div class="card-body">
+            <div class="text-xs uppercase text-quiet-gray">Secciones ofertadas</div>
+            <div class="text-2xl font-semibold mt-1">{{ "{:,}".format(resumen.secciones) }}</div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="text-body-secondary small text-uppercase">Inscripciones</div>
-                <div class="fs-3 fw-semibold">{{ "{:,}".format(resumen.inscripciones) }}</div>
-            </div>
+    <div class="card">
+        <div class="card-body">
+            <div class="text-xs uppercase text-quiet-gray">Inscripciones</div>
+            <div class="text-2xl font-semibold mt-1">{{ "{:,}".format(resumen.inscripciones) }}</div>
         </div>
     </div>
 </div>
 
 <div class="card">
     <div class="card-body">
-        <h2 class="h6 text-uppercase text-body-secondary mb-3">Módulos disponibles</h2>
-        <div class="list-group list-group-flush">
+        <h2 class="text-xs uppercase font-medium text-quiet-gray mb-3">Módulos disponibles</h2>
+        <div class="divide-y divide-hairline">
             {% if usuario.es_coordinador %}
-            <a href="/matricula" class="list-group-item list-group-item-action px-0">
-                <strong>Matrícula</strong>
-                <span class="text-body-secondary"> — inscribir y retirar estudiantes de secciones</span>
+            <a href="/matricula" class="-mx-4 block px-4 py-3 transition-colors hover:bg-neutral-paper">
+                <strong class="font-semibold">Matrícula</strong>
+                <span class="text-quiet-gray"> — inscribir y retirar estudiantes de secciones</span>
             </a>
             {% endif %}
-            <a href="/calificaciones" class="list-group-item list-group-item-action px-0">
-                <strong>Calificaciones</strong>
-                <span class="text-body-secondary"> — registrar y editar notas por evaluación</span>
+            <a href="/calificaciones" class="-mx-4 block px-4 py-3 transition-colors hover:bg-neutral-paper">
+                <strong class="font-semibold">Calificaciones</strong>
+                <span class="text-quiet-gray"> — registrar y editar notas por evaluación</span>
             </a>
-            <a href="/asistencia" class="list-group-item list-group-item-action px-0">
-                <strong>Asistencia</strong>
-                <span class="text-body-secondary"> — control de asistencia por sesión</span>
+            <a href="/asistencia" class="-mx-4 block px-4 py-3 transition-colors hover:bg-neutral-paper">
+                <strong class="font-semibold">Asistencia</strong>
+                <span class="text-quiet-gray"> — control de asistencia por sesión</span>
             </a>
             {% if usuario.es_coordinador %}
-            <a href="/reportes" class="list-group-item list-group-item-action px-0">
-                <strong>Reportes</strong>
-                <span class="text-body-secondary"> — notas finales y asistencia acumulada</span>
+            <a href="/reportes" class="-mx-4 block px-4 py-3 transition-colors hover:bg-neutral-paper">
+                <strong class="font-semibold">Reportes</strong>
+                <span class="text-quiet-gray"> — notas finales y asistencia acumulada</span>
             </a>
             {% endif %}
         </div>
