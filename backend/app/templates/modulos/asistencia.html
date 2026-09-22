@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block titulo %}Control de asistencia{% endblock %}
+
+{% block contenido %}
+<h1 class="h3 mb-3">Control de asistencia</h1>
+
+{% if ok %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    {{ ok }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    {{ error }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get" action="/asistencia" class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label for="periodo_id" class="form-label small mb-0">Periodo</label>
+                <select id="periodo_id" name="periodo_id" class="form-select" onchange="this.form.submit()">
+                    {% for p in periodos %}
+                    <option value="{{ p.periodo_id }}" {% if p.periodo_id == periodo_id %}selected{% endif %}>
+                        {{ p.codigo_periodo }}{% if p.activo %} (activo){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">Secciones a cargo</div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>Materia</th>
+                            <th>Secc.</th>
+                            <th>Sesiones</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s, materia, sesiones in secciones %}
+                        <tr class="{% if seccion and seccion.seccion_id == s.seccion_id %}table-active{% endif %}">
+                            <td>
+                                <div class="fw-semibold">{{ materia.codigo_materia }}</div>
+                                <div class="small text-body-secondary">{{ materia.nombre }}</div>
+                            </td>
+                            <td>{{ s.numero_seccion }}</td>
+                            <td>
+                                <span class="badge {% if sesiones > 0 %}text-bg-info{% else %}text-bg-secondary{% endif %}">
+                                    {{ sesiones }}
+                                </span>
+                            </td>
+                            <td>
+                                <a class="btn btn-sm btn-outline-primary"
+                                   href="/asistencia?periodo_id={{ periodo_id }}&amp;seccion_id={{ s.seccion_id }}">
+                                    Ver
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-body-secondary text-center py-3">No hay secciones asignadas en este periodo.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        {% if seccion %}
+        <div class="card mb-3">
+            <div class="card-header">Registrar asistencia</div>
+            <div class="card-body">
+                <form method="get" action="/asistencia" class="row g-2 align-items-end mb-3">
+                    <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
+                    <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
+                    <div class="col-auto">
+                        <label class="form-label small mb-0">Fecha de sesión</label>
+                        <input type="date" name="fecha_sesion" class="form-control form-control-sm"
+                               value="{{ fecha_sesion.isoformat() }}" onchange="this.form.submit()">
+                    </div>
+                </form>
+
+                <form method="post" action="/asistencia/registrar">
+                    <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
+                    <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
+                    <input type="hidden" name="fecha_sesion" value="{{ fecha_sesion.isoformat() }}">
+                    <div class="table-responsive mb-2" style="max-height: 320px;">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead><tr><th>ID estudiante</th><th style="width:180px;">Estado</th></tr></thead>
+                            <tbody>
+                                {% for inscripcion, estudiante in roster %}
+                                <tr>
+                                    <td>{{ estudiante.estudiante_id }}</td>
+                                    <td>
+                                        <input type="hidden" name="inscripcion_id" value="{{ inscripcion.inscripcion_id }}">
+                                        {% set actual = estados_sesion.get(inscripcion.inscripcion_id, 'PRESENTE') %}
+                                        <select name="estado" class="form-select form-select-sm">
+                                            {% for opcion in estados_validos %}
+                                            <option value="{{ opcion }}" {% if opcion == actual %}selected{% endif %}>
+                                                {{ opcion }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="2" class="text-body-secondary text-center py-3">Ningún estudiante matriculado todavía.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-success">Guardar asistencia</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">Resumen de faltas acumuladas</div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>ID estudiante</th>
+                            <th class="text-center">Presentes</th>
+                            <th class="text-center">Faltas</th>
+                            <th class="text-center">Justificadas</th>
+                            <th class="text-center">Sesiones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for fila in resumen %}
+                        <tr>
+                            <td>{{ fila.estudiante.estudiante_id }}</td>
+                            <td class="text-center">{{ fila.presentes }}</td>
+                            <td class="text-center">
+                                <span class="badge {% if fila.ausentes >= 3 %}text-bg-danger{% elif fila.ausentes > 0 %}text-bg-warning{% else %}text-bg-secondary{% endif %}">
+                                    {{ fila.ausentes }}
+                                </span>
+                            </td>
+                            <td class="text-center">{{ fila.justificados }}</td>
+                            <td class="text-center">{{ fila.total_sesiones }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" class="text-body-secondary text-center py-3">Ningún estudiante matriculado todavía.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="card">
+            <div class="card-body text-body-secondary text-center py-5">
+                Selecciona una sección de la lista para registrar y revisar su asistencia.
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
