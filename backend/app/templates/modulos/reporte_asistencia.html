@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block titulo %}Reporte de asistencia acumulada{% endblock %}
+
+{% block contenido %}
+<div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-medium">Asistencia acumulada</h1>
+    <a class="btn-outline-neutral" href="/reportes">Volver a reportes</a>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get" action="/reportes/asistencia" class="flex items-end gap-2 flex-wrap">
+            <div>
+                <label for="periodo_id" class="field-label">Periodo</label>
+                <select id="periodo_id" name="periodo_id" class="select" onchange="this.form.submit()">
+                    {% for p in periodos %}
+                    <option value="{{ p.periodo_id }}" {% if p.periodo_id == periodo_id %}selected{% endif %}>
+                        {{ p.codigo_periodo }}{% if p.activo %} (activo){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="materia_id" class="field-label">Materia</label>
+                <select id="materia_id" name="materia_id" class="select" onchange="this.form.submit()">
+                    <option value="">Todas</option>
+                    {% for m in materias %}
+                    <option value="{{ m.materia_id }}" {% if m.materia_id == materia_id %}selected{% endif %}>
+                        {{ m.codigo_materia }} — {{ m.nombre }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="field-label" for="solo_riesgo">Filtro</label>
+                <label class="flex items-center gap-2 text-sm h-[38px]">
+                    <input type="checkbox" id="solo_riesgo" name="solo_riesgo" value="true"
+                           {% if solo_riesgo %}checked{% endif %} onchange="this.form.submit()">
+                    Solo en riesgo ({{ umbral_riesgo }}+ faltas)
+                </label>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if truncado %}
+<div class="alert alert-danger mb-3" role="alert">
+    <span>
+        Se muestran las primeras {{ limite_filas }} filas, ordenadas de más a menos faltas.
+        Filtra por materia o activa "solo en riesgo" para acotar el resultado.
+    </span>
+    <button type="button" class="alert-close" data-alert-close aria-label="Cerrar">&times;</button>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">
+        {{ filas|length }} inscripcion(es)
+        {% if solo_riesgo %}con {{ umbral_riesgo }} o más faltas{% endif %}
+    </div>
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID estudiante</th>
+                    <th>Materia</th>
+                    <th class="text-center">Secc.</th>
+                    <th class="text-center">Sesiones</th>
+                    <th class="text-center">Presentes</th>
+                    <th class="text-center">Faltas</th>
+                    <th class="text-center">Justificadas</th>
+                    <th class="text-center">% asistencia</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fila in filas %}
+                <tr>
+                    <td>{{ fila.estudiante_id }}</td>
+                    <td>
+                        <div class="font-semibold">{{ fila.codigo_materia }}</div>
+                        <div class="text-xs text-quiet-gray">{{ fila.materia }}</div>
+                    </td>
+                    <td class="text-center">{{ fila.numero_seccion }}</td>
+                    <td class="text-center">
+                        {% if fila.sesiones %}
+                        {{ fila.sesiones }}
+                        {% else %}
+                        <span class="badge badge-secondary">Sin registro</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">{{ fila.presentes }}</td>
+                    <td class="text-center">
+                        <span class="badge {% if fila.ausentes >= umbral_riesgo %}badge-danger{% elif fila.ausentes > 0 %}badge-warning{% else %}badge-secondary{% endif %}">
+                            {{ fila.ausentes }}
+                        </span>
+                    </td>
+                    <td class="text-center">{{ fila.justificados }}</td>
+                    <td class="text-center">
+                        {% if fila.sesiones %}
+                        {{ "%.0f"|format(fila.presentes / fila.sesiones * 100) }}%
+                        {% else %}
+                        <span class="text-quiet-gray">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="text-quiet-gray text-center py-3">
+                        {% if solo_riesgo %}
+                        Ningún estudiante alcanza {{ umbral_riesgo }} faltas en este periodo.
+                        {% else %}
+                        No hay inscripciones registradas para este periodo.
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<p class="text-xs text-quiet-gray mt-3">
+    Se excluyen las inscripciones en estado RETIRADO. El porcentaje se calcula sobre las
+    sesiones efectivamente registradas por el docente, no sobre el total de clases del ciclo.
+</p>
+{% endblock %}
