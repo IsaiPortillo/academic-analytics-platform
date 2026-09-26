@@ -1,7 +1,7 @@
 """Módulo de reportes operacionales — SCRUM-10.
 
 Subtareas: SCRUM-24 (notas finales por sección) · SCRUM-25 (asistencia acumulada)
-· SCRUM-26 (exportación CSV, pendiente).
+· SCRUM-26 (exportación CSV).
 
 A diferencia del resumen de faltas que vive dentro de asistencia.py —que es por
 sección y lo usa el docente sobre su propio roster— este reporte es la vista del
@@ -16,10 +16,13 @@ que ya tiene índices dedicados de la Fase 1.4 (idx_asistencias_inscripcion_esta
 e idx_secciones_periodo).
 """
 
+import csv
+from datetime import date
 from decimal import Decimal
-from typing import Optional
+from typing import Iterable, Optional, Sequence
 
 from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy import case, desc, func, select
 from sqlalchemy.orm import Session
 
@@ -56,6 +59,11 @@ UMBRAL_NOTA_APROBACION = Decimal("6.00")
 # casos menos relevantes, no una porción arbitraria.
 LIMITE_FILAS = 500
 
+# Excel en Windows asume la codificación local si el archivo no lleva BOM, y los
+# nombres de materia tienen acentos ("Álgebra Vectorial", "Matemática"). Sin esto
+# el coordinador abre el CSV y ve "Ãlgebra".
+BOM_UTF8 = "﻿"
+
 
 def _periodos(db: Session):
     return db.scalars(
@@ -63,6 +71,38 @@ def _periodos(db: Session):
             PeriodoAcademico.anio.desc(), PeriodoAcademico.ciclo_romano.desc()
         )
     ).all()
+
+
+class _LineaCSV:
+    """Destino de csv.writer que devuelve la línea en vez de escribirla.
+
+    csv.writer espera un objeto con write(); al devolver el texto podemos ir
+    entregando el archivo línea por línea en lugar de armarlo completo en memoria.
+    """
+
+    def write(self, valor: str) -> str:
+        return valor
+
+
+def _generar_csv(cabeceras: Sequence[str], filas: Iterable[Sequence]):
+    escritor = csv.writer(_LineaCSV())
+    yield BOM_UTF8 + escritor.writerow(cabeceras)
+    for fila in filas:
+        yield escritor.writerow(fila)
+
+
+def _respuesta_csv(nombre: str, periodo, cabeceras: Sequence[str], filas: Iterable[Sequence]):
+    codigo = periodo.codigo_periodo if periodo else "sin-periodo"
+    archivo = f"{nombre}_{codigo}_{date.today().isoformat()}.csv"
+    return StreamingResponse(
+        _generar_csv(cabeceras, filas),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{archivo}"'},
+    )
+
+
+def _periodo_por_id(db: Session, periodo_id: Optional[int]):
+    return db.get(PeriodoAcademico, periodo_id) if periodo_id else None
 
 
 def _materias_del_periodo(db: Session, periodo_id: int):
@@ -338,4 +378,120 @@ def reporte_notas_finales(
             "limite_filas": LIMITE_FILAS,
             "truncado": len(filas) == LIMITE_FILAS,
         },
+    )
+
+
+# ---------------------------------------------------------------------------
+# SCRUM-26 — Exportación a CSV
+#
+# Ambas descargas reutilizan las mismas funciones de consulta que alimentan la
+# pantalla, con limite=None: el CSV entrega el periodo completo (la pantalla se
+# corta en LIMITE_FILAS por legibilidad) y respeta los filtros activos, de modo
+# que el archivo nunca puede discrepar de lo que el coordinador está viendo.
+#
+# Las filas se obtienen antes de empezar a transmitir, a propósito: así el envío
+# del cuerpo no depende de que la sesión de base de datos siga abierta. Son
+# tuplas pequeñas y acotadas a un periodo, mientras que la parte que sí crece
+# —el texto del CSV— se genera línea por línea.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/asistencia/csv")
+def exportar_asistencia_csv(
+    periodo_id: Optional[int] = Query(None),
+    materia_id: Optional[int] = Query(None),
+    solo_riesgo: bool = Query(False),
+    usuario: UsuarioSesion = Depends(requiere_rol("rol_coordinador")),
+    db: Session = Depends(get_db),
+):
+    periodos = _periodos(db)
+    if periodo_id is None and periodos:
+        periodo_id = periodos[0].periodo_id
+
+    filas = (
+        consultar_asistencia_acumulada(db, periodo_id, materia_id, solo_riesgo, limite=None)
+        if periodo_id
+        else []
+    )
+
+    def _porcentaje(presentes: int, sesiones: int) -> str:
+        return f"{presentes / sesiones * 100:.0f}" if sesiones else ""
+
+    return _respuesta_csv(
+        "asistencia_acumulada",
+        _periodo_por_id(db, periodo_id),
+        [
+            "estudiante_id",
+            "codigo_materia",
+            "materia",
+            "seccion",
+            "estado_inscripcion",
+            "sesiones",
+            "presentes",
+            "ausentes",
+            "justificados",
+            "porcentaje_asistencia",
+        ],
+        [
+            (
+                f.estudiante_id,
+                f.codigo_materia,
+                f.materia,
+                f.numero_seccion,
+                f.estado_inscripcion,
+                f.sesiones,
+                f.presentes,
+                f.ausentes,
+                f.justificados,
+                _porcentaje(f.presentes, f.sesiones),
+            )
+            for f in filas
+        ],
+    )
+
+
+@router.get("/notas-finales/csv")
+def exportar_notas_finales_csv(
+    periodo_id: Optional[int] = Query(None),
+    materia_id: Optional[int] = Query(None),
+    solo_reprobados: bool = Query(False),
+    usuario: UsuarioSesion = Depends(requiere_rol("rol_coordinador")),
+    db: Session = Depends(get_db),
+):
+    periodos = _periodos(db)
+    if periodo_id is None and periodos:
+        periodo_id = periodos[0].periodo_id
+
+    filas = (
+        consultar_notas_finales(db, periodo_id, materia_id, solo_reprobados, limite=None)
+        if periodo_id
+        else []
+    )
+
+    return _respuesta_csv(
+        "notas_finales",
+        _periodo_por_id(db, periodo_id),
+        [
+            "estudiante_id",
+            "codigo_materia",
+            "materia",
+            "seccion",
+            "estado_inscripcion",
+            "ponderacion_evaluada",
+            "ponderacion_calificada",
+            "nota_final",
+        ],
+        [
+            (
+                f.estudiante_id,
+                f.codigo_materia,
+                f.materia,
+                f.numero_seccion,
+                f.estado_inscripcion,
+                f.ponderacion_evaluada,
+                f.ponderacion_calificada,
+                f.nota_final,
+            )
+            for f in filas
+        ],
     )

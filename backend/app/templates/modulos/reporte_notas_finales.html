@@ -4,7 +4,15 @@
 {% block contenido %}
 <div class="flex items-center justify-between mb-4">
     <h1 class="text-2xl font-medium">Notas finales por sección</h1>
-    <a class="btn-outline-neutral" href="/reportes">Volver a reportes</a>
+    <div class="flex items-center gap-2">
+        {# Arrastra los filtros activos: el CSV entrega el periodo completo, sin el
+           corte de filas de la pantalla, pero acotado a lo que se está viendo. #}
+        <a class="btn-outline-neutral"
+           href="/reportes/notas-finales/csv?periodo_id={{ periodo_id }}{% if materia_id %}&amp;materia_id={{ materia_id }}{% endif %}{% if solo_reprobados %}&amp;solo_reprobados=true{% endif %}">
+            Exportar CSV
+        </a>
+        <a class="btn-outline-neutral" href="/reportes">Volver a reportes</a>
+    </div>
 </div>
 
 <div class="card mb-3">
