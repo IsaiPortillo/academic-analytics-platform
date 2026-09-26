@@ -59,6 +59,9 @@ academic-analytics-platform/
 │   │   └── static/src/         # input.css (tokens Tailwind) -> se compila a static/app.css
 │   └── scripts/                # Utilidades de administración (alta de usuarios)
 ├── etl/                       # Pipelines de extracción, transformación y carga — Fase 3
+│   ├── config.py               # Credenciales del ETL (rol_etl, solo lectura)
+│   ├── conexiones.py           # Conexión híbrida PostgreSQL + Neo4j (punto único)
+│   └── verificar_conexiones.py # Comprobación de conectividad y de solo-lectura
 └── dashboard/                  # Interfaz interactiva de analítica en Streamlit — Fase 4
 ```
 
@@ -88,7 +91,7 @@ academic-analytics-platform/
   - [ ] Reportes operacionales (SCRUM-10) — notas finales y asistencia acumulada.
 
 ### Fase 3: Ingeniería de Datos (ETL y Data Warehouse)
-- [ ] **3.1:** Conexión y extracción híbrida (SQLAlchemy para PostgreSQL y driver oficial Neo4j).
+- [x] **3.1:** Conexión y extracción híbrida (SQLAlchemy para PostgreSQL y driver oficial Neo4j).
 - [ ] **3.2:** Pipeline de extracción, anonimización (SHA-256), limpieza de datos y cálculo de métricas de grafo.
 - [ ] **3.3:** Diseño del modelo dimensional estrella (`dw_academico`) y carga incremental/controlada a hechos y dimensiones.
 
@@ -140,8 +143,9 @@ docker compose up -d
 
 En el **primer arranque sobre un volumen vacío**, PostgreSQL ejecuta automáticamente los
 scripts de `database/oltp/` en orden alfabético (`01_init...` → `05_usuarios_auth` →
-`06_bootstrap_rol_app`): crea el esquema operacional, la tabla de usuarios de la aplicación y
-el rol de servicio. No hay que ejecutar ningún `.sql` a mano.
+`06_bootstrap_rol_app` → `07_bootstrap_rol_etl`): crea el esquema operacional, la tabla de
+usuarios de la aplicación, el rol de servicio de la app y el rol de solo lectura del ETL.
+No hay que ejecutar ningún `.sql` a mano.
 
 > ⚠️ Esos scripts **solo corren la primera vez**. Si ya tenías el contenedor creado desde
 > antes (por ejemplo, de un clone anterior) y cambias algo en `.env`, el cambio **no** se
@@ -153,7 +157,8 @@ el rol de servicio. No hay que ejecutar ningún `.sql` a mano.
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r backend/requirements.txt -r scripts/generator/requirements.txt
+pip install -r backend/requirements.txt -r scripts/generator/requirements.txt \
+            -r etl/requirements.txt
 ```
 
 ### 4. Poblar con datos sintéticos (Fase 1.2)
@@ -201,6 +206,24 @@ uvicorn app.main:app --reload
 
 Disponible en `http://localhost:8000` (documentación de la API en `/api/docs`).
 
+### 8. Verificar las conexiones del ETL (Fase 3)
+
+```bash
+python -m etl.verificar_conexiones
+```
+
+Desde la raíz del repositorio (el `-m` importa `etl` como paquete). Comprueba tres cosas y
+devuelve código de salida distinto de cero si alguna falla:
+
+1. Que se puede **leer** el esquema operacional con `rol_etl`.
+2. Que se puede **leer** el grafo curricular en Neo4j.
+3. Que el ETL **no puede escribir** en el esquema operacional — intenta un `UPDATE` a
+   propósito y lo correcto es que PostgreSQL lo rechace.
+
+La tercera es la que importa: el ETL es de solo lectura por los `GRANT` del motor, no por
+disciplina de quien escriba el pipeline. Requiere que los pasos 4 (datos y grafo) y 2 (rol
+`rol_etl`) se hayan completado.
+
 ---
 
 ## 🆘 Solución de problemas
@@ -233,6 +256,24 @@ Tu copia local de `06_bootstrap_rol_app.sh` tiene saltos de línea CRLF — el `
 del repo fuerza LF para `*.sh`, así que un clone limpio no debería tener este problema, pero
 si tu checkout es antiguo o algún editor reescribió el archivo, corrígelo con
 `git checkout -- database/oltp/06_bootstrap_rol_app.sh` (o `dos2unix`) y vuelve a intentar.
+
+**`password authentication failed for user "rol_etl"` al correr el ETL**
+Mismo caso que con `rol_app`: `07_bootstrap_rol_etl.sh` es un script de primer arranque y no
+se reejecuta sobre un volumen existente. Córrelo contra el contenedor ya levantado:
+```bash
+docker exec -i -e PGPASSWORD="$POSTGRES_PASSWORD" -e POSTGRES_USER -e POSTGRES_DB \
+    -e ETL_DB_USER -e ETL_DB_PASSWORD \
+    academico_postgres bash -s < database/oltp/07_bootstrap_rol_etl.sh
+```
+
+**El contenedor `academico_neo4j` no arranca, o el ETL falla con `Neo.ClientError.Security.Unauthorized`**
+Algo más en la máquina ya está ocupando los puertos 7474/7687 — otra instancia de Neo4j
+(Docker o Neo4j Desktop). Docker no puede publicar un puerto tomado, así que el contenedor
+del proyecto nunca se crea y el driver acaba hablándole a la instancia ajena, que tiene otra
+contraseña. Comprueba con `docker ps` y `ss -ltn | grep -E '7474|7687'`; libera el puerto
+(`docker stop <contenedor>`, sin `-v` para no perder sus datos) y vuelve a correr
+`docker compose up -d neo4j_db`. Un Neo4j recién creado arranca **vacío**: hay que volver a
+ejecutar `python database/nosql/03_cargar_grafo_neo4j.py` (paso 4).
 
 **`No hay docentes en la base: omito el usuario docente` al crear los usuarios demo**
 Ejecutaste el paso 5 antes que el paso 4. Corre primero el generador de datos sintéticos y
