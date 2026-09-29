@@ -22,6 +22,9 @@ from sqlalchemy.exc import DBAPIError
 
 from .conexiones import modelos_oltp, sesion_grafo, sesion_oltp
 
+# SQLSTATE insufficient_privilege: lo que devuelve PostgreSQL al negar un GRANT.
+PERMISO_DENEGADO = "42501"
+
 
 def verificar_lectura_oltp() -> int:
     modelos = modelos_oltp()
@@ -57,9 +60,12 @@ def verificar_solo_lectura() -> int:
             )
             sesion.flush()
         except DBAPIError as exc:
-            diag = getattr(exc.orig, "diag", None)
-            mensaje = diag.message_primary if diag is not None else str(exc.orig)
-            print(f"  [OK] Escritura rechazada por PostgreSQL: {mensaje}")
+            # Solo cuenta como éxito el rechazo por permisos. Cualquier otro
+            # error (p. ej. la base apagada) no demuestra nada sobre los GRANT.
+            if getattr(exc.orig, "pgcode", None) != PERMISO_DENEGADO:
+                raise
+            print(f"  [OK] Escritura rechazada por PostgreSQL: "
+                  f"{exc.orig.diag.message_primary}")
             return 0
 
     print("  [FALLO] El ETL pudo escribir en academico_oltp. "

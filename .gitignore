@@ -13,6 +13,7 @@ ENV/
 *.log
 *.sqlite3
 data_dumps/
+etl/staging/
 *.csv
 *.xlsx
 

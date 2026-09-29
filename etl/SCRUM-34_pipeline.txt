@@ -1,0 +1,308 @@
+===============================================================================
+ SCRUM-34 — FASE 3.2: PIPELINE DE EXTRACCIÓN, ANONIMIZACIÓN Y MÉTRICAS DE GRAFO
+===============================================================================
+
+Como ingeniero de datos, quiero un pipeline que extraiga, limpie y enriquezca
+los datos académicos, para dejarlos listos para cargarse al modelo dimensional.
+
+
+-------------------------------------------------------------------------------
+ 1. QUÉ SE CONSTRUYÓ
+-------------------------------------------------------------------------------
+
+    extracción OLTP (PostgreSQL) ─┐
+                                  ├─> limpieza y ─> verificación de ─> etl/staging/
+    métricas de grafo (Neo4j) ────┘   enriquecimiento  anonimización    (CSV + calidad.json)
+
+Archivos nuevos o modificados:
+
+  backend/app/calculos.py      NUEVO. Nota final ponderada, umbral de aprobación
+                               y conteo de asistencia. Compartido por el reporte
+                               de SCRUM-10 y por el ETL.
+  backend/app/routers/reportes.py
+                               Ahora importa el cálculo desde calculos.py en vez
+                               de tenerlo dentro. El SQL generado es idéntico al
+                               de antes (verificado comparando el SQL compilado).
+  etl/conexiones.py            Agrega calculos_oltp(), igual que modelos_oltp().
+  etl/extraccion.py            NUEVO. Extracción de las 7 entidades.
+  etl/grafo.py                 NUEVO. Métricas de grafo en Cypher + criterio de
+                               cuello de botella.
+  etl/transformacion.py        NUEVO. Reglas de limpieza y enriquecimiento.
+  etl/anonimizacion.py         NUEVO. Verificación de que nada identificable
+                               sale hacia el DW.
+  etl/pipeline.py              NUEVO. Orquestador y línea de comandos.
+  etl/verificar_pipeline.py    NUEVO. Verificación en vivo: nota = SCRUM-10 y
+                               bloqueo de una fuga simulada.
+  etl/tests/test_pipeline.py   NUEVO. 18 pruebas de las reglas (sin base de datos).
+  etl/requirements.txt         Agrega pandas.
+  .gitignore                   Ignora etl/staging/.
+  README.md                    Paso 9 de puesta en marcha y estructura del repo.
+
+
+-------------------------------------------------------------------------------
+ 2. CRITERIO POR CRITERIO
+-------------------------------------------------------------------------------
+
+2.1 EXTRACCIÓN (etl/extraccion.py)
+----------------------------------
+Se extraen estudiantes, inscripciones, calificaciones, asistencias, secciones,
+materias y periodos.
+
+  - Columnas explícitas, nunca SELECT *. Si mañana alguien agrega una columna
+    "nombre" a estudiantes, el ETL no la arrastra al DW sin que nadie lo note.
+  - Calificaciones y asistencias se extraen YA AGREGADAS por inscripción, con
+    el GROUP BY en PostgreSQL. El grano del modelo dimensional es la
+    inscripción (un estudiante cursando una sección); traer ~130k notas y
+    ~120k sesiones a Python para agregarlas aquí sería mover datos sin motivo.
+    Es el mismo criterio que ya usa el reporte de SCRUM-10.
+  - Toda la extracción ocurre en UNA transacción REPEATABLE READ: todas las
+    tablas se leen desde el mismo instante. Con el aislamiento por defecto, si
+    un docente registra una nota a mitad de la extracción, inscripciones y
+    notas no cuadrarían. No bloquea al OLTP.
+  - Se ejecuta con rol_etl (solo SELECT, SCRUM-33).
+
+2.2 ANONIMIZACIÓN (etl/anonimizacion.py)
+----------------------------------------
+El carnet ya llega hasheado con SHA-256 desde el generador. El ETL no
+anonimiza de nuevo: VERIFICA que la anonimización se cumple, con tres barreras.
+
+  1) Lista blanca de columnas por cada conjunto de salida. Solo pueden salir
+     las columnas enumeradas en COLUMNAS_PERMITIDAS; cualquier otra detiene el
+     pipeline. Se eligió lista blanca y no lista negra ("nombre", "email"...)
+     porque una lista negra solo atrapa lo que alguien pensó de antemano.
+     Agregar una columna al DW obliga a editar ese archivo, y ese cambio es el
+     que se revisa.
+  2) Validación del contenido:
+       - carnet_hash debe tener forma de SHA-256 (64 caracteres hex) y ser único.
+       - Ninguna columna de texto puede contener algo con forma de carnet sin
+         hashear (p. ej. US2300042), correo electrónico o DUI.
+     Esto atrapa el caso en que la columna es legítima pero el dato no, por
+     ejemplo un carnet en claro guardado dentro de carnet_hash.
+  3) Aislamiento de credenciales: se comprueba EN VIVO que rol_etl no puede
+     leer academico_oltp.usuarios (nombres completos y hashes de contraseña).
+     Lo garantiza PostgreSQL, no el código.
+
+Si cualquiera de las tres falla, el pipeline se detiene ANTES de escribir un
+solo archivo.
+
+Nota: estudiante_id y docente_id sí salen. Son llaves sustitutas internas
+(enteros SERIAL): no identifican a nadie fuera del OLTP, y el DW las necesita
+para unir los hechos con sus dimensiones. No se extraen codigo_docente ni aula.
+
+2.3 LIMPIEZA (etl/transformacion.py)
+------------------------------------
+Principio: ante un dato que no permite calcular un resultado académico, el ETL
+deja el resultado NULO y lo CLASIFICA; nunca lo imputa. Un 0 inventado para un
+retiro arrastraría hacia abajo cualquier promedio del dashboard y se
+confundiría con un reprobado real.
+
+Cada inscripción recibe un "resultado" (la primera regla que se cumple gana):
+
+  RESULTADO          CUÁNDO                                      ¿NOTA?
+  -----------------  ------------------------------------------  -------------
+  RETIRADO           estado_inscripcion = RETIRADO               NULA
+  EN_CURSO           INSCRITO y el periodo no ha terminado       NULA
+  SIN_EVALUACIONES   la sección no tiene evaluaciones creadas    NULA
+  SIN_CIERRE         INSCRITO en un periodo ya terminado         NULA
+                     (nadie cerró la nota)
+  SIN_CALIFICAR      FINALIZADO pero sin ninguna nota registrada NULA
+  APROBADO           nota_final >= 6.00                          sí
+  REPROBADO          nota_final <  6.00                          sí
+
+a) Inscripciones RETIRADO
+   No se borran: se conservan con resultado RETIRADO y nota nula. El retiro
+   es justamente una señal de deserción que la Fase 4.2 necesita contar
+   (tasa_retiro por materia, materias_retiradas por estudiante-periodo).
+
+b) Evaluaciones sin nota registrada
+   - Si le faltan ALGUNAS notas: la faltante cuenta como 0, igual que en el
+     reporte de SCRUM-10 (el estudiante no se presentó). La fila queda marcada
+     con nota_completa = False y evaluaciones_sin_nota = N, para que el
+     análisis pueda excluirlas si quiere.
+   - Si no tiene NINGUNA nota: resultado SIN_CALIFICAR y nota nula (no hay
+     evidencia de desempeño; un 0 sería inventado).
+
+c) Estudiantes sin actividad en el periodo (conjunto estudiante_periodo)
+   - Solo existe fila para los periodos en que el estudiante se inscribió a
+     algo. NO se fabrican filas para cada combinación estudiante × periodo.
+   - "Actividad" = al menos una inscripción no retirada con alguna nota o
+     alguna sesión de asistencia (o EN_CURSO).
+   - Si se inscribió pero no tuvo actividad (retiró todo, o no hay ni notas ni
+     asistencia): la fila se conserva con con_actividad = False y
+     promedio_periodo nulo. Es el patrón de abandono que la alerta de
+     deserción (4.2) debe detectar, y un promedio de 0 lo confundiría con un
+     estudiante que reprobó todo.
+   - En la dimensión "estudiantes" se conservan TODOS, incluso los que nunca
+     tuvieron actividad (sin_actividad = True), con periodos_inscritos,
+     periodos_con_actividad y ultimo_periodo_activo.
+
+d) Asistencia no registrada
+   Sin sesiones registradas no es lo mismo que 0 % de asistencia: los conteos
+   quedan en 0 y porcentaje_asistencia queda nulo.
+
+e) Integridad
+   Si una inscripción apunta a una sección o periodo que no existe en lo
+   extraído, el pipeline se detiene (ErrorIntegridad) sin escribir nada.
+
+2.4 NOTA FINAL PONDERADA (sin duplicar lógica)
+----------------------------------------------
+    nota_final = ROUND( SUM(nota * evaluaciones.porcentaje / 100), 2 )
+    por inscripción, con LEFT JOIN a evaluaciones y calificaciones.
+
+Esta expresión vivía dentro de backend/app/routers/reportes.py. Se movió a
+backend/app/calculos.py y AMBOS (reporte y ETL) la importan. También se
+comparten el umbral de aprobación (6.00) y el estado RETIRADO. Así el
+dashboard y el reporte del coordinador no pueden discrepar en la nota de nadie.
+
+Comprobado: sobre las 32,966 inscripciones con nota, la nota del ETL y la del
+reporte de SCRUM-10 coinciden en el 100 % (0 diferencias).
+
+2.5 MÉTRICAS DE GRAFO (etl/grafo.py)
+------------------------------------
+Semántica: (A)-[:REQUIERE_APROBADA]->(B) = "para cursar A hay que aprobar B".
+Los dependientes de B son las materias que la tienen como prerrequisito: si
+se reprueba B, quedan bloqueadas.
+
+Por asignatura, calculado en Cypher:
+  dependientes_directos       materias con B como prerrequisito inmediato
+  dependientes_indirectos     materias bloqueadas en cascada, sin las directas
+  dependientes_totales        directos + indirectos
+  prerrequisitos_directos     cuántas materias exige B
+  longitud_cascada            cadena más larga que se retrasa si se reprueba B
+  profundidad_prerrequisitos  cadena más larga de materias a aprobar antes de B
+
+Criterio de cuello de botella:
+  indice_bloqueo = dependientes_totales / (materias del pensum - 1)
+  es_cuello_botella = indice_bloqueo >= 0.25
+  (bloquea al menos a un cuarto del resto del pensum; es una proporción para
+  que siga valiendo si la malla crece más allá de 16 materias)
+
+Cruce relacional-grafo (en la dimensión "materias"):
+  tasa_reprobacion, tasa_retiro, nota_promedio   (desde el OLTP)
+  indice_impacto = tasa_reprobacion × dependientes_totales
+    = cuántas materias quedan bloqueadas, en promedio, por cada estudiante
+      que cursa la asignatura. Una materia con muchos dependientes que casi
+      nadie reprueba no es un cuello de botella en la práctica.
+
+¿Por qué en Neo4j y no en PostgreSQL? Recorrer caminos de longitud variable
+es lo que un motor de grafos resuelve de forma nativa (una línea de Cypher:
+-[:REQUIERE_APROBADA*1..]-). En SQL exigiría un WITH RECURSIVE por materia.
+Este es el argumento técnico de por qué la malla vive en un grafo.
+
+Resultado con los datos actuales:
+  materia  directos  indirectos  reprobación  impacto
+  PRG115       2         8          23.8 %      2.38   <- cuello de botella
+  PRG215       2         5          24.5 %      1.71   <- cuello de botella
+  BAD115       2         1          25.4 %      0.76
+  MAT115       1         2          24.2 %      0.73
+
+Observación para la defensa: la tasa de reprobación es casi uniforme (~24 %)
+porque el generador sintético no modela dificultad por materia. Por eso, hoy
+el indice_impacto lo decide la estructura del grafo. Con datos reales, una
+materia de pocos dependientes pero alta reprobación podría subir en el ranking.
+
+
+-------------------------------------------------------------------------------
+ 3. QUÉ PRODUCE (etl/staging/)
+-------------------------------------------------------------------------------
+
+  hechos_inscripcion.csv   36,704 filas. Una por inscripción: resultado,
+                           nota_final, aprobado, nota_completa, ponderaciones,
+                           asistencia. Futura tabla de hechos.
+  estudiante_periodo.csv   Resumen por estudiante y periodo: materias
+                           inscritas, retiradas, aprobadas y reprobadas; UV;
+                           promedio ponderado por UV; con_actividad.
+  estudiantes.csv          Dimensión: carnet_hash + atributos + actividad.
+  materias.csv             Dimensión: métricas de grafo + rendimiento.
+  periodos.csv, secciones.csv  Dimensiones.
+  calidad.json             Conteo de cada regla de limpieza aplicada.
+
+SCRUM-35 (carga al modelo dimensional) puede leer estos CSV, o llamar
+directamente a etl.pipeline.ejecutar_pipeline(), que devuelve los DataFrames
+en memoria.
+
+
+-------------------------------------------------------------------------------
+ 4. CÓMO PROBARLO
+-------------------------------------------------------------------------------
+
+Requisitos: contenedores arriba (docker compose up -d), datos generados
+(Fase 1.2), grafo cargado (Fase 1.3) y .env con ETL_DB_PASSWORD.
+Todos los comandos se ejecutan desde la RAÍZ del repositorio.
+
+PASO 0 — Instalar dependencias (se agregó pandas)
+    pip install -r etl/requirements.txt
+
+PASO 1 — Verificar las conexiones (SCRUM-33, debe seguir pasando)
+    python -m etl.verificar_conexiones
+
+PASO 2 — Pruebas unitarias de las reglas (no necesitan base de datos)
+    python -m unittest discover -s etl/tests -v
+
+    Esperado: "Ran 18 tests ... OK". Cubren: la clasificación de cada caso de
+    limpieza, que un RETIRADO no reciba nota 0, que la nota faltante cuente
+    como 0 y quede marcada, que no se fabriquen filas estudiante-periodo, el
+    umbral de cuello de botella, el cruce relacional-grafo, y que la
+    anonimización rechace una columna no autorizada, un carnet en claro y un
+    correo.
+
+PASO 3 — Ejecutar el pipeline completo
+    python -m etl.pipeline
+    python -m etl.pipeline --fecha-corte 2025-12-31     (corrida reproducible)
+
+    Esperado (con los datos generados actuales), en ~1.5 s:
+      APROBADO 24,946 · REPROBADO 8,020 · RETIRADO 1,842 · SIN_CIERRE 1,896
+      Cuellos de botella: PRG115 y PRG215
+      "Ningún dato identificable en la salida."
+    Revisar etl/staging/calidad.json.
+
+    Si en Git Bash los acentos salen mal, anteponer: PYTHONIOENCODING=utf-8
+
+PASO 4 — Verificación en vivo contra los datos reales
+    python -m etl.verificar_pipeline
+
+    Comprueba dos cosas y sale con código distinto de 0 si alguna falla:
+      [OK] Nota final idéntica a la del reporte de SCRUM-10 en 32,966 inscripciones
+      [OK] Un carnet en claro en la salida detiene el pipeline
+    La primera cruza, periodo por periodo, cada nota del ETL con la que
+    devuelve la función del reporte del coordinador. La segunda mete a
+    propósito un carnet sin hashear ("US2300042") en la salida y exige que la
+    verificación de anonimización lo rechace. Es la demostración para el
+    jurado de que la anonimización no es una promesa, sino un control.
+
+PASO 5 — Comprobación manual del reporte (opcional)
+    Abrir http://localhost:8000/reportes/notas-finales como coordinador,
+    elegir un periodo y un estudiante, y buscar la misma inscripción en
+    etl/staging/hechos_inscripcion.csv (mismo estudiante_id, materia y
+    periodo): la nota_final es la misma.
+
+PASO 6 — Comprobar las métricas de grafo a mano en Neo4j Browser
+    http://localhost:7474 y ejecutar:
+
+      MATCH (b:Materia {codigo:'PRG115'})<-[:REQUIERE_APROBADA*1..]-(d)
+      RETURN count(DISTINCT d)
+
+    Esperado: 10 (= 2 directos + 8 indirectos, igual que materias.csv).
+
+PASO 7 — El reporte de SCRUM-10 sigue funcionando
+    Levantar el backend (uvicorn) y abrir /reportes/notas-finales y
+    /reportes/notas-finales/csv. Deben verse igual que antes: solo se movió
+    el cálculo de lugar; el SQL generado es idéntico.
+
+
+-------------------------------------------------------------------------------
+ 5. LIMITACIONES CONOCIDAS / FUERA DE ALCANCE
+-------------------------------------------------------------------------------
+
+  - La carga al modelo dimensional (dw_academico) es SCRUM-35 (Fase 3.3).
+  - Asistencia: el generador solo creó asistencia para 12,000 inscripciones,
+    por eso hay 22,862 inscripciones no retiradas sin asistencia registrada.
+    No es un error del ETL: quedan con porcentaje_asistencia nulo y aparecen
+    en calidad.json.
+  - Las 1,896 inscripciones INSCRITO de periodos ya terminados (SIN_CIERRE)
+    las produce el generador (5 % de estado INSCRITO en todos los ciclos).
+    Con datos reales serían notas que ningún docente cerró.
+  - El ETL importa backend/app para reutilizar modelos y cálculos; por eso
+    necesita también las variables APP_DB_PASSWORD y APP_SECRET_KEY en .env
+    (ya estaban ahí). Extraer los modelos a un paquete compartido queda como
+    mejora futura, como ya se anotó en SCRUM-33.

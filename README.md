@@ -61,7 +61,15 @@ academic-analytics-platform/
 ├── etl/                       # Pipelines de extracción, transformación y carga — Fase 3
 │   ├── config.py               # Credenciales del ETL (rol_etl, solo lectura)
 │   ├── conexiones.py           # Conexión híbrida PostgreSQL + Neo4j (punto único)
-│   └── verificar_conexiones.py # Comprobación de conectividad y de solo-lectura
+│   ├── verificar_conexiones.py # Comprobación de conectividad y de solo-lectura
+│   ├── extraccion.py           # Extracción de entidades OLTP (columnas explícitas)
+│   ├── grafo.py                # Métricas de grafo y cuellos de botella (Cypher)
+│   ├── transformacion.py       # Reglas de limpieza y enriquecimiento
+│   ├── anonimizacion.py        # Verificación de que nada identificable sale al DW
+│   ├── pipeline.py             # Orquestador: python -m etl.pipeline
+│   ├── verificar_pipeline.py   # Nota = SCRUM-10 y bloqueo de fugas, en vivo
+│   ├── tests/                  # Pruebas de las reglas (unittest, sin base de datos)
+│   └── staging/                # Salida del pipeline (no versionada)
 └── dashboard/                  # Interfaz interactiva de analítica en Streamlit — Fase 4
 ```
 
@@ -92,7 +100,7 @@ academic-analytics-platform/
 
 ### Fase 3: Ingeniería de Datos (ETL y Data Warehouse)
 - [x] **3.1:** Conexión y extracción híbrida (SQLAlchemy para PostgreSQL y driver oficial Neo4j).
-- [ ] **3.2:** Pipeline de extracción, anonimización (SHA-256), limpieza de datos y cálculo de métricas de grafo.
+- [x] **3.2:** Pipeline de extracción, anonimización (SHA-256), limpieza de datos y cálculo de métricas de grafo.
 - [ ] **3.3:** Diseño del modelo dimensional estrella (`dw_academico`) y carga incremental/controlada a hechos y dimensiones.
 
 ### Fase 4: Dashboard Analítico e Inteligencia de Negocios (Streamlit)
@@ -223,6 +231,22 @@ devuelve código de salida distinto de cero si alguna falla:
 La tercera es la que importa: el ETL es de solo lectura por los `GRANT` del motor, no por
 disciplina de quien escriba el pipeline. Requiere que los pasos 4 (datos y grafo) y 2 (rol
 `rol_etl`) se hayan completado.
+
+### 9. Ejecutar el pipeline de extracción y limpieza (Fase 3.2)
+
+```bash
+python -m etl.pipeline                            # escribe en etl/staging/
+python -m etl.pipeline --fecha-corte 2025-12-31   # corrida reproducible
+python -m unittest discover -s etl/tests -v       # reglas de limpieza (sin base de datos)
+python -m etl.verificar_pipeline                  # nota = SCRUM-10 y bloqueo de fugas, en vivo
+```
+
+Extrae estudiantes, inscripciones, calificaciones, asistencias, secciones, materias y periodos,
+calcula la nota final ponderada con **la misma expresión SQL que el reporte de SCRUM-10**
+(`backend/app/calculos.py`), aplica las reglas de limpieza, cruza con las métricas de grafo de
+Neo4j (dependientes directos e indirectos por asignatura) y verifica que ningún dato
+identificable salga hacia el DW. Si la verificación falla, no escribe ningún archivo. El
+detalle de cada regla y cómo probarlas está en [`etl/SCRUM-34_pipeline.txt`](etl/SCRUM-34_pipeline.txt).
 
 ---
 

@@ -26,18 +26,33 @@ engine = create_engine(settings.database_url, pool_pre_ping=True, future=True)
 SesionOLTP = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
+def _backend_en_path() -> None:
+    ruta_backend = str(RAIZ_PROYECTO / "backend")
+    if ruta_backend not in sys.path:
+        sys.path.insert(0, ruta_backend)
+
+
 def modelos_oltp():
     """Devuelve el módulo de modelos SQLAlchemy del backend.
 
     Import perezoso y con ajuste de sys.path: así el ETL reutiliza el mapeo del
     esquema sin que importar este módulo obligue a tener el backend disponible.
     """
-    ruta_backend = str(RAIZ_PROYECTO / "backend")
-    if ruta_backend not in sys.path:
-        sys.path.insert(0, ruta_backend)
+    _backend_en_path()
     from app import models  # noqa: PLC0415  (import diferido a propósito)
 
     return models
+
+
+def calculos_oltp():
+    """Devuelve backend/app/calculos.py: la nota final ponderada y los umbrales
+    académicos que también usa el reporte de SCRUM-10. Mismo mecanismo que
+    `modelos_oltp`, por la misma razón: una regla de negocio, una sola copia.
+    """
+    _backend_en_path()
+    from app import calculos  # noqa: PLC0415
+
+    return calculos
 
 
 @contextmanager

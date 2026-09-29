@@ -18,21 +18,25 @@ e idx_secciones_periodo).
 
 import csv
 from datetime import date
-from decimal import Decimal
 from typing import Iterable, Optional, Sequence
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
-from sqlalchemy import case, desc, func, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
+from ..calculos import (
+    ESTADO_RETIRADO,
+    UMBRAL_NOTA_APROBACION,
+    conteo_asistencia,
+    expresiones_nota_final,
+    unir_evaluaciones_y_calificaciones,
+)
 from ..database import get_db
 from ..dependencies import UsuarioSesion, requiere_rol
 from ..models import (
     Asistencia,
-    Calificacion,
     Estudiante,
-    Evaluacion,
     Inscripcion,
     Materia,
     PeriodoAcademico,
@@ -42,18 +46,11 @@ from ..templating import templates
 
 router = APIRouter(prefix="/reportes", tags=["reportes"])
 
-ESTADO_RETIRADO = "RETIRADO"
-
 # Umbral de faltas a partir del cual se marca al estudiante en riesgo. Coincide
 # con el HAVING del benchmark de la Fase 1.4 y con el badge rojo que ya usa el
 # resumen por sección de asistencia.html, para que el equipo no vea dos criterios
 # distintos de "muchas faltas" en la misma aplicación.
 UMBRAL_FALTAS_RIESGO = 3
-
-# Nota mínima para aprobar un curso (escala 0-10), la misma que usa el
-# generador de datos sintéticos (scripts/generator/02_generador_datos_sinteticos.py)
-# como media de aprobación.
-UMBRAL_NOTA_APROBACION = Decimal("6.00")
 
 # El reporte se ordena por faltas descendentes, así que el corte deja fuera los
 # casos menos relevantes, no una porción arbitraria.
@@ -115,10 +112,6 @@ def _materias_del_periodo(db: Session, periodo_id: int):
     ).all()
 
 
-def _conteo_por_estado(estado: str):
-    return func.count(case((Asistencia.estado_asistencia == estado, 1)))
-
-
 def consulta_asistencia_acumulada(
     periodo_id: int,
     materia_id: Optional[int] = None,
@@ -130,9 +123,9 @@ def consulta_asistencia_acumulada(
     Construir la consulta aparte de ejecutarla permite inspeccionar el SQL
     generado sin necesidad de una conexión abierta.
     """
-    presentes = _conteo_por_estado("PRESENTE")
-    ausentes = _conteo_por_estado("AUSENTE")
-    justificados = _conteo_por_estado("JUSTIFICADO")
+    presentes = conteo_asistencia("PRESENTE")
+    ausentes = conteo_asistencia("AUSENTE")
+    justificados = conteo_asistencia("JUSTIFICADO")
 
     consulta = (
         select(
@@ -209,23 +202,12 @@ def consulta_notas_finales(
 ):
     """Arma el SELECT de nota final ponderada por inscripción (estudiante + sección).
 
-    Misma idea que "Sentencia SQL de Prueba 1" de
-    scripts/benchmark/04_explain_analyze_benchmarks.sql (SUM(nota * porcentaje/100)
-    agrupado por inscripción), pero con LEFT JOIN a evaluaciones/calificaciones
-    en vez de INNER JOIN: una sección sin evaluaciones creadas, o un estudiante
-    con evaluaciones aún sin calificar, también debe aparecer en el reporte del
-    coordinador — con INNER JOIN esas inscripciones desaparecerían en silencio.
+    El cálculo en sí vive en app/calculos.py, compartido con el ETL (SCRUM-34):
+    el reporte y el Data Warehouse no pueden discrepar en la nota de nadie.
     """
-    ponderacion_evaluada = func.coalesce(func.sum(Evaluacion.porcentaje), 0)
-    ponderacion_calificada = func.coalesce(
-        func.sum(case((Calificacion.nota.isnot(None), Evaluacion.porcentaje), else_=0)),
-        0,
-    )
-    nota_final = func.round(
-        func.coalesce(func.sum(Calificacion.nota * Evaluacion.porcentaje / 100), 0), 2
-    )
+    ponderacion_evaluada, ponderacion_calificada, nota_final = expresiones_nota_final()
 
-    consulta = (
+    consulta = unir_evaluaciones_y_calificaciones(
         select(
             Estudiante.estudiante_id,
             Materia.codigo_materia,
@@ -240,13 +222,9 @@ def consulta_notas_finales(
         .join(Seccion, Inscripcion.seccion_id == Seccion.seccion_id)
         .join(Materia, Seccion.materia_id == Materia.materia_id)
         .join(Estudiante, Inscripcion.estudiante_id == Estudiante.estudiante_id)
-        .outerjoin(Evaluacion, Evaluacion.seccion_id == Seccion.seccion_id)
-        .outerjoin(
-            Calificacion,
-            (Calificacion.evaluacion_id == Evaluacion.evaluacion_id)
-            & (Calificacion.inscripcion_id == Inscripcion.inscripcion_id),
-        )
-        .where(
+    )
+    consulta = (
+        consulta.where(
             Seccion.periodo_id == periodo_id,
             # Mismo criterio que asistencia: un retiro ya no es un resultado
             # académico que reportar.
