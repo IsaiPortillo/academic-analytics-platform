@@ -4,6 +4,18 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block titulo %}Sistema Minerva{% endblock %} · UES-FMO</title>
+    <meta name="description" content="{% block meta_descripcion %}Sistema Minerva — plataforma académica y analítica de rendimiento estudiantil de la Universidad de El Salvador, Facultad Multidisciplinaria Oriental.{% endblock %}">
+    {# Sistema interno con datos institucionales reales: no se busca posicionamiento
+       en buscadores, solo una presentación correcta (título, ícono, vista previa
+       de enlace) al compartirlo o tenerlo abierto en una pestaña. #}
+    <meta name="robots" content="noindex, nofollow">
+    <meta property="og:title" content="{% block og_titulo %}Sistema Minerva{% endblock %}">
+    <meta property="og:description" content="{{ self.meta_descripcion() }}">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="es_SV">
+    <meta name="theme-color" content="#8b0105">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', path='/favicon.svg') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', path='/favicon.svg') }}">
     <script>
         // Aplica el tema guardado ANTES de pintar, para evitar el parpadeo
         // (flash) del tema equivocado. Si no hay preferencia guardada, no se
