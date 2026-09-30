@@ -77,6 +77,10 @@ academic-analytics-platform/
 
 ## 📚 Documentación adicional
 
+- **[Recorrido del sistema](docs/recorrido_del_sistema.md)** — cómo probar el proyecto
+  completo de punta a punta, con la salida real de cada comando, lo que hoy no funciona y
+  un guion de defensa de 10 minutos. Es el mejor punto de partida para entender el
+  proyecto o para incorporarse a él.
 - **[`PRODUCT.md`](PRODUCT.md)** — quiénes son los usuarios, qué resuelve el producto, y qué principios no deben romperse al agregar una funcionalidad (p. ej. "la autorización nunca se mueve a Python").
 - **[`DESIGN.md`](DESIGN.md)** — el sistema de diseño de la interfaz: paleta, tipografía, y el catálogo de componentes Tailwind (`.btn-save`, `.badge-danger`, `.card`, …) usados en todas las plantillas.
 
