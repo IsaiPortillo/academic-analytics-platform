@@ -151,9 +151,10 @@ docker compose up -d
 
 En el **primer arranque sobre un volumen vacío**, PostgreSQL ejecuta automáticamente los
 scripts de `database/oltp/` en orden alfabético (`01_init...` → `05_usuarios_auth` →
-`06_bootstrap_rol_app` → `07_bootstrap_rol_etl`): crea el esquema operacional, la tabla de
-usuarios de la aplicación, el rol de servicio de la app y el rol de solo lectura del ETL.
-No hay que ejecutar ningún `.sql` a mano.
+`06_bootstrap_rol_app` → `07_bootstrap_rol_etl` → `08_costos_institucionales`): crea el
+esquema operacional, la tabla de usuarios de la aplicación, el rol de servicio de la app,
+el rol de solo lectura del ETL y el catálogo de costos institucionales. No hay que
+ejecutar ningún `.sql` a mano.
 
 > ⚠️ Esos scripts **solo corren la primera vez**. Si ya tenías el contenedor creado desde
 > antes (por ejemplo, de un clone anterior) y cambias algo en `.env`, el cambio **no** se
@@ -280,6 +281,17 @@ Tu copia local de `06_bootstrap_rol_app.sh` tiene saltos de línea CRLF — el `
 del repo fuerza LF para `*.sh`, así que un clone limpio no debería tener este problema, pero
 si tu checkout es antiguo o algún editor reescribió el archivo, corrígelo con
 `git checkout -- database/oltp/06_bootstrap_rol_app.sh` (o `dos2unix`) y vuelve a intentar.
+
+**`relation "academico_oltp.costos_uv" does not exist`**
+Tu contenedor se creó antes de que existiera `08_costos_institucionales.sql`, y los scripts de
+primer arranque no se reejecutan sobre un volumen existente. Aplícalo a mano sin perder datos
+(el script es idempotente, se puede correr más de una vez):
+```bash
+set -a && . ./.env && set +a
+docker exec -i -e PGPASSWORD="$POSTGRES_PASSWORD" academico_postgres \
+    psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 \
+    < database/oltp/08_costos_institucionales.sql
+```
 
 **`password authentication failed for user "rol_etl"` al correr el ETL**
 Mismo caso que con `rol_app`: `07_bootstrap_rol_etl.sh` es un script de primer arranque y no

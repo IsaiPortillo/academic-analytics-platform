@@ -243,6 +243,31 @@ class Usuario(Base):
     docente: Mapped[Optional["Docente"]] = relationship()
 
 
+class CostoUV(Base):
+    """Costo institucional por unidad valorativa en cada período.
+
+    Base de la medida monetaria del Data Warehouse (Fase 3). El costo de una
+    materia es `unidades_valorativas * costo_por_uv` del período; la vista
+    `v_costo_materia_periodo` del DDL ya resuelve esa multiplicación.
+    """
+
+    __tablename__ = "costos_uv"
+    __table_args__ = ESQUEMA
+
+    costo_uv_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    periodo_id: Mapped[int] = mapped_column(
+        ForeignKey("academico_oltp.periodos_academicos.periodo_id"), unique=True
+    )
+    costo_por_uv: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    moneda: Mapped[str] = mapped_column(String(3), server_default=text("'USD'"))
+    fuente: Mapped[str] = mapped_column(String(200))
+    registrado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=AHORA
+    )
+
+    periodo: Mapped["PeriodoAcademico"] = relationship()
+
+
 class LogCambioNota(Base):
     __tablename__ = "log_cambios_notas"
     __table_args__ = {"schema": "auditoria"}
