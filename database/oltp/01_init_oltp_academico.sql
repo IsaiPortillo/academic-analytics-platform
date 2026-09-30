@@ -216,16 +216,38 @@ CREATE TABLE auditoria.log_cambios_notas (
     fecha_modificacion TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- SECURITY DEFINER a proposito: la funcion escribe en una bitacora que los
+-- roles auditados NO pueden tocar. Si corriera con los permisos de quien
+-- dispara el trigger (el valor por omision), cualquier correccion de nota
+-- fallaria con "permission denied for schema auditoria". Y conceder escritura
+-- sobre la bitacora seria peor: permitiria falsificar el rastro.
+-- Ver database/oltp/09_fix_auditoria_security_definer.sql, que aplica esta
+-- misma correccion a las bases creadas antes de este cambio.
 CREATE OR REPLACE FUNCTION auditoria.fn_auditoria_cambio_nota()
 RETURNS TRIGGER AS $$
 BEGIN
-    IF (OLD.nota <> NEW.nota) THEN
-        INSERT INTO auditoria.log_cambios_notas (calificacion_id, nota_anterior, nota_nueva)
-        VALUES (OLD.calificacion_id, OLD.nota, NEW.nota);
+    IF (OLD.nota IS DISTINCT FROM NEW.nota) THEN
+        INSERT INTO auditoria.log_cambios_notas (
+            calificacion_id, nota_anterior, nota_nueva, usuario_db
+        )
+        VALUES (
+            OLD.calificacion_id,
+            OLD.nota,
+            NEW.nota,
+            -- El rol se registra explicitamente: dentro de SECURITY DEFINER,
+            -- CURRENT_USER es el dueno de la funcion, asi que el DEFAULT de la
+            -- columna escribiria 'postgres' en todas las filas.
+            COALESCE(NULLIF(current_setting('role', true), 'none'), session_user)
+        );
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql
+SECURITY DEFINER
+-- Obligatorio en toda funcion SECURITY DEFINER: sin un search_path fijo, quien
+-- llama podria anteponer un esquema propio y hacer que la funcion resuelva un
+-- nombre hacia un objeto suyo, ejecutandolo con los permisos del dueno.
+SET search_path = pg_catalog, auditoria;
 
 CREATE TRIGGER trg_auditoria_cambio_nota
 AFTER UPDATE ON academico_oltp.calificaciones
@@ -253,7 +275,10 @@ $$;
 
 -- Permisos de esquema
 GRANT USAGE ON SCHEMA academico_oltp TO rol_coordinador, rol_docente, rol_etl;
-GRANT USAGE ON SCHEMA auditoria TO rol_coordinador, rol_docente;
+-- Solo el coordinador entra al esquema de auditoria: es quien revisa el rastro.
+-- El docente es auditado, no auditor, y desde que el trigger es SECURITY DEFINER
+-- no necesita ningun permiso aqui para que sus cambios queden registrados.
+GRANT USAGE ON SCHEMA auditoria TO rol_coordinador;
 
 -- Rol Coordinador: Control total sobre el esquema operacional
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA academico_oltp TO rol_coordinador;
@@ -271,15 +296,14 @@ GRANT SELECT, INSERT, UPDATE ON academico_oltp.evaluaciones,
                                  academico_oltp.asistencias TO rol_docente;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA academico_oltp TO rol_docente;
 
--- trg_auditoria_cambio_nota (definido arriba) hace INSERT INTO
--- auditoria.log_cambios_notas en cada UPDATE de calificaciones, con los
--- privilegios de quien ejecuta el UPDATE (no es SECURITY DEFINER). Sin este
--- INSERT explícito, editar una nota falla con "permission denied for schema
--- auditoria" para AMBOS roles — coordinador solo tenía SELECT sobre auditoria,
--- pensado para poder revisarla, nunca para escribir en ella directamente; solo
--- el trigger inserta. rol_docente nunca tuvo ni USAGE sobre el esquema.
-GRANT INSERT ON auditoria.log_cambios_notas TO rol_coordinador, rol_docente;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA auditoria TO rol_coordinador, rol_docente;
+-- Aqui NO se concede escritura sobre auditoria.log_cambios_notas, y es a
+-- proposito. El trigger necesita insertar en la bitacora en cada UPDATE de
+-- calificaciones; una version anterior resolvio eso dando INSERT a los dos
+-- roles, lo que funcionaba pero dejaba que el auditado escribiera entradas a
+-- mano en su propio expediente. Ahora la funcion del trigger es SECURITY
+-- DEFINER (ver arriba), asi que escribe con los permisos de su dueno: el rastro
+-- se registra siempre y ningun rol de la aplicacion puede fabricarlo ni
+-- alterarlo.
 
 -- Rol ETL: Solo lectura para extracción sin alterar el estado operacional
 GRANT SELECT ON ALL TABLES IN SCHEMA academico_oltp TO rol_etl;
