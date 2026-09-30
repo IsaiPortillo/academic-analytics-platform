@@ -168,6 +168,7 @@ def inicio_calificaciones(
     secciones = _secciones_visibles(db, periodo_id, usuario) if periodo_id else []
 
     seccion = None
+    materia = None
     evaluaciones = []
     roster = []
     tabla = []
@@ -181,6 +182,7 @@ def inicio_calificaciones(
             # de una sección de otro periodo.
             seccion = None
         if seccion:
+            materia = db.get(Materia, seccion.materia_id)
             evaluaciones = _evaluaciones_de_seccion(db, seccion_id)
             roster = _roster(db, seccion_id)
             tabla = _tabla_notas(db, roster, evaluaciones)
@@ -205,6 +207,7 @@ def inicio_calificaciones(
             "secciones": secciones,
             "seccion_id": seccion_id,
             "seccion": seccion,
+            "materia": materia,
             "evaluaciones": evaluaciones,
             "ponderacion_usada": ponderacion_usada,
             "roster": roster,

@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% from "_macros.html" import badge %}
 {% block titulo %}Reporte de notas finales{% endblock %}
 
 {% block contenido %}
 <div class="flex items-center justify-between mb-4">
-    <h1 class="text-2xl font-medium">Notas finales por sección</h1>
+    <h1 class="page-title">Notas finales por sección</h1>
     <div class="flex items-center gap-2">
         {# Arrastra los filtros activos: el CSV entrega el periodo completo, sin el
            corte de filas de la pantalla, pero acotado a lo que se está viendo. #}
@@ -15,12 +16,43 @@
     </div>
 </div>
 
+{% set ns = namespace(aprobados=0, reprobados=0, incompletos=0, suma_notas=0) %}
+{% for f in filas %}
+    {% if not f.ponderacion_evaluada or f.ponderacion_calificada < f.ponderacion_evaluada %}
+        {% set ns.incompletos = ns.incompletos + 1 %}
+    {% elif f.nota_final >= umbral_aprobacion %}
+        {% set ns.aprobados = ns.aprobados + 1 %}
+    {% else %}
+        {% set ns.reprobados = ns.reprobados + 1 %}
+    {% endif %}
+    {% set ns.suma_notas = ns.suma_notas + f.nota_final %}
+{% endfor %}
+<div class="kpi-grid mb-3">
+    <div class="kpi-card kpi-card-wash">
+        <div class="kpi-label">Inscripciones en el reporte</div>
+        <div class="kpi-value">{{ filas|length }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Aprobados</div>
+        <div class="kpi-value kpi-value-good">{{ ns.aprobados }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Reprobados</div>
+        <div class="kpi-value{% if ns.reprobados > 0 %} kpi-value-alert{% endif %}">{{ ns.reprobados }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Nota final promedio</div>
+        <div class="kpi-value">{% if filas|length %}{{ "%.2f"|format(ns.suma_notas / filas|length) }}{% else %}—{% endif %}</div>
+    </div>
+</div>
+
 <div class="card mb-3">
     <div class="card-body">
         <form method="get" action="/reportes/notas-finales" class="flex items-end gap-2 flex-wrap">
             <div>
                 <label for="periodo_id" class="field-label">Periodo</label>
-                <select id="periodo_id" name="periodo_id" class="select" onchange="this.form.submit()">
+                <select id="periodo_id" name="periodo_id" class="select" onchange="this.form.submit()"
+                        data-skeleton-on-filter="#tabla-notas">
                     {% for p in periodos %}
                     <option value="{{ p.periodo_id }}" {% if p.periodo_id == periodo_id %}selected{% endif %}>
                         {{ p.codigo_periodo }}{% if p.activo %} (activo){% endif %}
@@ -30,7 +62,8 @@
             </div>
             <div>
                 <label for="materia_id" class="field-label">Materia</label>
-                <select id="materia_id" name="materia_id" class="select" onchange="this.form.submit()">
+                <select id="materia_id" name="materia_id" class="select" onchange="this.form.submit()"
+                        data-skeleton-on-filter="#tabla-notas">
                     <option value="">Todas</option>
                     {% for m in materias %}
                     <option value="{{ m.materia_id }}" {% if m.materia_id == materia_id %}selected{% endif %}>
@@ -43,7 +76,8 @@
                 <label class="field-label" for="solo_reprobados">Filtro</label>
                 <label class="flex items-center gap-2 text-sm h-[38px]">
                     <input type="checkbox" id="solo_reprobados" name="solo_reprobados" value="true"
-                           {% if solo_reprobados %}checked{% endif %} onchange="this.form.submit()">
+                           {% if solo_reprobados %}checked{% endif %} onchange="this.form.submit()"
+                           data-skeleton-on-filter="#tabla-notas">
                     Solo reprobados (&lt; {{ umbral_aprobacion }})
                 </label>
             </div>
@@ -67,7 +101,7 @@
         {% if solo_reprobados %}reprobadas (nota final &lt; {{ umbral_aprobacion }}){% endif %}
     </div>
     <div class="table-wrap">
-        <table class="table">
+        <table class="table" id="tabla-notas">
             <thead>
                 <tr>
                     <th>ID estudiante</th>
@@ -84,33 +118,33 @@
                     <td>{{ fila.estudiante_id }}</td>
                     <td>
                         <div class="font-semibold">{{ fila.codigo_materia }}</div>
-                        <div class="text-xs text-quiet-gray">{{ fila.materia }}</div>
+                        <div class="text-xs text-muted">{{ fila.materia }}</div>
                     </td>
                     <td class="text-center">{{ fila.numero_seccion }}</td>
                     <td class="text-center">
                         {% if fila.ponderacion_evaluada %}
                         {{ fila.ponderacion_calificada }}% / {{ fila.ponderacion_evaluada }}%
                         {% if fila.ponderacion_calificada < fila.ponderacion_evaluada %}
-                        <span class="badge badge-warning ml-1">Incompleto</span>
+                        <span class="ml-1">{{ badge('warning', 'Incompleto') }}</span>
                         {% endif %}
                         {% else %}
-                        <span class="badge badge-secondary">Sin evaluaciones</span>
+                        {{ badge('neutral', 'Sin evaluaciones') }}
                         {% endif %}
                     </td>
                     <td class="text-center font-semibold">{{ fila.nota_final }}</td>
                     <td class="text-center">
                         {% if not fila.ponderacion_evaluada or fila.ponderacion_calificada < fila.ponderacion_evaluada %}
-                        <span class="text-quiet-gray">—</span>
+                        <span class="text-muted">—</span>
                         {% elif fila.nota_final >= umbral_aprobacion %}
-                        <span class="badge badge-success">Aprobado</span>
+                        {{ badge('success', 'Aprobado') }}
                         {% else %}
-                        <span class="badge badge-danger">Reprobado</span>
+                        {{ badge('danger', 'Reprobado') }}
                         {% endif %}
                     </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="6" class="text-quiet-gray text-center py-3">
+                    <td colspan="6" class="text-muted text-center py-3">
                         {% if solo_reprobados %}
                         Ningún estudiante está reprobado en este periodo.
                         {% else %}
@@ -124,7 +158,7 @@
     </div>
 </div>
 
-<p class="text-xs text-quiet-gray mt-3">
+<p class="text-xs text-muted mt-3">
     Se excluyen las inscripciones en estado RETIRADO. "Resultado" solo se calcula cuando
     todas las evaluaciones de la sección tienen nota registrada; mientras falten notas se
     muestra la nota parcial acumulada.

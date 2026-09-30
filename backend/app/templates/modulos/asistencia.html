@@ -1,8 +1,9 @@
 {% extends "base.html" %}
+{% from "_macros.html" import badge %}
 {% block titulo %}Control de asistencia{% endblock %}
 
 {% block contenido %}
-<h1 class="text-2xl font-medium mb-4">Control de asistencia</h1>
+<h1 class="page-title mb-4">Control de asistencia</h1>
 
 {% if ok %}
 <div class="alert alert-success mb-3" role="alert">
@@ -49,17 +50,13 @@
                 </thead>
                 <tbody>
                     {% for s, materia, sesiones in secciones %}
-                    <tr class="{% if seccion and seccion.seccion_id == s.seccion_id %}bg-neutral-paper{% endif %}">
+                    <tr class="{% if seccion and seccion.seccion_id == s.seccion_id %}bg-subtle{% endif %}">
                         <td>
                             <div class="font-semibold">{{ materia.codigo_materia }}</div>
-                            <div class="text-xs text-quiet-gray">{{ materia.nombre }}</div>
+                            <div class="text-xs text-muted">{{ materia.nombre }}</div>
                         </td>
                         <td>{{ s.numero_seccion }}</td>
-                        <td>
-                            <span class="badge {% if sesiones > 0 %}badge-info{% else %}badge-secondary{% endif %}">
-                                {{ sesiones }}
-                            </span>
-                        </td>
+                        <td>{{ badge('neutral', sesiones) }}</td>
                         <td>
                             <a class="btn-view"
                                href="/asistencia?periodo_id={{ periodo_id }}&amp;seccion_id={{ s.seccion_id }}">
@@ -68,7 +65,7 @@
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="4" class="text-quiet-gray text-center py-3">No hay secciones asignadas en este periodo.</td></tr>
+                    <tr><td colspan="4" class="text-muted text-center py-3">No hay secciones asignadas en este periodo.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -78,7 +75,23 @@
     <div>
         {% if seccion %}
         <div class="card mb-3">
-            <div class="card-header">Registrar asistencia</div>
+            <div class="card-header">
+                <div class="flex items-center justify-between gap-3 flex-wrap">
+                    <span class="whitespace-nowrap">{{ materia.codigo_materia }} &middot; {{ fecha_sesion.strftime('%d/%m/%Y') }}</span>
+                    <div id="tally-bar" class="tally-bar">
+                        <span class="tally-chip tally-chip-presente">
+                            <span class="tally-chip-number js-tally-presente">0</span> Presente
+                        </span>
+                        <span class="tally-chip tally-chip-ausente">
+                            <span class="tally-chip-number js-tally-ausente">0</span> Ausente
+                        </span>
+                        <span class="tally-chip tally-chip-justificado">
+                            <span class="tally-chip-number js-tally-justificado">0</span> Justificado
+                        </span>
+                        <span class="tally-chip tally-chip-pendiente js-tally-pendiente hidden"></span>
+                    </div>
+                </div>
+            </div>
             <div class="card-body">
                 <form method="get" action="/asistencia" class="flex items-end gap-2 mb-3">
                     <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
@@ -90,13 +103,13 @@
                     </div>
                 </form>
 
-                <form method="post" action="/asistencia/registrar">
+                <form method="post" action="/asistencia/registrar" data-lock-on-submit="Guardando…">
                     <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
                     <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
                     <input type="hidden" name="fecha_sesion" value="{{ fecha_sesion.isoformat() }}">
                     <div class="table-wrap mb-2" style="max-height: 320px;">
                         <table class="table">
-                            <thead><tr><th>ID estudiante</th><th style="width:180px;">Estado</th></tr></thead>
+                            <thead><tr><th>ID estudiante</th><th style="width:220px;">Estado</th></tr></thead>
                             <tbody>
                                 {% for inscripcion, estudiante in roster %}
                                 <tr>
@@ -104,17 +117,20 @@
                                     <td>
                                         <input type="hidden" name="inscripcion_id" value="{{ inscripcion.inscripcion_id }}">
                                         {% set actual = estados_sesion.get(inscripcion.inscripcion_id, 'PRESENTE') %}
-                                        <select name="estado" class="select">
+                                        <input type="hidden" name="estado" value="{{ actual }}">
+                                        <div class="tap-toggle-group">
                                             {% for opcion in estados_validos %}
-                                            <option value="{{ opcion }}" {% if opcion == actual %}selected{% endif %}>
-                                                {{ opcion }}
-                                            </option>
+                                            <button type="button" class="tap-toggle"
+                                                    data-estado="{{ opcion }}"
+                                                    aria-pressed="{{ 'true' if opcion == actual else 'false' }}">
+                                                {{ opcion.capitalize() }}
+                                            </button>
                                             {% endfor %}
-                                        </select>
+                                        </div>
                                     </td>
                                 </tr>
                                 {% else %}
-                                <tr><td colspan="2" class="text-quiet-gray text-center py-3">Ningún estudiante matriculado todavía.</td></tr>
+                                <tr><td colspan="2" class="text-muted text-center py-3">Ningún estudiante matriculado todavía.</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -143,15 +159,19 @@
                             <td>{{ fila.estudiante.estudiante_id }}</td>
                             <td class="text-center">{{ fila.presentes }}</td>
                             <td class="text-center">
-                                <span class="badge {% if fila.ausentes >= 3 %}badge-danger{% elif fila.ausentes > 0 %}badge-warning{% else %}badge-secondary{% endif %}">
-                                    {{ fila.ausentes }}
-                                </span>
+                                {% if fila.ausentes >= 3 %}
+                                {{ badge('danger', fila.ausentes) }}
+                                {% elif fila.ausentes > 0 %}
+                                {{ badge('warning', fila.ausentes) }}
+                                {% else %}
+                                {{ badge('neutral', fila.ausentes) }}
+                                {% endif %}
                             </td>
                             <td class="text-center">{{ fila.justificados }}</td>
                             <td class="text-center">{{ fila.total_sesiones }}</td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="5" class="text-quiet-gray text-center py-3">Ningún estudiante matriculado todavía.</td></tr>
+                        <tr><td colspan="5" class="text-muted text-center py-3">Ningún estudiante matriculado todavía.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -159,7 +179,7 @@
         </div>
         {% else %}
         <div class="card">
-            <div class="card-body text-quiet-gray text-center py-12">
+            <div class="card-body text-muted text-center py-12">
                 Selecciona una sección de la lista para registrar y revisar su asistencia.
             </div>
         </div>

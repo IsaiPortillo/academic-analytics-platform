@@ -1,0 +1,30 @@
+{# Insignia de estado: ícono + texto, nunca solo color (accesibilidad).
+   estado: "success" | "warning" | "danger" | "neutral" #}
+{% macro badge(estado, texto) %}
+<span class="badge badge-{{ estado }}">
+    {% if estado == 'success' %}
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <circle cx="10" cy="10" r="7.25" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M7 10.25l2 2 4-4.5" />
+    </svg>
+    {% elif estado == 'warning' %}
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10 2.5l8.5 14.5H1.5L10 2.5z" />
+        <path stroke-linecap="round" d="M10 7.75v3.5" />
+        <circle cx="10" cy="14.15" r="0.9" fill="currentColor" stroke="none" />
+    </svg>
+    {% elif estado == 'danger' %}
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <circle cx="10" cy="10" r="7.25" />
+        <path stroke-linecap="round" d="M7.5 7.5l5 5M12.5 7.5l-5 5" />
+    </svg>
+    {% else %}
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <circle cx="10" cy="10" r="7.25" />
+        <path stroke-linecap="round" d="M10 9v4.25" />
+        <circle cx="10" cy="6.5" r="0.9" fill="currentColor" stroke="none" />
+    </svg>
+    {% endif %}
+    <span>{{ texto }}</span>
+</span>
+{% endmacro %}

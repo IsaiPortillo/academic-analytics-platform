@@ -3,9 +3,9 @@
 
 {% block contenido %}
 <div class="mb-6">
-    <h1 class="text-2xl font-medium mb-1">Hola, {{ usuario.nombre_completo }}</h1>
-    <p class="text-sm text-quiet-gray">
-        Sesión activa con el rol <code class="text-slate-authority">{{ usuario.rol_db }}</code> de PostgreSQL.
+    <h1 class="page-title mb-1">Hola, {{ usuario.nombre_completo }}</h1>
+    <p class="text-sm text-muted">
+        Sesión activa con el rol <code>{{ usuario.rol_db }}</code> de PostgreSQL.
         Las operaciones permitidas las determina el motor, no la interfaz.
     </p>
 </div>
@@ -13,46 +13,46 @@
 <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
     <div class="card">
         <div class="card-body">
-            <div class="text-xs uppercase text-quiet-gray">Estudiantes</div>
-            <div class="text-2xl font-semibold mt-1">{{ "{:,}".format(resumen.estudiantes) }}</div>
+            <div class="text-xs uppercase text-muted">Estudiantes</div>
+            <div class="stat-number text-2xl mt-1">{{ "{:,}".format(resumen.estudiantes) }}</div>
         </div>
     </div>
     <div class="card">
         <div class="card-body">
-            <div class="text-xs uppercase text-quiet-gray">Secciones ofertadas</div>
-            <div class="text-2xl font-semibold mt-1">{{ "{:,}".format(resumen.secciones) }}</div>
+            <div class="text-xs uppercase text-muted">Secciones ofertadas</div>
+            <div class="stat-number text-2xl mt-1">{{ "{:,}".format(resumen.secciones) }}</div>
         </div>
     </div>
     <div class="card">
         <div class="card-body">
-            <div class="text-xs uppercase text-quiet-gray">Inscripciones</div>
-            <div class="text-2xl font-semibold mt-1">{{ "{:,}".format(resumen.inscripciones) }}</div>
+            <div class="text-xs uppercase text-muted">Inscripciones</div>
+            <div class="stat-number text-2xl mt-1">{{ "{:,}".format(resumen.inscripciones) }}</div>
         </div>
     </div>
 </div>
 
 <div class="card">
     <div class="card-body">
-        <h2 class="text-xs uppercase font-medium text-quiet-gray mb-3">Módulos disponibles</h2>
-        <div class="divide-y divide-hairline">
+        <h2 class="text-xs uppercase font-medium text-muted mb-3">Módulos disponibles</h2>
+        <div class="divide-y divide-border">
             {% if usuario.es_coordinador %}
-            <a href="/matricula" class="-mx-4 block px-4 py-3 transition-colors hover:bg-neutral-paper">
+            <a href="/matricula" class="-mx-4 block px-4 py-3 transition-colors hover:bg-subtle">
                 <strong class="font-semibold">Matrícula</strong>
-                <span class="text-quiet-gray"> — inscribir y retirar estudiantes de secciones</span>
+                <span class="text-muted"> — inscribir y retirar estudiantes de secciones</span>
             </a>
             {% endif %}
-            <a href="/calificaciones" class="-mx-4 block px-4 py-3 transition-colors hover:bg-neutral-paper">
+            <a href="/calificaciones" class="-mx-4 block px-4 py-3 transition-colors hover:bg-subtle">
                 <strong class="font-semibold">Calificaciones</strong>
-                <span class="text-quiet-gray"> — registrar y editar notas por evaluación</span>
+                <span class="text-muted"> — registrar y editar notas por evaluación</span>
             </a>
-            <a href="/asistencia" class="-mx-4 block px-4 py-3 transition-colors hover:bg-neutral-paper">
+            <a href="/asistencia" class="-mx-4 block px-4 py-3 transition-colors hover:bg-subtle">
                 <strong class="font-semibold">Asistencia</strong>
-                <span class="text-quiet-gray"> — control de asistencia por sesión</span>
+                <span class="text-muted"> — control de asistencia por sesión</span>
             </a>
             {% if usuario.es_coordinador %}
-            <a href="/reportes" class="-mx-4 block px-4 py-3 transition-colors hover:bg-neutral-paper">
+            <a href="/reportes" class="-mx-4 block px-4 py-3 transition-colors hover:bg-subtle">
                 <strong class="font-semibold">Reportes</strong>
-                <span class="text-quiet-gray"> — notas finales y asistencia acumulada</span>
+                <span class="text-muted"> — notas finales y asistencia acumulada</span>
             </a>
             {% endif %}
         </div>
