@@ -256,17 +256,35 @@ Ser honesto con esto vale más que fingir que todo está perfecto, sobre todo si
 
 | Problema | Impacto | Estado |
 |---|---|---|
-| **Corregir una nota falla**: el trigger de auditoría intenta escribir en el esquema `auditoria`, al que ni `rol_docente` ni `rol_coordinador` tienen permiso. El `UPDATE` revienta con `permission denied`. | Alto: es la función central del docente, y «corrija una nota» es una petición obvia en la defensa | Sin arreglar |
 | Solo hay asistencias en los 3 primeros períodos de 8 | Los reportes del período actual salen vacíos y parecen rotos | Sin arreglar |
 | Ningún período está marcado como `activo` | La app tiene que deducir el período vigente | Sin arreglar |
 | El dashboard (Fase 4) no existe | Es el entregable del 23 de octubre | En curso |
 | El data warehouse (Fase 3.3) no existe | Bloquea al dashboard | En curso |
 
-Sobre el primero, que es el grave: la causa es que `auditoria.fn_auditoria_cambio_nota()` **no es
-`SECURITY DEFINER`**, así que el `INSERT` en la bitácora corre con los permisos del docente, que no
-los tiene. La solución correcta no es darle permiso de escritura sobre la bitácora — eso le
-permitiría falsificar el rastro de auditoría, que es justo lo que la bitácora existe para impedir —
-sino marcar la función como `SECURITY DEFINER` para que se ejecute con los del dueño del esquema.
+### Corregido: la auditoría de notas
+
+Si tu contenedor es anterior a octubre de 2026, corregir una nota fallaba con
+`permission denied for schema auditoria`. La causa era que el trigger de auditoría escribía en la
+bitácora con los permisos de quien hacía el `UPDATE`, y los roles de la aplicación no los tienen.
+
+Ya está resuelto con `SECURITY DEFINER` en
+[`09_fix_auditoria_security_definer.sql`](../database/oltp/09_fix_auditoria_security_definer.sql):
+la función se ejecuta con los permisos de su dueño, así que escribe el rastro aunque el rol auditado
+no pueda tocarlo. Aplícalo si tu base es anterior; es idempotente.
+
+Esto además dejó una demostración muy buena para la defensa: cambia una nota como `rol_docente`,
+revíértela como `rol_coordinador`, y consulta la bitácora.
+
+```
+ log_id | nota_anterior | nota_nueva |   usuario_db
+--------+---------------+------------+-----------------
+      1 |          7.64 |       9.10 | rol_docente
+      2 |          9.10 |       7.64 | rol_coordinador
+```
+
+Cada cambio queda atribuido a su rol, y ninguno de los dos puede insertar, modificar ni borrar
+entradas de esa bitácora: si `rol_docente` lo intenta, obtiene `permission denied for schema
+auditoria`. El rastro solo lo escribe el trigger.
 
 ---
 
