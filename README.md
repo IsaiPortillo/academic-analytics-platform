@@ -41,9 +41,9 @@ academic-analytics-platform/
 ├── DESIGN.md                  # Sistema de diseño de la interfaz (tokens, componentes)
 ├── docker-compose.yml         # PostgreSQL 17 + Neo4j, con init automático de database/oltp
 ├── .env.example                # Plantilla de variables de entorno (copiar a .env)
-├── docs/                      # Documentación académica, diagramas y memorias
-│   ├── diagramas/              # (pendiente — Fase 5)
-│   └── memoria/                 # (pendiente — Fase 5)
+├── docs/                      # Documentación académica (ver docs/README.md)
+│   ├── diagramas/              # Modelo operacional, arquitectura y esquema dimensional
+│   └── memoria/                 # Los 21 capítulos y el calendario de entregas
 ├── database/                  # Definición de persistencia y migraciones
 │   ├── oltp/                  # Scripts DDL, triggers y roles operacionales (se auto-ejecutan)
 │   ├── nosql/                 # Script de carga (Python) y consultas Cypher del grafo
@@ -104,9 +104,14 @@ academic-analytics-platform/
 - [ ] **3.3:** Diseño del modelo dimensional estrella (`dw_academico`) y carga incremental/controlada a hechos y dimensiones.
 
 ### Fase 4: Dashboard Analítico e Inteligencia de Negocios (Streamlit)
-- [ ] **4.1:** Vista ejecutiva con métricas y KPIs clave interactivos filtrados por ciclo y cátedra.
-- [ ] **4.2:** Matriz de correlaciones, análisis de rendimiento por cohorte y módulo de alerta temprana de deserción.
-- [ ] **4.3:** Visualización interactiva de la red curricular (PyVis / NetworkX) y reporte de asignaturas críticas/cuellos de botella.
+- [ ] **4.1:** Vista ejecutiva con los KPIs de costo y rendimiento, filtrados por período, carrera y departamento.
+- [ ] **4.2:** Matriz de correlaciones, análisis por cohorte e identificación de los estudiantes que presentan el patrón de riesgo observado.
+- [ ] **4.3:** Visualización interactiva de la red curricular (PyVis / NetworkX) y reporte de asignaturas críticas/cuellos de botella, cruzado con el costo.
+
+> **Alcance analítico:** el proyecto se limita a los niveles **descriptivo** («¿qué ocurrió?») y
+> **diagnóstico** («¿por qué ocurrió?»). Predictivo y prescriptivo quedan fuera. Por eso el punto
+> 4.2 identifica patrones de riesgo ya observados en datos históricos y no pronostica quién va a
+> desertar: son cosas distintas, y solo la primera es inteligencia de negocios.
 
 ### Fase 5: Memoria Académica y Preparación de la Defensa
 - [ ] **5.1:** Redacción del informe final estructurado bajo los 21 capítulos exigidos por los lineamientos de la UES (FMO).
@@ -386,3 +391,44 @@ exploración de datos sí es la herramienta adecuada.
 > Node.js) hacia `backend/app/static/app.css`. La decisión de FastAPI + Jinja2 sigue vigente
 > sin cambios; solo se reemplazó el framework de CSS. El sistema de diseño resultante está
 > documentado en [`DESIGN.md`](DESIGN.md).
+
+### Base NoSQL: Neo4j frente a MongoDB (Fase 1.3)
+
+El curso exige una base NoSQL y justificar cuál conviene. Se eligió **Neo4j**.
+
+La estructura que el proyecto necesita modelar fuera del relacional es una sola: la malla
+curricular, es decir, qué materia exige haber aprobado cuál. Eso es un grafo dirigido acíclico,
+y las preguntas que el proyecto le hace son **transitivas**, no de un solo salto:
+
+- ¿Cuántas materias quedan bloqueadas en cascada si un estudiante reprueba esta? (profundidad variable)
+- ¿Cuál es la cadena de prerrequisitos más larga hacia la materia final de la carrera?
+
+En Cypher esas dos preguntas son una línea cada una, y están en
+[`database/nosql/cypher_queries.cql`](database/nosql/cypher_queries.cql):
+
+```cypher
+MATCH (base:Materia)<-[:REQUIERE_APROBADA*1..5]-(bloqueadas:Materia)
+RETURN base.codigo, count(DISTINCT bloqueadas) AS MateriasBloqueadasEnCascada
+ORDER BY MateriasBloqueadasEnCascada DESC;
+```
+
+| Criterio | Neo4j | MongoDB |
+|---|---|---|
+| Modelado de la dependencia | Relación de primera clase | Arreglo de referencias dentro del documento |
+| Recorrido transitivo | Nativo (`*1..5`, `*`) | Posible con `$graphLookup` |
+| El **camino** como resultado | Sí: `p = (...)-[...*]->(...)`, `length(p)`, `nodes(p)` | No: devuelve los documentos alcanzados, aplanados y sin la ruta |
+| Ruta crítica hacia la graduación | Una consulta | Reconstruir la cadena en la aplicación |
+| Algoritmos de grafos (centralidad) | APOC, ya instalado en el contenedor | Fuera de alcance del motor |
+
+El punto que decide no es que MongoDB no pueda: `$graphLookup` hace recorridos recursivos. Es que
+devuelve el **conjunto** de documentos alcanzados y no el **camino** que los une, y el camino es
+justamente la respuesta que necesita el reporte de asignaturas críticas de la Fase 4.3. En MongoDB
+habría que reconstruirlo en código de aplicación; en Neo4j es el resultado de la consulta.
+
+> **La pregunta incómoda, por si la hace el jurado:** ¿y por qué no un `WITH RECURSIVE` en
+> PostgreSQL, que ya está en el proyecto? Se puede, y para el caso de bloqueo en cascada daría el
+> mismo resultado. La respuesta honesta tiene dos partes: el curso exige incorporar un motor NoSQL,
+> y dado ese requisito, la malla curricular es la única estructura del dominio que es genuinamente
+> no relacional, así que es donde un motor de grafos aporta algo real en vez de ser decorativo. Los
+> datos transaccionales se quedan en PostgreSQL precisamente porque ahí sí son tabulares.
+

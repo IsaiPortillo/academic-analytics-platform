@@ -8,7 +8,6 @@ RETURN base.codigo AS Asignatura,
 ORDER BY MateriasBloqueadasEnCascada DESC;
 
 //B. Ruta Crítica hacia la Graduación (Camino más largo de prerrequisitos)
-Cypher
 MATCH p = (meta:Materia {codigo: 'BIN115'})-[:REQUIERE_APROBADA*]->(raiz:Materia)
 WHERE NOT (raiz)-[:REQUIERE_APROBADA]->()
 RETURN [n in nodes(p) | n.codigo] AS CadenaDependencia, length(p) AS ProfundidadRuta
