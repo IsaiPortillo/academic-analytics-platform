@@ -1,196 +1,231 @@
 ---
-name: Plataforma de Gestión Académica y Analítica de Rendimiento Estudiantil
-description: Internal staff tool for academic records, grades, attendance, and enrollment — DB-enforced security, plain and procedural by design.
+name: Sistema Minerva
+description: Institutional BI/transactional platform for UES-FMO — a high-fidelity academic-analytics dashboard shell (sidebar + topbar), cold corporate surfaces, deep crimson brand, real shadow-based elevation, single-face type system.
 colors:
-  slate-authority: "#212529"
-  registrar-blue: "#0d6efd"
-  neutral-paper: "#f8f9fa"
-  ledger-green: "#198754"
-  filed-red: "#dc3545"
-  caution-amber: "#ffc107"
-  index-cyan: "#0dcaf0"
-  quiet-gray: "#6c757d"
-  hairline-border: "rgba(0, 0, 0, 0.08)"
-  input-border: "#ced4da"
-  alert-success-text: "#0f5132"
-  alert-danger-text: "#842029"
+  brand: "#8b0105"
+  brand-hover: "#6b0000"
+  brand-active: "#560000"
+  bg: "#f7f9fb"
+  surface: "#ffffff"
+  surface-sunken: "#eef2f6"
+  border: "#e2e8f0"
+  text: "#0f172a"
+  muted: "#64748b"
+  warning-text: "#b45309"
+  success-text: "#047857"
+  danger-text: "#dc2626"
+  neutral-text: "#475569"
 typography:
   title:
-    fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
-    fontSize: "1.75rem"
-    fontWeight: 500
-    lineHeight: 1.2
+    fontFamily: "'Plus Jakarta Sans', Inter, system-ui, sans-serif"
+    fontSize: "1.5rem"
+    fontWeight: 800
+    lineHeight: 1.25
+    letterSpacing: "-0.01em"
+  subtitle:
+    fontFamily: "'Plus Jakarta Sans', Inter, system-ui, sans-serif"
+    fontSize: "1.25rem"
+    fontWeight: 700
+    lineHeight: 1.3
     letterSpacing: normal
   body:
-    fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+    fontFamily: "'Plus Jakarta Sans', Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
     fontSize: "1rem"
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: normal
   label:
-    fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+    fontFamily: "'Plus Jakarta Sans', Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
     fontSize: "0.875rem"
-    fontWeight: 400
+    fontWeight: 500
     lineHeight: 1.4
     letterSpacing: normal
   caption:
-    fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+    fontFamily: "'Plus Jakarta Sans', Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
     fontSize: "0.75rem"
     fontWeight: 700
     lineHeight: 1
     letterSpacing: "0.02em"
+  telemetry:
+    fontFamily: "'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace"
+    fontSize: "0.6875rem"
+    fontWeight: 500
+    lineHeight: 1.6
+    letterSpacing: "0.01em"
 rounded:
-  sm: "4px"
-  md: "6px"
-spacing:
   sm: "8px"
-  md: "16px"
-  lg: "24px"
+  md: "12px"
+  lg: "16px"
 components:
   button-login:
-    backgroundColor: "{colors.slate-authority}"
+    backgroundColor: "{colors.brand}"
     textColor: "#ffffff"
-    rounded: "{rounded.md}"
-    padding: "8px 16px"
+    rounded: "{rounded.sm}"
+    padding: "10px 16px"
   button-save:
-    backgroundColor: "{colors.ledger-green}"
+    backgroundColor: "{colors.brand}"
     textColor: "#ffffff"
-    rounded: "{rounded.md}"
-    padding: "6px 12px"
+    rounded: "{rounded.sm}"
+    padding: "7px 14px"
   button-view:
-    backgroundColor: "transparent"
-    textColor: "{colors.registrar-blue}"
-    rounded: "{rounded.md}"
-    padding: "4px 8px"
-  button-destructive:
-    backgroundColor: "transparent"
-    textColor: "{colors.filed-red}"
-    rounded: "{rounded.md}"
-    padding: "4px 8px"
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.brand}"
+    rounded: "{rounded.sm}"
+    padding: "5px 10px"
   card:
-    backgroundColor: "#ffffff"
-    rounded: "{rounded.md}"
-    padding: "16px"
+    backgroundColor: "{colors.surface}"
+    rounded: "{rounded.lg}"
+    padding: "18px"
+  kpi-card:
+    backgroundColor: "{colors.surface}"
+    rounded: "{rounded.lg}"
+    padding: "16px 18px"
 ---
 
-# Design System: Plataforma de Gestión Académica y Analítica de Rendimiento Estudiantil
+# Design System: Sistema Minerva
 
 ## Overview
 
-**Creative North Star: "The Registrar's Desk"**
+**Creative North Star: "The Institutional BI Console"**
 
-This is the interface of a university records office, not a product marketing site. Every screen exists so a coordinador or docente can process a specific transaction — enroll a student, post a grade, mark a session — and trust that the database, not the UI, is the actual authority on whether that transaction is allowed. The visual system gets out of the way of that trust: a near-black navbar and login action stand in for an official stamp rather than a brand mark, and color never appears without a status to report.
+Sistema Minerva is the analytics-and-registrar console for UES-FMO — where a coordinador reads institutional risk signals (retention, curricular bottlenecks, dropout alerts) and a docente processes grades and attendance. It reads like an enterprise Business Intelligence product (Tableau/Looker register), not a warm administrative tool: cold neutral surfaces, crisp 1px borders, real elevation via shadow, and exactly one saturated color — a deep academic crimson — carrying identity through the shell, not through decoration.
 
-This plainness is currently a placeholder rather than a locked identity — no dedicated visual-design pass has happened yet — but until that pass happens, consistency with the patterns below matters more than novelty. Don't let one new screen drift toward decoration while the rest of the app stays procedural.
+This is a full rebrand (October 2026), approved by the user as a replacement of the prior "Arterial Nocturne" identity, not a refinement of it. The prior system's gradients, warm cream/blush palette, and dual-font pairing are retired; nothing from that world carries forward except the underlying CSS-custom-property architecture and the already-built dense-data components (dock, matrix, tap-toggle, KPI cards, skeleton), which are re-skinned onto the new tokens rather than rebuilt.
 
 **Key Characteristics:**
-- Dense, table-driven, procedural — optimized for a staff member processing many records quickly.
-- Status is communicated through color (badges), never through illustration or iconography.
-- Completely flat: no shadows, no gradients, anywhere.
-- Spanish-only copy; no decorative imagery, ever (no real photography or illustration exists or should be fabricated).
+- Persistent left sidebar + slim top bar (replaces the prior horizontal navbar) — the app shell of a multi-module institutional console, not a single-page marketing site.
+- One brand crimson (`#8b0105`) anchors identity (sidebar active state, primary buttons, brand mark); a visually distinct bright crimson (`#dc2626`) is reserved exclusively for critical/danger signals, so "this is the brand" and "this is an alarm" never share a hue reading.
+- Real elevation: cards cast an actual soft shadow (`--shadow-card`) — the prior system's flatness rule is retired by the same rebrand authority that retired its gradients.
+- A single type family (Plus Jakarta Sans, Inter fallback) carries the whole hierarchy through weight (800/700/600/500/400), not through a second face.
+- A monospace face (JetBrains Mono) is reserved for technical telemetry only — badges naming the active database role, SQL/Cypher illustrative banners — never for body copy.
+- Status is communicated through soft-tint badges (background + border + text + icon) — unchanged discipline from the prior system, just re-tinted.
+- Two screens (Dashboard & Grafo, Alertas & OLAP) are explicitly labeled illustrative previews — see Honesty Boundary below — because their backing engines (Neo4j graph analytics, the OLAP/BI layer) are Phases 3–4 of the project roadmap and do not exist yet.
+
+## Honesty Boundary (read before touching Dashboard/OLAP)
+
+Two sidebar items — **Dashboard & Grafo** (`/dashboard`) and **Alertas & OLAP Tesis** (`/analitica-olap`) — visualize capabilities this system does not yet have: a live Neo4j curriculum graph with centrality/shortest-path analytics, and an OLAP cube over a star schema. Per PRODUCT.md, both are unbuilt roadmap phases.
+
+**Named Rule: The Preview Boundary.** Every screen backed by a not-yet-built engine opens with `.preview-banner` stating plainly that its numbers are illustrative, not a query result. Nothing on those two pages may claim to be live: no fabricated "Query Time" on a real console (the modal's telemetry is sample text, explicitly commented as such in the template), no invented legal citations, no named fictional personas. The one exception the user explicitly asked to keep real: the two CSV export links on `/analitica-olap` point at the actual `/reportes/*/csv` endpoints — real data, real download — because building that page is not an excuse to downgrade an existing real feature to a mockup.
+
+The login page's quick-demo buttons use the real seeded `coordinador` / `docente` accounts already in the database — never invented jurado personas with fabricated credentials, per explicit user decision during this rebrand.
 
 ## Colors
 
-Built as a small, named Tailwind v4 theme (`@theme` in `backend/app/static/src/input.css`) rather than a generic palette — every color exists to mark status or structure, never to decorate.
-
 ### Primary
-- **Slate Authority** (`#212529`): the navbar background and the single highest-weight action on a page (`login`'s "Ingresar" button). Reserved for the one action per screen that matters most.
+- **Brand Crimson** (`#8b0105`): sidebar active-link fill, `.btn-login`/`.btn-save`, the brand mark, focus rings, text selection. Does not change between light and dark mode (dark mode brightens it slightly for contrast against a near-black surface — see Dark Mode — but it stays recognizably "the one red").
 
-### Secondary
-- **Registrar Blue** (`#0d6efd`): links and "view / navigate" actions (`Ver` buttons opening a sección's detail panel). Never used for the primary call-to-action — that's Slate Authority's role.
+### Neutral (theme-adaptive — light values shown; dark values in Dark Mode below)
+- **Background** (`#f7f9fb`) — page/app background, cold slate-50.
+- **Surface** (`#ffffff`) — card, sidebar, topbar background.
+- **Surface Sunken** (`#eef2f6`) — hover states, the sidebar's active-icon rest, telemetry-badge fill.
+- **Border** (`#e2e8f0`) — the system's only structural line color, 1px everywhere.
+- **Text** (`#0f172a`) — near-black slate, not pure black.
+- **Muted** (`#64748b`) — secondary text, labels, telemetry badge text.
 
-### Neutral
-- **Neutral Paper** (`#f8f9fa`): the page background.
-- **Quiet Gray** (`#6c757d`): secondary/muted text, eyebrow labels, helper copy.
-- **Hairline Border** (`rgba(0, 0, 0, 0.08)`): every card and table-row border in the system.
-- **Input Border** (`#ced4da`): the resting-state border on text inputs and selects (distinct from the structural hairline — slightly more visible, since it marks an editable control).
-
-### Status (badges, alerts)
-- **Ledger Green** (`#198754`): success — save/submit buttons, "at 100%" or "no faltas" badges, success alert banners.
-- **Filed Red** (`#dc3545`): danger — destructive actions (Retirar), over-capacity or high-faltas badges, error alert banners.
-- **Caution Amber** (`#ffc107`): warning — near-capacity, some-but-not-critical faltas.
-- **Index Cyan** (`#0dcaf0`): informational counts with no risk implication (e.g. "sesiones registradas").
-- **Alert Success Text** (`#0f5132`) / **Alert Danger Text** (`#842029`): the readable foreground colors used inside the tinted success/danger alert banners — never the raw status color at full strength as text-on-tint.
+### Status (soft-tint: background + border + text, always paired with an icon — never color alone)
+- **Success** (emerald) — bg `#e7f7f0` / border `#a7e8cb` / text `#047857`. Approved, verified, at/above target.
+- **Warning** (amber) — bg `#fef3e2` / border `#fbd9a5` / text `#b45309`. Approaching a limit, intermediate metric.
+- **Danger** (bright crimson) — bg `#fdecec` / border `#f7b9b9` / text `#dc2626`. Over a limit, high-risk, critical bottleneck. Deliberately a different hue value from `--color-brand` — see Named Rule below.
+- **Neutral** (slate) — bg `#eef2f7` / border `#dce3ec` / text `#475569`. Zero-state or a plain count with no risk implication.
 
 ### Named Rules
-**The Status-Only Color Rule.** Color beyond ink/blue/gray exists to answer "is this okay?" — success, warning, danger, info, secondary badges — and for nothing else. A screen with no status to report has no colored elements beyond the navbar and its one primary button.
+**The Status-Only Color Rule.** Success/warning/danger/neutral exist to answer "is this okay?" on a badge or alert, and for nothing else.
+**The Two-Reds Rule.** `--color-brand` (`#8b0105`, dark academic crimson) is identity; `--color-danger-text` (`#dc2626`, bright crimson) is alarm. They read as clearly different weights of red precisely so a coordinador never mistakes "this is the primary action" for "this is a critical alert" — a risk the brief's own reference palette anticipated by specifying two distinct crimsons.
+**The Real Elevation Rule.** Cards, KPI cards, and the mobile sidebar cast a real `box-shadow` (`--shadow-card` / `--shadow-raised`). This replaces the prior system's flatness rule entirely — a deliberate, brief-directed reversal, not drift.
 
 ## Typography
 
-**Body & Display Font:** system UI stack (`system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`), set once via the `--font-sans` theme token. No webfont is loaded anywhere in the app.
-
-**Character:** Plain and administrative. The type system makes no personality claim of its own; it defers entirely to the OS default so nothing about the typography competes with the data it's presenting.
+**Single face:** Plus Jakarta Sans (weights 400–800), Inter as system fallback. One family carries the whole hierarchy through weight and size, not through a second face — titles at 800, subtitles/card headers at 600–700, body/labels at 400–500.
+**Telemetry face:** JetBrains Mono, reserved for `.telemetry-badge` and `.sql-banner` — technical facts about the running system (active role, engine versions), never body copy, never decorative.
+Both load from Google Fonts (`base.html`, `display=swap`) and fully cover Spanish diacritics (á é í ó ú ñ ü).
 
 ### Hierarchy
-- **Title** (weight 500, 1.75rem, line-height 1.2): page headers ("Registro de calificaciones", "Control de asistencia").
-- **Subtitle** (weight 500, 1.25rem): one-off moments like the login screen's "Gestión Académica".
-- **Body** (weight 400, 1rem, line-height 1.5): table cells, form labels, paragraph copy — the vast majority of all on-screen text.
-- **Label** (weight 400, 0.875rem): card headers, field labels, button and nav-link text, secondary helper text.
-- **Caption** (weight 700, 0.75rem, 0.02em tracking): badge text only — the smallest, boldest, most compressed role in the system, reserved for status markers.
+- **Title** (weight 800, 1.5rem, -0.01em tracking): page headers (`.page-title`).
+- **Subtitle** (weight 700, 1.25rem): card/section headers, `.page-subtitle`.
+- **Body** (weight 400, 1rem): paragraph copy.
+- **Label** (weight 500, 0.875rem): field labels, table headers, button text.
+- **Caption** (weight 700, 0.75rem, 0.02em tracking, uppercase): badge text, sidebar section labels.
+- **Telemetry** (JetBrains Mono, 0.6875rem): `.telemetry-badge`, `.sql-banner`.
+- **Dense-data tier** (unchanged from the prior system's October 2026 addition, now on the new face): 0.6875rem (matrix inline errors), 0.8125rem (matrix cells, KPI labels, dense table headers), 0.9375rem (dock CTA, tally numbers), 1.75rem/weight 800 (KPI headline figures).
+
+### Named Rules
+**The One-Face Rule** (replaces the prior Two-Face Rule): exactly one display/body family, differentiated by weight and size, not by swapping fonts. JetBrains Mono is the sole, sanctioned exception, reserved for telemetry.
 
 ## Layout
 
-Everything lives inside a centered `max-w-6xl` column with `px-4 py-6` padding — the Tailwind equivalent of the old Bootstrap container, applied directly as utilities rather than a named class. The established module pattern (Matrícula, Calificaciones, Asistencia) is: a top filter card (periodo selector) full-width, then a two-column CSS grid below it — a narrower list/selector column on the left (`grid-cols-1 lg:grid-cols-[1fr_2fr]` for the record-heavy modules, `lg:grid-cols-2` for matrícula) and a wider detail/action column on the right. Forms inside dense contexts (table rows, filter bars) stay on one line with `flex items-end gap-2`. The navbar collapses to a hamburger below Tailwind's `md` breakpoint (768px), toggled by ~10 lines of vanilla JS in `app.js` — no framework, no build-time JS beyond the CSS compile step.
+App shell: a persistent left sidebar (`.sidebar`, fixed 15.5rem, two link groups — "Inteligencia institucional" for the preview pages, "Módulos operativos" for the four real transactional modules) plus a slim sticky top bar (`.topbar`) carrying the live `SET LOCAL ROLE` badge, theme toggle, user identity, and logout. Below 1024px the sidebar becomes an off-canvas panel (`.sidebar.is-open`, slide-in + backdrop) triggered by a hamburger button in the top bar; below 640px the top bar itself drops the role-telemetry badge and username text to avoid overflow, keeping only the essential controls.
 
 ## Elevation & Depth
 
-Fully flat. No `box-shadow` appears anywhere in the system, including the login card — depth is not part of this design's vocabulary at all right now.
+Real shadow-based elevation (see The Real Elevation Rule above): `--shadow-card` for resting cards/KPI cards, `--shadow-raised` for hover states on primary buttons and the open mobile sidebar. No lift-on-hover transform system (the prior gradient-button hover-lift is retired along with the gradients) — hover communicates through shadow deepening and background-color shift instead.
+
+### Motion
+
+- **Page entrance** (`fade-rise`, 0.35s, ease-out-expo): the `<main>` content area fades and rises 8px on every page load.
+- **Sidebar slide-in** (mobile only): `transform: translateX()`, 0.2s, plus a fading backdrop.
+- **Theme toggle**: sun/moon icons cross-fade and rotate instead of hard-swapping.
+- **Alert dismiss**: fades and scales down slightly before removal from the DOM.
+- **Skeleton shimmer**: a looping gradient sweep on filter-triggered loading rows.
+- All motion respects `prefers-reduced-motion: reduce`.
 
 ### Named Rules
-**The No-Lift Rule.** Nothing casts a shadow. Every surface — card, button, dropdown, alert — sits flush against the page. If a future visual pass introduces elevation, it replaces this rule deliberately; it is never added piecemeal to one screen.
+**The One Moment Rule.** A page gets exactly one entrance animation (`main`'s fade-rise). Motion elsewhere is reserved for genuine state changes (hover, toggle, dismiss, sidebar open/close), never decorative.
 
 ## Shapes
 
-Two radius steps throughout, defined as theme tokens: **6px** (`--radius-md`) on cards, buttons, and inputs; **4px** (`--radius-sm`) reserved for the smallest controls. Badges use the standard `md` radius — never a pill shape. No sharp (0px) corners, no exaggerated (>8px) rounding anywhere.
+`--radius-sm` (8px) for buttons, inputs, small controls; `--radius-md` (12px) for telemetry badges and mid-size elements; `--radius-lg` (16px) for cards and the modal panel. No pill shapes (progress-bar tracks/fills use `--radius-sm`, not 999px), no sharp corners.
+
+## Dark Mode
+
+Follows `prefers-color-scheme` until the user toggles it (sun/moon icon in the top bar); the choice persists to `localStorage` and an inline `<head>` script applies it before first paint. The brief itself specifies only a light institutional-BI surface — dark mode is a translation of the same token roles onto a near-black slate canvas (`#0b1220` background, `#141b2d` cards), not a separately designed world, kept because it was already a working accessibility preference rather than removed unasked.
+
+**What changes between themes:** background, surface, border, text, muted, all four status-token triplets, shadow opacity/depth. `--color-brand` brightens slightly (`#8b0105` → `#c73838`) for legibility against the dark surface, same rationale as the prior system's gradient-end brightening.
+
+### Named Rules
+**The Fixed Anchor Rule.** Any new color token must define both a light and a dark value, kept in sync between the two CSS blocks in `input.css`.
 
 ## Components
 
-The system is built as a small `@layer components` vocabulary in `backend/app/static/src/input.css`, compiled by the standalone Tailwind CLI into `backend/app/static/app.css`. Templates use these named classes (`.card`, `.btn-save`, `.badge-danger`, …) instead of ad-hoc utility strings, so every button/badge/card in the app traces back to one definition.
+Built as a `@layer components` vocabulary in `backend/app/static/src/input.css`, compiled by the standalone Tailwind CLI into `backend/app/static/app.css`.
+
+### Shell
+- **`.sidebar`** / **`.sidebar-link`** (`.is-active` fills brand crimson) / **`.sidebar-footer`** (engine-status telemetry chips).
+- **`.topbar`** / **`.telemetry-badge`** (mono, dot indicator, states a real architectural fact — the active `SET LOCAL ROLE`, never a live query timer).
 
 ### Buttons
-- **Shape:** 6px radius, role-specific padding (see frontmatter `components`).
-- **`.btn-login`** (Slate Authority): the one highest-weight action on a screen. Currently only the login "Ingresar" button qualifies.
-- **`.btn-save`** (Ledger Green): every write/submit action — "Guardar notas", "Guardar asistencia", "Matricular", "Agregar" (evaluación).
-- **`.btn-view`** (Registrar Blue outline, fills solid on hover): non-destructive navigation, chiefly the "Ver" buttons that open a sección's detail panel.
-- **`.btn-destructive`** (Filed Red outline, fills solid on hover): "Retirar" and any future delete/undo action — always outline at rest, never filled, and always behind a `confirm()` prompt.
-- **`.btn-outline-neutral`** (Quiet Gray outline): tertiary actions on a light background — "Volver al inicio", "Buscar".
-- **`.btn-nav-action`** (white-on-transparent, for the dark navbar): "Salir" — the one action that lives inside the navbar itself, so it needs a variant legible against Slate Authority rather than against white.
+- **`.btn-login`** / **`.btn-save`**: solid brand crimson, shadow-card, the two highest-emphasis write actions.
+- **`.btn-view`**: white surface, brand-crimson text and border on hover — secondary navigation.
+- **`.btn-destructive`**: danger-bordered outline, fills bright crimson on hover — always behind `confirm()`.
+- **`.btn-outline-neutral`** / **`.btn-nav-action`**: tertiary actions.
 
-### Badges
-- **Style:** `.badge` base (6px radius, solid fill, Caption typography) plus one modifier: `.badge-success` / `.badge-warning` / `.badge-danger` / `.badge-secondary` / `.badge-info`.
-- **Semantics:** success = at/above a good threshold (100% ponderación, 0 faltas); warning = approaching a limit; danger = over a limit or high-risk; secondary = zero/neutral; info = a plain count with no risk implication.
+### Badges (`_macros.html`'s `badge(estado, texto)`)
+Unchanged discipline: icon + text pair, flat soft-tint fill, never color alone.
 
-### Cards
-- **Corner Style:** 6px (`.card`).
-- **Background:** white on the Neutral Paper page background.
-- **Shadow Strategy:** none — see Elevation & Depth.
-- **Border:** `1px solid` Hairline Border — the system's one deliberate departure from a plain neutral gray.
-- **Internal Padding:** `.card-body` (1rem); dense contexts drop to the compact `.table` instead of shrinking card padding. `.card-pending` is a one-off modifier (amber-tinted border) for the still-unimplemented module placeholders.
+### Data-dense components (dock, matrix, tap-toggle, KPI, skeleton)
+Structurally unchanged from the prior system's October 2026 addition — see their own inline comments in `input.css` for the why. Only their token values changed (crimson instead of the old brand red, 8/12/16px radius instead of 4/6px, real shadows on `.kpi-card`). **The Advisory-Not-Validation Rule** still applies: the matrícula dock's same-turno note is a suggestion to verify, never a pass/fail claim, because the schema has no real schedule/prerequisite data.
 
-### Tables
-- **Style:** `.table` inside `.table-wrap` (the overflow-x container) — compact padding, hover row highlight, tabular-figure numerals on every `<td>` so IDs and notas align vertically. This is the system's primary content surface — more screen real estate goes to tables than to any other component.
-- **Empty state:** a centered, muted single row spanning all columns — never a separate empty-state illustration or panel.
-
-### Forms / Inputs
-- **Style:** `.input` / `.select` — Input Border at rest, Registrar Blue ring on focus.
-- **Submission feedback:** every write posts back to a `GET` with `ok=` / `error=` query parameters, rendered as a dismissible `.alert-success` / `.alert-danger` banner at the top of the page (closed by the same ~10-line `app.js`) — never a toast, never inline-only validation for a server-side rejection.
-
-### Navigation
-- **Style:** `.navbar` (Slate Authority background), `.navbar-brand` / `.navbar-suffix` for the wordmark, `.nav-link` for each route, role-gated (coordinador-only items hidden from docentes). Collapses to a hamburger below `md` (768px); the toggle is plain `classList.toggle("hidden")`, no animation library.
+### Graph & Modal (new)
+- **`.graph-node`** / **`.graph-edge`**: SVG-drawn curricular graph nodes/edges — `.is-blocked` (danger tint), `.is-approved` (success tint), `.is-bottleneck` (thicker danger stroke). Never approximated with `clip-path` or a raster image — the mesh is real SVG geometry.
+- **`.modal-backdrop`** / **`.modal-panel`**: centered overlay with backdrop blur, used for the student graph-detail view. Its Cypher/telemetry content is illustrative (see Honesty Boundary) and says so via inline comment in `dashboard.html`.
+- **`.preview-banner`**: the required marker for any screen backed by an unbuilt engine — see Honesty Boundary.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** keep the interface completely flat — no `box-shadow` anywhere, including on cards that might feel like they deserve one.
-- **Do** reserve color for status communication only (badges, alerts) — success/warning/danger/info/secondary, nothing decorative.
-- **Do** use the `.table` / `.table-wrap` classes for every data table, including `tabular-nums` alignment — never a bare `<table>`.
-- **Do** follow the established module layout (top filter card, then a narrower selector column beside a wider detail column) for any new record-management screen.
-- **Do** surface every write operation's result as a dismissible `.alert-success` / `.alert-danger` banner driven by `ok`/`error` query parameters, matching the existing modules.
-- **Do** add new colors, radii, or component classes to `input.css`'s `@theme` / `@layer components` blocks first, then reference the token by name in templates — never invent a one-off value inline.
+- **Do** call `{{ badge(estado, texto) }}` from `_macros.html` for every status indicator.
+- **Do** give any new color token both a light and a dark value.
+- **Do** keep `--color-brand` and `--color-danger-text` visually distinct reds — never let a primary action and a critical alert share the same hue weight.
+- **Do** cast a real `box-shadow` on cards — this system's elevation is real, not implied by gradient.
+- **Do** use Plus Jakarta Sans/Inter for everything except telemetry (JetBrains Mono).
+- **Do** open any screen backed by an unbuilt engine (Neo4j GDS, OLAP cube) with `.preview-banner`, and comment illustrative data as such in the template.
+- **Do** phrase any unverified advisory (schedule/prerequisite hints) as a suggestion, never a pass/fail claim.
+- **Do** animate a progress fill with `transform: scaleX()`, never `width`.
 
 ### Don't:
-- **Don't** introduce a custom font or webfont — the system uses the OS default stack everywhere, deliberately.
-- **Don't** add `box-shadow`, gradients, or decorative imagery to "improve" a screen — the current plainness is an intentional placeholder awaiting a real visual-design pass, not an invitation to freelance polish on one screen at a time.
-- **Don't** use `.btn-login` (Slate Authority) for anything but the single most important action on a page — Registrar Blue (`.btn-view`) stays for secondary "view" actions.
-- **Don't** hardcode a hex color or arbitrary Tailwind value (`bg-[#...]`) in a template — use a `.btn-*` / `.badge-*` / `.card` component class or a theme color utility (`bg-slate-authority`, `text-filed-red`, …) so the whole system stays swappable from one file (`input.css`) later.
-- **Don't** reintroduce Bootstrap, or any second CSS framework alongside Tailwind — the two fight over utility-class names and specificity; this system is Tailwind-only by design as of the September 2026 migration.
+- **Don't** introduce a second body/display font family; JetBrains Mono is the one sanctioned exception, for telemetry only.
+- **Don't** use `.btn-login` for anything but the single most important action on a page.
+- **Don't** hardcode a hex color in a template — reference a theme token or a component class.
+- **Don't** use `border-radius: 999px` (pill shapes) anywhere.
+- **Don't** fabricate a named fictional persona, a specific legal/regulatory citation, or a live query measurement (e.g. "Query Time: 2.14ms") without disclosing it as illustrative — see Honesty Boundary.
+- **Don't** let a mockup page (Dashboard, OLAP) go without its `.preview-banner`, or let a real feature (the CSV exports) get demoted to decorative inside a mockup page.
+- **Don't** reintroduce Bootstrap or a second CSS framework alongside Tailwind.

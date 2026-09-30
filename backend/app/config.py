@@ -22,6 +22,12 @@ class Settings(BaseSettings):
 
     app_secret_key: str
 
+    # Apagado por defecto a propósito: los botones de "acceso rápido" del login
+    # exponen credenciales reales de un clic. Nunca debe quedar en true en un
+    # despliegue alcanzable desde internet — solo se activa a mano, en un
+    # entorno controlado, para una demostración puntual (ej. defensa de tesis).
+    modo_demo: bool = False
+
     @property
     def database_url(self) -> str:
         return (

@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% from "_macros.html" import badge %}
 {% block titulo %}Reporte de asistencia acumulada{% endblock %}
 
 {% block contenido %}
 <div class="flex items-center justify-between mb-4">
-    <h1 class="text-2xl font-medium">Asistencia acumulada</h1>
+    <h1 class="page-title">Asistencia acumulada</h1>
     <div class="flex items-center gap-2">
         {# Arrastra los filtros activos: el CSV entrega el periodo completo, sin el
            corte de filas de la pantalla, pero acotado a lo que se está viendo. #}
@@ -15,12 +16,36 @@
     </div>
 </div>
 
+{% set total_sesiones = filas|sum(attribute='sesiones') %}
+{% set total_presentes = filas|sum(attribute='presentes') %}
+{% set en_riesgo = filas|selectattr('ausentes', 'ge', umbral_riesgo)|list|length %}
+{% set sin_registro = filas|selectattr('sesiones', 'equalto', 0)|list|length %}
+<div class="kpi-grid mb-3">
+    <div class="kpi-card kpi-card-wash">
+        <div class="kpi-label">Inscripciones en el reporte</div>
+        <div class="kpi-value">{{ filas|length }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">En riesgo ({{ umbral_riesgo }}+ faltas)</div>
+        <div class="kpi-value{% if en_riesgo > 0 %} kpi-value-alert{% endif %}">{{ en_riesgo }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">% asistencia promedio</div>
+        <div class="kpi-value">{% if total_sesiones %}{{ "%.0f"|format(total_presentes / total_sesiones * 100) }}%{% else %}—{% endif %}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Sin sesiones registradas</div>
+        <div class="kpi-value">{{ sin_registro }}</div>
+    </div>
+</div>
+
 <div class="card mb-3">
     <div class="card-body">
         <form method="get" action="/reportes/asistencia" class="flex items-end gap-2 flex-wrap">
             <div>
                 <label for="periodo_id" class="field-label">Periodo</label>
-                <select id="periodo_id" name="periodo_id" class="select" onchange="this.form.submit()">
+                <select id="periodo_id" name="periodo_id" class="select" onchange="this.form.submit()"
+                        data-skeleton-on-filter="#tabla-asistencia">
                     {% for p in periodos %}
                     <option value="{{ p.periodo_id }}" {% if p.periodo_id == periodo_id %}selected{% endif %}>
                         {{ p.codigo_periodo }}{% if p.activo %} (activo){% endif %}
@@ -30,7 +55,8 @@
             </div>
             <div>
                 <label for="materia_id" class="field-label">Materia</label>
-                <select id="materia_id" name="materia_id" class="select" onchange="this.form.submit()">
+                <select id="materia_id" name="materia_id" class="select" onchange="this.form.submit()"
+                        data-skeleton-on-filter="#tabla-asistencia">
                     <option value="">Todas</option>
                     {% for m in materias %}
                     <option value="{{ m.materia_id }}" {% if m.materia_id == materia_id %}selected{% endif %}>
@@ -43,7 +69,8 @@
                 <label class="field-label" for="solo_riesgo">Filtro</label>
                 <label class="flex items-center gap-2 text-sm h-[38px]">
                     <input type="checkbox" id="solo_riesgo" name="solo_riesgo" value="true"
-                           {% if solo_riesgo %}checked{% endif %} onchange="this.form.submit()">
+                           {% if solo_riesgo %}checked{% endif %} onchange="this.form.submit()"
+                           data-skeleton-on-filter="#tabla-asistencia">
                     Solo en riesgo ({{ umbral_riesgo }}+ faltas)
                 </label>
             </div>
@@ -67,7 +94,7 @@
         {% if solo_riesgo %}con {{ umbral_riesgo }} o más faltas{% endif %}
     </div>
     <div class="table-wrap">
-        <table class="table">
+        <table class="table" id="tabla-asistencia">
             <thead>
                 <tr>
                     <th>ID estudiante</th>
@@ -86,34 +113,38 @@
                     <td>{{ fila.estudiante_id }}</td>
                     <td>
                         <div class="font-semibold">{{ fila.codigo_materia }}</div>
-                        <div class="text-xs text-quiet-gray">{{ fila.materia }}</div>
+                        <div class="text-xs text-muted">{{ fila.materia }}</div>
                     </td>
                     <td class="text-center">{{ fila.numero_seccion }}</td>
                     <td class="text-center">
                         {% if fila.sesiones %}
                         {{ fila.sesiones }}
                         {% else %}
-                        <span class="badge badge-secondary">Sin registro</span>
+                        {{ badge('neutral', 'Sin registro') }}
                         {% endif %}
                     </td>
                     <td class="text-center">{{ fila.presentes }}</td>
                     <td class="text-center">
-                        <span class="badge {% if fila.ausentes >= umbral_riesgo %}badge-danger{% elif fila.ausentes > 0 %}badge-warning{% else %}badge-secondary{% endif %}">
-                            {{ fila.ausentes }}
-                        </span>
+                        {% if fila.ausentes >= umbral_riesgo %}
+                        {{ badge('danger', fila.ausentes) }}
+                        {% elif fila.ausentes > 0 %}
+                        {{ badge('warning', fila.ausentes) }}
+                        {% else %}
+                        {{ badge('neutral', fila.ausentes) }}
+                        {% endif %}
                     </td>
                     <td class="text-center">{{ fila.justificados }}</td>
                     <td class="text-center">
                         {% if fila.sesiones %}
                         {{ "%.0f"|format(fila.presentes / fila.sesiones * 100) }}%
                         {% else %}
-                        <span class="text-quiet-gray">—</span>
+                        <span class="text-muted">—</span>
                         {% endif %}
                     </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="8" class="text-quiet-gray text-center py-3">
+                    <td colspan="8" class="text-muted text-center py-3">
                         {% if solo_riesgo %}
                         Ningún estudiante alcanza {{ umbral_riesgo }} faltas en este periodo.
                         {% else %}
@@ -127,7 +158,7 @@
     </div>
 </div>
 
-<p class="text-xs text-quiet-gray mt-3">
+<p class="text-xs text-muted mt-3">
     Se excluyen las inscripciones en estado RETIRADO. El porcentaje se calcula sobre las
     sesiones efectivamente registradas por el docente, no sobre el total de clases del ciclo.
 </p>

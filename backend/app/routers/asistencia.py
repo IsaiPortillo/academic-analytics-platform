@@ -159,6 +159,7 @@ def inicio_asistencia(
     secciones = _secciones_visibles(db, periodo_id, usuario) if periodo_id else []
 
     seccion = None
+    materia = None
     roster = []
     estados_sesion = {}
     resumen = []
@@ -169,6 +170,7 @@ def inicio_asistencia(
             # cambió sin refrescar la sección, así que se ignora.
             seccion = None
         if seccion:
+            materia = db.get(Materia, seccion.materia_id)
             if fecha_sesion is None:
                 fecha_sesion = date.today()
             roster = _roster(db, seccion_id)
@@ -185,6 +187,7 @@ def inicio_asistencia(
             "secciones": secciones,
             "seccion_id": seccion_id,
             "seccion": seccion,
+            "materia": materia,
             "fecha_sesion": fecha_sesion,
             "roster": roster,
             "estados_sesion": estados_sesion,

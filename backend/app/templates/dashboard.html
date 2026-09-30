@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge %}
+{% block titulo %}Dashboard & Grafo{% endblock %}
+
+{% block contenido %}
+<h1 class="page-title mb-1">Dashboard Estratégico &amp; Grafo Curricular</h1>
+<p class="text-sm mb-4" style="color: var(--color-muted);">Ciclo I - 2025</p>
+
+<div class="preview-banner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+    <span><strong>Vista previa ilustrativa.</strong> El motor de grafo curricular en Neo4j (centralidad, rutas críticas) y la capa OLAP son las Fases 3–4 del roadmap de tesis — todavía no implementadas. Los números de esta pantalla son datos de ejemplo para mostrar la visión del sistema, no el resultado de una consulta real.</span>
+</div>
+
+<div class="kpi-grid mb-4">
+    <div class="kpi-card kpi-card-wash">
+        <div class="kpi-label">Tasa de Retención</div>
+        <div class="kpi-value">87.4%</div>
+        <div class="kpi-trend kpi-trend-up">↑ 2.1 pts vs. ciclo anterior</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Bloqueo Curricular</div>
+        <div class="kpi-value kpi-value-alert">4</div>
+        <div class="text-xs" style="color: var(--color-muted);">asignaturas críticas identificadas</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Alertas de Deserción Temprana</div>
+        <div class="kpi-value kpi-value-alert">38</div>
+        <div class="text-xs" style="color: var(--color-muted);">casos priorizados</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Eficiencia Terminal de Cohorte</div>
+        <div class="kpi-value">46.8%</div>
+        <div class="kpi-trend kpi-trend-down">↓ 1.4 pts vs. cohorte 2019</div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4">
+    <div class="card">
+        <div class="card-header flex items-center justify-between">
+            <span>Explorador Visual del Grafo Curricular</span>
+            <button type="button" class="btn-outline-neutral" id="btnExportCypher" style="font-size: 0.75rem; padding: 0.3125rem 0.625rem;">
+                Exportar red (.cypher)
+            </button>
+        </div>
+        <div class="card-body" style="overflow-x: auto;">
+            <svg id="grafoCurricular" viewBox="0 0 760 420" style="width: 100%; min-width: 640px; height: auto;" role="img" aria-label="Malla curricular por ciclos">
+                {% set ciclos = [
+                    ("Ciclo I", [("MAT115","Matemática I",6,8), ("PRG115","Programación I",6,12), ("ARC115","Arq. de Computadoras",4,5)]),
+                    ("Ciclo II", [("MAT215","Matemática II",6,10), ("PRG215","Programación II",6,14), ("ADS115","Análisis y Diseño I",4,9)]),
+                    ("Ciclo III", [("BAD115","Bases de Datos I",5,22), ("MAT315","Matemática III",6,18), ("ADS215","Análisis y Diseño II",4,11)]),
+                    ("Ciclo IV", [("BAD215","Bases de Datos II",5,27), ("PRG315","Programación III",6,15), ("DWB115","Diseño Web",4,7)]),
+                    ("Ciclo V", [("IAI115","Inteligencia Artificial I",5,6), ("BIN115","Inteligencia de Negocios",4,9), ("SIF115","Sistemas de Información",4,8)]),
+                ] %}
+                {% set col_w = 150 %}
+                {% for nombre_ciclo, materias in ciclos %}
+                {% set cx = 20 + loop.index0 * col_w %}
+                <text x="{{ cx + 60 }}" y="20" text-anchor="middle" font-size="12" font-weight="700" fill="var(--color-muted)">{{ nombre_ciclo }}</text>
+                {% for codigo, nombre, uv, reprobacion in materias %}
+                {% set cy = 55 + loop.index0 * 115 %}
+                {% set bloqueada = codigo == "IAI115" %}
+                {% set cuello_botella = codigo in ["BAD115", "BAD215"] %}
+                <g class="graph-node-group" data-codigo="{{ codigo }}" data-nombre="{{ nombre }}"
+                   data-uv="{{ uv }}" data-reprobacion="{{ reprobacion }}"
+                   data-bloqueada="{{ 'true' if bloqueada else 'false' }}"
+                   style="cursor: pointer;">
+                    <rect x="{{ cx }}" y="{{ cy }}" width="120" height="86" rx="12"
+                          class="graph-node{% if bloqueada %} is-blocked{% elif reprobacion >= 20 %} is-approved{% endif %}{% if cuello_botella %} is-bottleneck{% endif %}" />
+                    <text x="{{ cx + 10 }}" y="{{ cy + 22 }}" font-size="12" font-weight="700" fill="var(--color-text)">{{ codigo }}</text>
+                    <text x="{{ cx + 10 }}" y="{{ cy + 38 }}" font-size="9.5" fill="var(--color-muted)">{{ nombre[:20] }}</text>
+                    <text x="{{ cx + 10 }}" y="{{ cy + 56 }}" font-size="9" fill="var(--color-muted)">{{ uv }} UV</text>
+                    <text x="{{ cx + 10 }}" y="{{ cy + 72 }}" font-size="9" font-weight="700"
+                          fill="{% if bloqueada %}var(--color-danger-text){% elif reprobacion >= 20 %}var(--color-warning-text){% else %}var(--color-success-text){% endif %}">
+                        {% if bloqueada %}Bloqueada{% else %}{{ reprobacion }}% reprobación{% endif %}
+                    </text>
+                </g>
+                {% if not loop.first %}
+                <path class="graph-edge{% if cuello_botella %} is-critical{% endif %}"
+                      d="M{{ cx - col_w + 120 }},{{ cy + 43 }} C{{ cx - col_w/2 }},{{ cy + 43 }} {{ cx - col_w/2 }},{{ cy + 43 }} {{ cx }},{{ cy + 43 }}" />
+                {% endif %}
+                {% endfor %}
+                {% endfor %}
+            </svg>
+            <p class="text-xs mt-2" style="color: var(--color-muted);">
+                Nodo crítico resaltado: <strong>Bases de Datos I/II (BAD-115 / BAD-215)</strong> —
+                Betweenness Centrality ilustrativa: <code>0.842</code>. Click en un nodo para ver su subgrafo.
+            </p>
+        </div>
+    </div>
+
+    <div class="flex flex-col gap-4">
+        <div class="card">
+            <div class="card-header">Aprobación por ciclo académico</div>
+            <div class="card-body" style="display: flex; flex-direction: column; gap: 0.625rem;">
+                {% for ciclo, pct in [("Ciclo I", 92), ("Ciclo II", 85), ("Ciclo III", 71), ("Ciclo IV", 68), ("Ciclo V", 81)] %}
+                <div>
+                    <div class="flex items-center justify-between text-xs mb-1">
+                        <span style="color: var(--color-muted);">{{ ciclo }}</span>
+                        <span class="font-semibold">{{ pct }}%</span>
+                    </div>
+                    <div class="weight-check-track"><div class="weight-check-fill{% if pct >= 85 %} is-complete{% elif pct < 75 %} is-over{% endif %}" style="--pct: {{ pct / 100 }};"></div></div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">Mayor impacto negativo en retención</div>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Materia</th><th class="text-center">Reprobación</th></tr></thead>
+                    <tbody>
+                        <tr><td>BAD-215 · Bases de Datos II</td><td class="text-center">{{ badge('danger', '27%') }}</td></tr>
+                        <tr><td>BAD-115 · Bases de Datos I</td><td class="text-center">{{ badge('danger', '22%') }}</td></tr>
+                        <tr><td>MAT-315 · Matemática III</td><td class="text-center">{{ badge('warning', '18%') }}</td></tr>
+                        <tr><td>PRG-315 · Programación III</td><td class="text-center">{{ badge('warning', '15%') }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">Consola de telemetría</div>
+            <div class="card-body">
+                <div class="sql-banner" style="font-size: 0.6875rem;">MATCH (a:Asignatura)-[:REQUIERE]->(b)
+<span class="kw">RETURN</span> a.codigo, b.codigo, gds.betweenness(a)
+<span class="str">// consulta ilustrativa — motor GDS aún no desplegado</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de detalle de grafo del estudiante -->
+<div class="modal-backdrop hidden" id="modalGrafo">
+    <div class="modal-panel">
+        <div class="card-header flex items-center justify-between">
+            <span id="modalGrafoTitulo">Subgrafo curricular</span>
+            <button type="button" class="alert-close" id="modalGrafoCerrar" aria-label="Cerrar" style="font-size: 1.5rem;">&times;</button>
+        </div>
+        <div class="card-body">
+            <div class="telemetry-badge mb-3" style="width: 100%; justify-content: flex-start;">
+                <span class="dot"></span>
+                Query Time: 2.14 ms · Algoritmo: Dijkstra Shortest Path to Degree · DAG Verificado
+            </div>
+            <p class="text-sm mb-3" id="modalGrafoDescripcion" style="color: var(--color-muted);"></p>
+            <div class="flex flex-wrap gap-2 mb-3" id="modalGrafoBadges"></div>
+            <div class="sql-banner mb-3" id="modalGrafoCypher" style="font-size: 0.75rem;"></div>
+            <div class="flex gap-2">
+                <button type="button" class="btn-outline-neutral" style="font-size: 0.8125rem;">Exportar .cypher</button>
+                <button type="button" class="btn-outline-neutral" style="font-size: 0.8125rem;">Exportar .json</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

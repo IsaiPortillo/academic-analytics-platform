@@ -1,39 +1,117 @@
 {% extends "base.html" %}
 {% block titulo %}Iniciar sesión{% endblock %}
 
-{% block contenido %}
-<div class="flex justify-center">
-    <div class="w-full max-w-sm">
+{% block contenido_publico %}
+<div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem; background-color: var(--color-bg);">
+<div class="grid grid-cols-1 lg:grid-cols-[1fr_1.1fr] gap-0 w-full" style="max-width: 62rem; border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-raised);">
 
-        <div class="text-center mb-4 mt-8">
-            <h1 class="text-xl font-medium">Gestión Académica</h1>
-            <p class="text-sm text-quiet-gray mt-1">
+    <div class="card" style="border-radius: 0; border-right: none;">
+        <div class="card-body" style="padding: 2rem;">
+            <div class="topbar-brand mb-1">
+                <span class="topbar-brand-mark">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 3l8 4-8 4-8-4 8-4z"/>
+                        <path d="M6 9.5V16c0 1.5 2.5 3 6 3s6-1.5 6-3V9.5"/>
+                    </svg>
+                </span>
+                Sistema Minerva
+            </div>
+            <p class="text-sm mb-6" style="color: var(--color-muted);">
                 Universidad de El Salvador — Facultad Multidisciplinaria Oriental
             </p>
+
+            {% if error %}
+            <div class="alert alert-danger mb-4" role="alert">{{ error }}</div>
+            {% endif %}
+
+            <div class="tap-toggle-group mb-4" style="width: 100%;" id="rolSelector">
+                <button type="button" class="tap-toggle" data-rol="rol_coordinador" aria-pressed="true" style="flex:1; padding: 0.625rem;">
+                    Coordinación Académica
+                </button>
+                <button type="button" class="tap-toggle" data-rol="rol_docente" aria-pressed="false" style="flex:1; padding: 0.625rem;">
+                    Cuerpo Docente
+                </button>
+            </div>
+
+            <div class="sql-banner mb-5" id="sqlBanner">BEGIN;
+<span class="kw">SET LOCAL ROLE</span> rol_coordinador;
+<span class="str">-- transacción autorizada por PostgreSQL, no por esta interfaz</span>
+COMMIT;</div>
+
+            <form method="post" action="/login">
+                <div class="mb-3">
+                    <label for="username" class="field-label">Usuario</label>
+                    <input type="text" class="input" id="username" name="username"
+                           required autofocus autocomplete="username">
+                </div>
+                <div class="mb-4">
+                    <label for="password" class="field-label">Contraseña</label>
+                    <input type="password" class="input" id="password" name="password"
+                           required autocomplete="current-password">
+                </div>
+                <label class="flex items-center gap-2 text-sm mb-4" style="color: var(--color-muted);">
+                    <input type="checkbox" checked disabled>
+                    Auditoría forense fail-closed activa para esta sesión
+                </label>
+                <button type="submit" class="btn-login w-full">Ingresar</button>
+            </form>
+
+            {% if modo_demo %}
+            <div style="border-top: 1px solid var(--color-border); margin-top: 1.5rem; padding-top: 1.25rem;">
+                <p class="text-xs font-semibold mb-2" style="color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em;">
+                    Acceso rápido — modo demostración
+                </p>
+                <div class="flex gap-2">
+                    <button type="button" class="btn-outline-neutral js-demo-login" style="flex:1;"
+                            data-usuario="coordinador" data-password="demo1234">
+                        Entrar como Coordinación
+                    </button>
+                    <button type="button" class="btn-outline-neutral js-demo-login" style="flex:1;"
+                            data-usuario="docente" data-password="demo1234">
+                        Entrar como Docente
+                    </button>
+                </div>
+                <p class="text-xs mt-2" style="color: var(--color-muted);">
+                    Usa las cuentas sintéticas ya sembradas en la base (<code>coordinador</code> / <code>docente</code>) — no credenciales inventadas.
+                </p>
+                <p class="text-xs mt-2" style="color: var(--color-warning-text);">
+                    MODO_DEMO está activo — este bloque expone credenciales reales de un clic y nunca debe verse con esta pantalla alcanzable desde internet. Desactívalo en <code>.env</code> (<code>MODO_DEMO=false</code>) fuera de una demostración controlada.
+                </p>
+            </div>
+            {% endif %}
         </div>
+    </div>
 
-        <div class="card">
-            <div class="card-body">
-                {% if error %}
-                <div class="alert alert-danger mb-4" role="alert">{{ error }}</div>
-                {% endif %}
+    <div class="card" style="border-radius: 0; background-color: var(--color-surface-sunken); border-left: none;">
+        <div class="card-body" style="padding: 2rem;">
+            <h2 class="page-subtitle mb-4" style="font-size: 1.0625rem;">Arquitectura de seguridad</h2>
 
-                <form method="post" action="/login">
-                    <div class="mb-3">
-                        <label for="username" class="field-label">Usuario</label>
-                        <input type="text" class="input" id="username" name="username"
-                               required autofocus autocomplete="username">
-                    </div>
-                    <div class="mb-4">
-                        <label for="password" class="field-label">Contraseña</label>
-                        <input type="password" class="input" id="password" name="password"
-                               required autocomplete="current-password">
-                    </div>
-                    <button type="submit" class="btn-login w-full">Ingresar</button>
-                </form>
+            <div class="mb-5">
+                <p class="text-sm font-semibold mb-1">Rol neutro <code>rol_app</code></p>
+                <p class="text-sm" style="color: var(--color-muted);">
+                    La aplicación siempre se conecta a PostgreSQL con un rol <code>NOINHERIT</code> que
+                    por sí solo únicamente puede leer la tabla de usuarios. La autorización real vive
+                    en la base, no en este formulario ni en ningún código Python: cada transacción
+                    ejecuta <code>SET LOCAL ROLE</code> con el rol de la sesión, y son los
+                    <code>GRANT</code> de PostgreSQL los que aceptan o rechazan cada operación.
+                </p>
+            </div>
+
+            <div class="flex flex-wrap gap-2 mb-5">
+                <span class="telemetry-badge"><span class="dot"></span>PostgreSQL 17</span>
+                <span class="telemetry-badge"><span class="dot"></span>Neo4j 5.x</span>
+                <span class="telemetry-badge"><span class="dot"></span>Docker Compose</span>
+                <span class="telemetry-badge"><span class="dot"></span>FastAPI + Jinja2</span>
+            </div>
+
+            <div class="alert alert-warning" style="display: block;">
+                <strong>Datos sintéticos.</strong> Todo estudiante, carnet y calificación en este
+                sistema fue generado algorítmicamente (Faker) para fines de tesis — nunca contiene
+                información personal real.
             </div>
         </div>
-
     </div>
+
+</div>
 </div>
 {% endblock %}

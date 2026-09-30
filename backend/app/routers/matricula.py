@@ -18,7 +18,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -79,10 +79,21 @@ def _buscar_estudiantes(db: Session, termino: str):
     if not termino:
         return []
     filtro = Estudiante.carnet_hash.ilike(f"%{termino}%")
+    orden = [Estudiante.estudiante_id]
     if termino.isdigit():
         filtro = (Estudiante.estudiante_id == int(termino)) | filtro
+        # Sin este orden, un ID exacto puede quedar sepultado entre los
+        # resultados del ILIKE (o incluso fuera del limit) si el motor no
+        # los devuelve en un orden predecible.
+        orden = [
+            case((Estudiante.estudiante_id == int(termino), 0), else_=1),
+            Estudiante.estudiante_id,
+        ]
     return db.scalars(
-        select(Estudiante).where(filtro, Estudiante.activo.is_(True)).limit(15)
+        select(Estudiante)
+        .where(filtro, Estudiante.activo.is_(True))
+        .order_by(*orden)
+        .limit(15)
     ).all()
 
 
@@ -104,6 +115,7 @@ def inicio_matricula(
     secciones = _secciones_de_periodo(db, periodo_id) if periodo_id else []
 
     seccion_actual = None
+    materia_actual = None
     roster = []
     if seccion_id:
         seccion_actual = db.get(Seccion, seccion_id)
@@ -112,6 +124,7 @@ def inicio_matricula(
             # para no mostrar el roster de una sección de otro periodo.
             seccion_actual = None
         if seccion_actual:
+            materia_actual = db.get(Materia, seccion_actual.materia_id)
             roster = _roster(db, seccion_id)
 
     resultados_busqueda = _buscar_estudiantes(db, buscar) if buscar else []
@@ -126,6 +139,7 @@ def inicio_matricula(
             "secciones": secciones,
             "seccion_id": seccion_id,
             "seccion": seccion_actual,
+            "materia": materia_actual,
             "roster": roster,
             "buscar": buscar or "",
             "resultados_busqueda": resultados_busqueda,

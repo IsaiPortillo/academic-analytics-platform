@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block titulo %}Alertas & OLAP Tesis{% endblock %}
+
+{% block contenido %}
+<h1 class="page-title mb-1">Alertas de Deserción &amp; Reportes OLAP</h1>
+<p class="text-sm mb-4" style="color: var(--color-muted);">Capítulo 4 — Memoria Académica de Tesis</p>
+
+<div class="preview-banner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+    <span><strong>Vista previa ilustrativa.</strong> El cubo OLAP (<code>ROLLUP</code>/<code>CUBE</code> sobre <code>fact_rendimiento_academico</code>) es la Fase 4 del roadmap — pendiente. Los puntos del dispersograma y el embudo de cohorte son datos de ejemplo, no el resultado de una consulta real. Los reportes reales y su exportación CSV siguen en <a href="/reportes" style="text-decoration: underline;">Reportes</a>.</span>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body flex flex-wrap items-end gap-3">
+        <div>
+            <label class="field-label">Cubo</label>
+            <select class="select" style="width: auto;">
+                <option>Rendimiento x Cohorte x Carrera</option>
+                <option>Asistencia x Sección x Periodo</option>
+            </select>
+        </div>
+        <div>
+            <label class="field-label">Cohorte</label>
+            <select class="select" style="width: auto;">
+                <option>2020 – 2024</option>
+                <option>2019 – 2023</option>
+            </select>
+        </div>
+        <div>
+            <label class="field-label">Carrera</label>
+            <select class="select" style="width: auto;">
+                <option>Todas</option>
+                <option>Ing. en Sistemas Informáticos</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+    <div class="card">
+        <div class="card-header">Matriz de Riesgo de Deserción Temprana</div>
+        <div class="card-body">
+            <svg viewBox="0 0 320 240" style="width: 100%; height: auto;" role="img" aria-label="Dispersograma de riesgo de deserción">
+                <rect x="40" y="10" width="90" height="100" fill="var(--color-danger-bg)" opacity="0.5"/>
+                <rect x="130" y="10" width="90" height="60" fill="var(--color-warning-bg)" opacity="0.5"/>
+                <rect x="40" y="110" width="180" height="90" fill="var(--color-warning-bg)" opacity="0.3"/>
+                <rect x="130" y="70" width="90" height="40" fill="var(--color-success-bg)" opacity="0.5"/>
+                <rect x="220" y="10" width="70" height="190" fill="var(--color-success-bg)" opacity="0.5"/>
+                <line x1="40" y1="200" x2="290" y2="200" stroke="var(--color-border)" stroke-width="1.5"/>
+                <line x1="40" y1="10" x2="40" y2="200" stroke="var(--color-border)" stroke-width="1.5"/>
+                <text x="165" y="222" text-anchor="middle" font-size="10" fill="var(--color-muted)">Nota Promedio Ponderada →</text>
+                <text x="14" y="105" text-anchor="middle" font-size="10" fill="var(--color-muted)" transform="rotate(-90 14 105)">% Asistencia Efectiva →</text>
+                {% for cx, cy, r, zona in [
+                    (60,40,7,'danger'),(75,60,9,'danger'),(55,80,6,'danger'),(95,35,8,'danger'),
+                    (150,45,7,'warning'),(165,30,6,'warning'),(140,90,8,'warning'),
+                    (175,95,6,'success'),(200,80,5,'success'),(240,50,7,'success'),(260,90,6,'success'),(245,140,5,'success'),(270,160,6,'success')
+                ] %}
+                <circle cx="{{ cx }}" cy="{{ cy }}" r="{{ r }}"
+                        fill="var(--color-{{ zona }}-text)" opacity="0.75"/>
+                {% endfor %}
+            </svg>
+            <div class="flex flex-wrap gap-3 mt-2 text-xs" style="color: var(--color-muted);">
+                <span>● <span style="color: var(--color-success-text);">Zona Segura</span></span>
+                <span>● <span style="color: var(--color-warning-text);">Tutoría Inmediata</span></span>
+                <span>● <span style="color: var(--color-danger-text);">Crítico / Abandono</span></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Embudo de Retención de Cohorte (2020–2024)</div>
+        <div class="card-body" style="display: flex; flex-direction: column; gap: 0.5rem;">
+            {% for etapa, pct, critico in [("1er año", 100, false), ("2do año", 84, false), ("3er año", 61, true), ("4to año", 55, false), ("5to año", 49, false), ("Graduación", 46.8, false)] %}
+            <div>
+                <div class="flex items-center justify-between text-xs mb-1">
+                    <span>{{ etapa }}{% if critico %} <span style="color: var(--color-danger-text); font-weight: 700;">· cuello de botella</span>{% endif %}</span>
+                    <span class="font-semibold">{{ pct }}%</span>
+                </div>
+                <div class="weight-check-track" style="height: 1.25rem;">
+                    <div class="weight-check-fill{% if critico %} is-over{% elif pct >= 80 %} is-complete{% endif %}" style="--pct: {{ pct / 100 }};"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">Estudiantes priorizados para intervención inmediata</div>
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr><th>ID</th><th>Factor de riesgo principal</th><th class="text-center">Nota</th><th class="text-center">Asistencia</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for id_est, factor, nota, asis in [
+                    (36517, "Reprobaciones acumuladas (3)", 4.2, "58%"),
+                    (35066, "Asistencia crítica", 5.8, "61%"),
+                    (34058, "Nota + asistencia", 3.9, "54%"),
+                    (33392, "Reprobaciones acumuladas (2)", 5.1, "67%"),
+                ] %}
+                <tr>
+                    <td>{{ id_est }}</td>
+                    <td>{{ factor }}</td>
+                    <td class="text-center">{{ nota }}</td>
+                    <td class="text-center">{{ asis }}</td>
+                    <td><button type="button" class="btn-outline-neutral js-notificar" style="font-size: 0.75rem; padding: 0.3125rem 0.625rem;">Notificar a Consejería</button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Artefactos académicos para el tribunal de tesis</div>
+    <div class="card-body flex flex-wrap gap-3">
+        <button type="button" class="btn-outline-neutral" disabled title="Próximamente — Capítulo 4 en preparación">
+            Exportar Memoria Cap. 4 (PDF/LaTeX)
+        </button>
+        <a class="btn-outline-neutral" href="/reportes/notas-finales/csv?periodo_id=8">
+            Descargar dataset de notas (CSV real)
+        </a>
+        <a class="btn-outline-neutral" href="/reportes/asistencia/csv?periodo_id=8">
+            Descargar dataset de asistencia (CSV real)
+        </a>
+        <button type="button" class="btn-outline-neutral" disabled title="Próximamente">
+            Verificar inmutabilidad criptográfica
+        </button>
+    </div>
+</div>
+
+{% endblock %}

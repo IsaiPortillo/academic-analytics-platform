@@ -5,6 +5,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..config import settings
 from ..database import ROLES_VALIDOS, get_db
 from ..dependencies import UsuarioSesion
 from ..models import Usuario
@@ -18,7 +19,11 @@ router = APIRouter(tags=["autenticación"])
 def mostrar_login(request: Request):
     if request.session.get("usuario"):
         return RedirectResponse("/", status_code=303)
-    return templates.TemplateResponse(request, "login.html", {"error": None})
+    # modo_demo controla si el login expone accesos rápidos con credenciales
+    # reales precargadas — ver la nota en config.py. Apagado por defecto.
+    return templates.TemplateResponse(
+        request, "login.html", {"error": None, "modo_demo": settings.modo_demo}
+    )
 
 
 @router.post("/login")
@@ -44,7 +49,7 @@ def procesar_login(
         return templates.TemplateResponse(
             request,
             "login.html",
-            {"error": "Usuario o contraseña incorrectos"},
+            {"error": "Usuario o contraseña incorrectos", "modo_demo": settings.modo_demo},
             status_code=401,
         )
 
@@ -52,7 +57,10 @@ def procesar_login(
         return templates.TemplateResponse(
             request,
             "login.html",
-            {"error": "El usuario tiene un rol no soportado. Contacta al coordinador."},
+            {
+                "error": "El usuario tiene un rol no soportado. Contacta al coordinador.",
+                "modo_demo": settings.modo_demo,
+            },
             status_code=403,
         )
 

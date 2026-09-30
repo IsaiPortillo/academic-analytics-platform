@@ -1,12 +1,13 @@
 {% extends "base.html" %}
+{% from "_macros.html" import badge %}
 {% block titulo %}{{ titulo }}{% endblock %}
 
 {% block contenido %}
 <div class="flex items-center gap-2 mb-1">
-    <h1 class="text-2xl font-medium">{{ titulo }}</h1>
-    <span class="badge badge-warning">Pendiente</span>
+    <h1 class="page-title">{{ titulo }}</h1>
+    {{ badge('warning', 'Pendiente') }}
 </div>
-<p class="text-quiet-gray mb-4">{{ descripcion }}</p>
+<p class="text-muted mb-4">{{ descripcion }}</p>
 
 <div class="card card-pending">
     <div class="card-body">
@@ -14,7 +15,7 @@
             Este módulo aún no está implementado. Corresponde al ticket
             <strong>{{ ticket }}</strong>, asignado a <strong>{{ responsable }}</strong>.
         </p>
-        <p class="mb-0 text-sm text-quiet-gray">
+        <p class="mb-0 text-sm text-muted">
             El esqueleto ya está listo en <code>backend/app/routers/</code>: los modelos
             SQLAlchemy y la sesión de base de datos con el rol aplicado vienen resueltos,
             solo falta construir las vistas y operaciones del ticket.
