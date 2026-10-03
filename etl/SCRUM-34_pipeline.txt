@@ -129,8 +129,8 @@ c) Estudiantes sin actividad en el periodo (conjunto estudiante_periodo)
      alguna sesión de asistencia (o EN_CURSO).
    - Si se inscribió pero no tuvo actividad (retiró todo, o no hay ni notas ni
      asistencia): la fila se conserva con con_actividad = False y
-     promedio_periodo nulo. Es el patrón de abandono que la alerta de
-     deserción (4.2) debe detectar, y un promedio de 0 lo confundiría con un
+     promedio_periodo nulo. Es el patrón de abandono que el análisis
+     diagnóstico de la Fase 4.2 debe identificar, y un promedio de 0 lo confundiría con un
      estudiante que reprobó todo.
    - En la dimensión "estudiantes" se conservan TODOS, incluso los que nunca
      tuvieron actividad (sin_actividad = True), con periodos_inscritos,

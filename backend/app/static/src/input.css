@@ -43,6 +43,12 @@
   --color-neutral-border: #dce3ec;
   --color-neutral-text: #475569;
 
+  /* Par divergente para correlaciones (Fase 4.2): azul = relación
+     positiva, rojo = negativa, punto medio neutro. Validado como par
+     divergente de la paleta de referencia; el valor va siempre rotulado. */
+  --color-div-pos: #2a78d6;
+  --color-div-neg: #e34948;
+
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
@@ -93,6 +99,8 @@
     --color-neutral-bg: rgb(71 85 105 / 25%);
     --color-neutral-border: rgb(71 85 105 / 55%);
     --color-neutral-text: #b7c2d4;
+    --color-div-pos: #3987e5;
+    --color-div-neg: #e66767;
 
     --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 1px 3px 0 rgb(0 0 0 / 0.35);
     --shadow-raised: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
@@ -123,6 +131,8 @@
   --color-neutral-bg: rgb(71 85 105 / 25%);
   --color-neutral-border: rgb(71 85 105 / 55%);
   --color-neutral-text: #b7c2d4;
+  --color-div-pos: #3987e5;
+  --color-div-neg: #e66767;
 
   --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 1px 3px 0 rgb(0 0 0 / 0.35);
   --shadow-raised: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
@@ -1029,6 +1039,174 @@
   }
   .kpi-trend-down {
     color: var(--color-danger-text);
+  }
+  .kpi-trend-neutral {
+    color: var(--color-muted);
+  }
+
+  /* Vista ejecutiva (Fase 4.1) — datos reales del Data Warehouse.
+     Cada KPI lleva su interpretación en texto debajo del número: el
+     indicador y su lectura forman una sola pieza. */
+  .kpi-interpretacion {
+    font-size: 0.8125rem;
+    line-height: 1.55;
+    color: var(--color-muted);
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  /* Barras horizontales de magnitud (una sola serie, un solo tono: la marca).
+     Base en cero, extremo de dato redondeado, valor rotulado al final. */
+  .bar-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+  .bar-row {
+    display: grid;
+    grid-template-columns: minmax(9rem, 17rem) 1fr 5.5rem;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.8125rem;
+  }
+  .bar-track {
+    height: 0.875rem;
+    background-color: var(--color-surface-sunken);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    width: calc(var(--pct, 0) * 100%);
+    background-color: var(--color-brand);
+    border-radius: 0 4px 4px 0;
+  }
+  .bar-value {
+    text-align: right;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  @media (max-width: 640px) {
+    .bar-row {
+      grid-template-columns: 1fr 5rem;
+    }
+    .bar-row .bar-track {
+      grid-column: 1 / -1;
+      order: 3;
+    }
+  }
+
+  /* Matriz de correlaciones (Fase 4.2). La intensidad del color sigue a |r|
+     sobre un fondo neutro; el valor de r va rotulado en cada celda, así que
+     el color nunca es el único portador del dato. Los pares que se relacionan
+     por construcción llevan además una textura diagonal. */
+  .corr-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 3px;
+    font-size: 0.8125rem;
+  }
+  .corr-table th {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-muted);
+    padding: 0.375rem 0.5rem;
+    text-align: center;
+  }
+  .corr-table th[scope="row"] {
+    text-align: left;
+  }
+  .corr-cell {
+    --corr-color: var(--color-div-pos);
+    text-align: center;
+    padding: 0.75rem 0.5rem;
+    border-radius: 6px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    background-color: color-mix(in srgb, var(--corr-color) calc(var(--corr-abs, 0) * 85%),
+                                var(--color-surface-sunken));
+  }
+  .corr-cell.is-negative {
+    --corr-color: var(--color-div-neg);
+  }
+  .corr-cell.is-diagonal,
+  .corr-cell.is-empty {
+    background-color: var(--color-surface-sunken);
+    color: var(--color-muted);
+    font-weight: 500;
+  }
+  .corr-cell.is-construccion {
+    background-image: repeating-linear-gradient(
+      45deg, transparent 0 6px, rgb(255 255 255 / 0.28) 6px 8px
+    );
+  }
+  .corr-legend {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--color-muted);
+  }
+  .corr-legend-scale {
+    width: 9rem;
+    height: 0.5rem;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--color-div-neg), var(--color-surface-sunken),
+                                var(--color-div-pos));
+  }
+
+  /* Columnas por período. Los períodos del filtro van a opacidad plena y el
+     resto atenuado: se distinguen sin introducir un segundo color. */
+  .column-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+    height: 11rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .column {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+  }
+  .column-bar {
+    width: 70%;
+    max-width: 3rem;
+    height: calc(var(--pct, 0) * 100%);
+    background-color: var(--color-brand);
+    border-radius: 4px 4px 0 0;
+    opacity: 0.35;
+    transition: opacity 0.15s ease-in-out;
+  }
+  .column-value {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    font-variant-numeric: tabular-nums;
+    visibility: hidden;
+  }
+  .column.is-selected .column-bar,
+  .column:hover .column-bar {
+    opacity: 1;
+  }
+  .column.is-selected .column-value,
+  .column:hover .column-value {
+    visibility: visible;
+  }
+  .column-labels {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.375rem;
+  }
+  .column-labels span {
+    flex: 1;
+    text-align: center;
+    font-size: 0.6875rem;
+    color: var(--color-muted);
   }
 
   /* Skeleton de carga */

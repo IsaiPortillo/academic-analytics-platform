@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge %}
+{% block titulo %}Análisis diagnóstico{% endblock %}
+
+{% macro barras(filas, valor_extra=None) %}
+<div class="bar-list" role="list">
+    {% for f in filas %}
+    <div class="bar-row" role="listitem"
+         title="{{ f.segmento }} — {{ f.reprobadas }} reprobadas de {{ f.cerradas }} con nota final ({{ f.tasa_texto }}){% if f.nota_promedio is not none %} · nota promedio {{ f.nota_promedio }}{% endif %}">
+        <div>
+            <div class="font-semibold">{{ f.segmento }}</div>
+            <div class="text-xs text-muted">{{ "{:,}".format(f.cerradas) }} con nota final{% if f.nota_promedio is not none %} · nota {{ f.nota_promedio }}{% endif %}</div>
+        </div>
+        <div class="bar-track"><div class="bar-fill" style="--pct: {{ '%.4f'|format(f.pct) }};"></div></div>
+        <div class="bar-value">{{ f.tasa_texto }}</div>
+    </div>
+    {% endfor %}
+</div>
+{% endmacro %}
+
+{% block contenido %}
+<div class="flex items-start justify-between flex-wrap gap-3 mb-4">
+    <div>
+        <h1 class="page-title mb-1">Análisis diagnóstico: por qué se reprueba</h1>
+        <p class="text-sm text-muted">
+            Nivel diagnóstico — ¿por qué ocurrió? Describe patrones <strong>observados</strong> en el
+            historial; no pronostica quién va a reprobar o desertar ni recomienda acciones.
+        </p>
+    </div>
+    <span class="telemetry-badge"><span class="dot"></span>Data Warehouse · dw_academico · rol_dashboard</span>
+</div>
+
+{% if error %}
+<div class="alert alert-danger" role="alert"><span>{{ error }}</span></div>
+{% else %}
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" action="/analisis-diagnostico" class="flex items-end gap-2 flex-wrap">
+            <div>
+                <label for="periodo" class="field-label">Período</label>
+                <select id="periodo" name="periodo" class="select" onchange="this.form.submit()">
+                    <option value="todos" {% if periodo == "todos" %}selected{% endif %}>Todos los períodos</option>
+                    {% for codigo in periodos|reverse %}
+                    <option value="{{ codigo }}" {% if codigo == periodo %}selected{% endif %}>{{ codigo }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="departamento" class="field-label">Departamento</label>
+                <select id="departamento" name="departamento" class="select" onchange="this.form.submit()">
+                    <option value="">Todos</option>
+                    {% for d in departamentos %}
+                    <option value="{{ d.codigo_departamento }}" {% if d.codigo_departamento == departamento %}selected{% endif %}>{{ d.nombre_departamento }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="carrera" class="field-label">Carrera</label>
+                <select id="carrera" name="carrera" class="select" onchange="this.form.submit()">
+                    <option value="">Todas</option>
+                    {% for c in carreras %}
+                    <option value="{{ c.codigo_carrera }}" {% if c.codigo_carrera == carrera %}selected{% endif %}>{{ c.nombre_carrera }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# ------------------------------------------------------------------ #}
+<h2 class="page-subtitle mb-2">Correlaciones · {{ etiqueta_periodo }}</h2>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
+    <div class="card">
+        <div class="card-header">Matriz de correlaciones (Pearson, inscripciones con nota final)</div>
+        <div class="card-body">
+            <div class="table-wrap">
+                <table class="corr-table">
+                    <thead>
+                        <tr><th></th>{% for c in matriz.columnas %}<th scope="col">{{ c }}</th>{% endfor %}</tr>
+                    </thead>
+                    <tbody>
+                        {% for fila in matriz.filas %}
+                        <tr>
+                            <th scope="row">{{ fila.etiqueta }}</th>
+                            {% for c in fila.celdas %}
+                            {% if c.diagonal %}
+                            <td class="corr-cell is-diagonal">1</td>
+                            {% elif c.r is none %}
+                            <td class="corr-cell is-empty" title="{{ c.lectura }}">sin datos</td>
+                            {% else %}
+                            <td class="corr-cell{% if c.r < 0 %} is-negative{% endif %}{% if c.construccion %} is-construccion{% endif %}"
+                                style="--corr-abs: {{ '%.3f'|format(c.r|abs) }};"
+                                title="{{ c.lectura }}">{{ '%+.2f'|format(c.r) }}{% if c.construccion %}*{% endif %}</td>
+                            {% endif %}
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex items-center justify-between flex-wrap gap-2 mt-3">
+                <span class="corr-legend">−1 <span class="corr-legend-scale" aria-hidden="true"></span> +1</span>
+                <span class="text-xs text-muted">* relación por construcción, no es hallazgo</span>
+            </div>
+            <p class="kpi-interpretacion">{{ lectura_correlaciones }}</p>
+            <details class="mt-2">
+                <summary class="text-sm text-muted" style="cursor: pointer;">Lectura de cada par</summary>
+                <ul class="text-sm text-muted mt-2" style="display: flex; flex-direction: column; gap: 0.375rem;">
+                    {% for fila in matriz.filas %}{% set i = loop.index0 %}{% for c in fila.celdas %}{% if loop.index0 > i %}
+                    <li>{{ c.lectura }}</li>
+                    {% endif %}{% endfor %}{% endfor %}
+                </ul>
+            </details>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Reprobación según el umbral de ausencias</div>
+        <div class="card-body">
+            {% if ausencias %}{{ barras(ausencias) }}{% endif %}
+            <p class="kpi-interpretacion">{{ lectura_ausencias }}</p>
+            <p class="text-xs text-muted mt-2">
+                Solo inscripciones cerradas con asistencia registrada. El umbral ({{ umbral_faltas }}
+                ausencias) es el mismo del reporte de asistencia acumulada del sistema transaccional.
+            </p>
+        </div>
+    </div>
+</div>
+
+{# ------------------------------------------------------------------ #}
+<h2 class="page-subtitle mb-2">Análisis por cohorte de ingreso</h2>
+<div class="card mb-6">
+    <div class="card-body">
+        <div class="text-xs text-muted mb-2">Tasa de reprobación por año de ingreso</div>
+        {{ barras(cohortes) }}
+        <p class="kpi-interpretacion">{{ lectura_cohortes }}</p>
+        <div class="table-wrap mt-3">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Cohorte</th>
+                        <th class="text-center">Estudiantes</th>
+                        <th class="text-center">Con nota final</th>
+                        <th class="text-center">Reprobación</th>
+                        <th class="text-center">Nota promedio</th>
+                        <th class="text-center">Asistencia promedio</th>
+                        <th class="text-center">Costo de reprobación</th>
+                        <th class="text-center">Con el patrón</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in cohortes %}
+                    <tr>
+                        <td class="font-semibold">{{ c.cohorte }}</td>
+                        <td class="text-center">{{ "{:,}".format(c.estudiantes) }}</td>
+                        <td class="text-center">{{ "{:,}".format(c.cerradas) }}</td>
+                        <td class="text-center">{{ c.tasa_texto }}</td>
+                        <td class="text-center">{{ c.nota_promedio if c.nota_promedio is not none else "—" }}</td>
+                        <td class="text-center">{% if c.asistencia_promedio is not none and c.asistencia_promedio == c.asistencia_promedio %}{{ c.asistencia_promedio }} %{% else %}—{% endif %}</td>
+                        <td class="text-center">${{ "{:,.0f}".format(c.costo_reprobacion) }}</td>
+                        <td class="text-center">{{ c.estudiantes_patron }} ({{ c.patron_texto }})</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{# ------------------------------------------------------------------ #}
+<h2 class="page-subtitle mb-2">Segmentación por variables cualitativas</h2>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
+    {% for s in segmentos %}
+    <div class="card">
+        <div class="card-header flex items-center justify-between gap-2">
+            <span>Reprobación por {{ s.etiqueta|lower }}</span>
+            {% if s.adicional %}{{ badge('neutral', 'Variable adicional') }}{% endif %}
+        </div>
+        <div class="card-body">
+            {{ barras(s.filas) }}
+            <p class="kpi-interpretacion">{{ s.lectura }}</p>
+            {% if s.adicional %}
+            <p class="text-xs text-muted mt-2">
+                No está entre las variables definidas en el criterio, pero el Data Warehouse ya la
+                tiene (dim_estudiante.trabaja) y es la que más separa la reprobación.
+            </p>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{# ------------------------------------------------------------------ #}
+<h2 class="page-subtitle mb-2">Estudiantes que ya presentan el patrón de riesgo</h2>
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="kpi-grid mb-3">
+            <div class="kpi-card kpi-card-wash">
+                <div class="kpi-label">Estudiantes con el patrón</div>
+                <div class="kpi-value{% if resumen_patron.estudiantes %} kpi-value-alert{% endif %}">{{ "{:,}".format(resumen_patron.estudiantes) }}</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Inscripciones con el patrón</div>
+                <div class="kpi-value">{{ "{:,}".format(resumen_patron.inscripciones) }}</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Criterio (mismo del sistema transaccional)</div>
+                <div class="text-sm font-semibold mt-1">Nota final &lt; {{ umbral_nota }} y ≥ {{ umbral_faltas }} ausencias</div>
+            </div>
+        </div>
+        <p class="kpi-interpretacion" style="margin-top: 0;">{{ lectura_patron }}</p>
+
+        {% if estudiantes %}
+        <div class="table-wrap mt-3">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID estudiante</th>
+                        <th>Carnet (SHA-256)</th>
+                        <th class="text-center">Cohorte</th>
+                        <th class="text-center">Trabaja</th>
+                        <th class="text-center">Materias con el patrón</th>
+                        <th>Materias</th>
+                        <th>Períodos</th>
+                        <th class="text-center">Máx. ausencias</th>
+                        <th class="text-center">Nota promedio</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in estudiantes %}
+                    <tr>
+                        <td class="font-semibold">{{ e.estudiante_id }}</td>
+                        <td><code class="text-xs">{{ e.carnet_hash }}…</code></td>
+                        <td class="text-center">{{ e.anio_ingreso }}</td>
+                        <td class="text-center">{{ "Sí" if e.trabaja else "No" }}</td>
+                        <td class="text-center">{{ e.inscripciones }}</td>
+                        <td>{{ e.materias }}</td>
+                        <td class="text-xs">{{ e.periodos }}</td>
+                        <td class="text-center">{{ e.max_ausencias }}</td>
+                        <td class="text-center">{{ badge('danger', e.nota_promedio) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="text-xs text-muted mt-2">
+            {% if resumen_patron.estudiantes > limite_estudiantes %}Se muestran los primeros {{ limite_estudiantes }} de {{ "{:,}".format(resumen_patron.estudiantes) }}, con más materias en el patrón primero. {% endif %}
+            El ID es el mismo que muestran los reportes del sistema: cada caso se puede revisar en
+            <a href="/reportes/asistencia?solo_riesgo=true" style="text-decoration: underline;">Reportes → Asistencia acumulada</a>
+            y en Notas finales.
+        </p>
+        {% endif %}
+    </div>
+</div>
+
+{% if ultima_carga %}
+<p class="text-xs text-muted">
+    Última carga del Data Warehouse: {{ ultima_carga.ejecutada_en.strftime("%Y-%m-%d %H:%M") }} UTC
+    · fecha de corte {{ ultima_carga.fecha_corte }}. Esta vista no consulta el sistema transaccional.
+</p>
+{% endif %}
+
+{% endif %}
+{% endblock %}

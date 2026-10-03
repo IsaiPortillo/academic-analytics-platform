@@ -18,7 +18,7 @@ Success spans two horizons that must both be satisfied, not traded off against e
 
 ## Positioning
 
-Authorization is resolved in the database, not in application code: the app always connects as a `NOINHERIT` service role (`rol_app`) that can only read the users table; every transaction runs `SET LOCAL ROLE <rol>` so PostgreSQL's own `GRANT`s (defined in `01_init_oltp_academico.sql`) accept or reject each operation. This fails closed by construction — a competing system that merely checks permissions in application code could not truthfully make the same guarantee. The four-layer architecture (OLTP/Postgres, curriculum graph/Neo4j, ETL, OLAP-BI/Streamlit) is a deliberate mechanism for turning transactional academic records into curricular-bottleneck detection and diagnostic risk-pattern identification that a purely relational or purely dashboard-only system would not provide.
+Authorization is resolved in the database, not in application code: the app always connects as a `NOINHERIT` service role (`rol_app`) that can only read the users table; every transaction runs `SET LOCAL ROLE <rol>` so PostgreSQL's own `GRANT`s (defined in `01_init_oltp_academico.sql`) accept or reject each operation. This fails closed by construction — a competing system that merely checks permissions in application code could not truthfully make the same guarantee. The four-layer architecture (OLTP/Postgres, curriculum graph/Neo4j, ETL, OLAP-BI data warehouse + in-app dashboard) is a deliberate mechanism for turning transactional academic records into curricular-bottleneck detection and diagnostic risk-pattern identification that a purely relational or purely dashboard-only system would not provide.
 
 ## Operating Context
 
@@ -26,8 +26,8 @@ Authorization is resolved in the database, not in application code: the app alwa
 - Backend: FastAPI + Jinja2 + Tailwind CSS v4, run with `uvicorn app.main:app --reload`, served at `http://localhost:8000` (API docs at `/api/docs`).
 - Session middleware authenticates users; every DB transaction executes `SET LOCAL ROLE` before touching data.
 - Synthetic data generated with Faker (`scripts/generator/02_generador_datos_sinteticos.py`, ~100k+ rows) and loaded into the Neo4j curriculum graph (`database/nosql/03_cargar_grafo_neo4j.py`).
-- ETL (`etl/`) and the Streamlit analytics dashboard (`dashboard/`) exist as early-stage scaffolding (Fases 3–4 of the roadmap) and are not yet functionally complete.
-- Five-phase roadmap: (1) operational DB + synthetic data + curriculum graph — done; (2) transactional CRUD system (matrícula, calificaciones, asistencia, reportes) — done; (3) ETL + data warehouse — in progress (hybrid connection layer and institutional cost model done); (4) Streamlit BI dashboard (cost KPIs, diagnostic risk patterns, curriculum network viz) — pending; (5) academic memoir/thesis writeup + defense prep — pending.
+- ETL (`etl/`) and the data warehouse (`dw_academico`) are built (Fase 3). The analytics dashboard lives inside the same FastAPI app — not a separate Streamlit app (team decision, Oct 2026): the executive view (`/vista-ejecutiva`, Fase 4.1) reads only the warehouse through its own read-only role `rol_dashboard`. `/dashboard` and `/analitica-olap` are still illustrative previews.
+- Five-phase roadmap: (1) operational DB + synthetic data + curriculum graph — done; (2) transactional CRUD system (matrícula, calificaciones, asistencia, reportes) — done; (3) ETL + data warehouse — done; (4) BI dashboard inside the web app (cost KPIs, diagnostic risk patterns, curriculum network viz) — in progress (executive view 4.1 and diagnostic analysis 4.2 done; curriculum network viz 4.3 pending); (5) academic memoir/thesis writeup + defense prep — pending.
 - The final deliverable must also satisfy the university's 21-chapter thesis-report format (UES-FMO guidelines) and a live jury defense demonstrating the security model documented in the README.
 
 ## Capabilities and Constraints

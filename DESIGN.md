@@ -109,6 +109,12 @@ Two sidebar items — **Dashboard & Grafo** (`/dashboard`) and **Alertas & OLAP 
 
 The login page's quick-demo buttons use the real seeded `coordinador` / `docente` accounts already in the database — never invented jurado personas with fabricated credentials, per explicit user decision during this rebrand.
 
+### Real analytics screens are outside the Preview Boundary
+
+**Vista ejecutiva** (`/vista-ejecutiva`, Fase 4.1) shows real query results from the data warehouse, so it does **not** carry `.preview-banner`. Its only caveat banner (`.alert-warning`) comes from the data itself — `dim_periodo.fuente_costo` — and disappears on its own once the official cost per UV is registered. Components added for it, all on existing tokens (dark mode included): `.kpi-interpretacion` (the text reading under each KPI number — indicator and interpretation are one piece), `.kpi-trend-neutral`, `.bar-list` / `.bar-row` / `.bar-track` / `.bar-fill` / `.bar-value` (horizontal magnitude bars: one series, brand color, zero baseline, value labelled at the end) and `.column-chart` / `.column` / `.column-bar` / `.column-labels` (per-period columns; selected periods at full opacity, the rest dimmed — distinguished without a second hue). On these four KPIs a rise is a deterioration, so `.kpi-trend-down` (red) marks an increase and the arrow always shows the real direction.
+
+**Análisis diagnóstico** (`/analisis-diagnostico`, Fase 4.2) is also real data and reuses the same pieces, plus a correlation heatmap: `.corr-table` / `.corr-cell` (intensity follows |r| over a neutral surface; `r` is always printed in the cell, so color never carries the value alone), `.is-negative`, `.is-construccion` (diagonal texture + `*` for pairs related by definition, e.g. cost vs grade), and `.corr-legend`. It introduces the diverging pair tokens `--color-div-pos` (blue) / `--color-div-neg` (red), with a neutral midpoint and separate dark-mode steps. Text in cells keeps the theme's text color: white on the mixed cell color failed contrast (~2.6:1). Copy rule specific to this screen: it describes patterns **observed** in history and never predicts (“ya presentan el patrón”, never “en riesgo de desertar”).
+
 ## Colors
 
 ### Primary

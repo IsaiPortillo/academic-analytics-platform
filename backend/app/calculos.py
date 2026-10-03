@@ -25,6 +25,14 @@ ESTADO_RETIRADO = "RETIRADO"
 # como media de aprobación.
 UMBRAL_NOTA_APROBACION = Decimal("6.00")
 
+# Umbral de faltas a partir del cual se marca al estudiante en riesgo (SCRUM-25).
+# Coincide con el HAVING del benchmark de la Fase 1.4 y con el badge rojo que ya
+# usa el resumen por sección de asistencia.html. Vive aquí, junto al umbral de
+# aprobación, porque el análisis diagnóstico (Fase 4.2) define el patrón de
+# riesgo con estos dos números: el reporte del coordinador y el dashboard deben
+# medir lo mismo con los mismos umbrales, no con dos copias que se separen.
+UMBRAL_FALTAS_RIESGO = 3
+
 
 class ExpresionesNotaFinal(NamedTuple):
     """Agregados de la nota final; se usan dentro de un GROUP BY por inscripción."""

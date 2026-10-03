@@ -39,6 +39,7 @@ WITH m, dependientes_directos, dependientes_totales, prerrequisitos_directos,
      coalesce(max(length(abajo)), 0) AS longitud_cascada
 OPTIONAL MATCH arriba = (m)-[:REQUIERE_APROBADA*1..]->(:Materia)
 RETURN m.codigo AS codigo_materia,
+       m.area AS area,
        dependientes_directos,
        dependientes_totales - dependientes_directos AS dependientes_indirectos,
        dependientes_totales,
@@ -50,6 +51,7 @@ ORDER BY dependientes_totales DESC, codigo_materia
 
 COLUMNAS_METRICAS = [
     "codigo_materia",
+    "area",
     "dependientes_directos",
     "dependientes_indirectos",
     "dependientes_totales",
@@ -66,6 +68,10 @@ def extraer_metricas_grafo(sesion: Session) -> pd.DataFrame:
     - dependientes_indirectos: materias bloqueadas en cascada, sin contar las directas.
     - longitud_cascada: cuántos ciclos de la cadena posterior se retrasan si se reprueba.
     - profundidad_prerrequisitos: cuántas materias encadenadas hay que aprobar antes.
+
+    También trae el área de conocimiento de la materia (Ciencias Básicas,
+    Desarrollo de Software, ...), que solo existe en el grafo: el OLTP no la
+    registra. Es una de las variables cualitativas del análisis diagnóstico.
     """
     registros = [dict(r) for r in sesion.run(CONSULTA_METRICAS)]
     return pd.DataFrame(registros, columns=COLUMNAS_METRICAS)

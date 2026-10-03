@@ -107,6 +107,7 @@ def _datos_base():
     })
     metricas = pd.DataFrame({
         "codigo_materia": ["PRG115", "PRG215", "PRG315", "DWB115"],
+        "area": ["Desarrollo de Software"] * 4,
         "dependientes_directos": [1, 1, 1, 0],
         "dependientes_indirectos": [2, 1, 0, 0],
         "dependientes_totales": [3, 2, 1, 0],
@@ -114,10 +115,26 @@ def _datos_base():
         "longitud_cascada": [3, 2, 1, 0],
         "profundidad_prerrequisitos": [0, 1, 2, 3],
     })
+    carreras = pd.DataFrame({
+        "carrera_id": [1], "codigo_carrera": ["I10515"],
+        "nombre_carrera": ["Ingeniería de Sistemas Informáticos"], "departamento_id": [1],
+        "codigo_departamento": ["DIA"], "nombre_departamento": ["Ingeniería y Arquitectura"],
+    })
+    costos_periodo = pd.DataFrame({
+        "periodo_id": [1, 2], "costo_por_uv": [25.0, 30.0], "moneda": ["USD", "USD"],
+        "fuente_costo": ["SUPUESTO PARAMETRICO", "SUPUESTO PARAMETRICO"],
+    })
+    # Costo de la materia en el período = UV × costo por UV (como la vista del OLTP).
+    costos_materia = (
+        materias[["materia_id", "unidades_valorativas"]].merge(costos_periodo, how="cross")
+        .assign(costo_materia=lambda d: d["unidades_valorativas"] * d["costo_por_uv"])
+        [["materia_id", "periodo_id", "costo_materia"]]
+    )
     return {
         "estudiantes": estudiantes, "materias": materias, "periodos": periodos,
         "secciones": secciones, "inscripciones": inscripciones, "notas": notas,
-        "asistencia": asistencia,
+        "asistencia": asistencia, "carreras": carreras, "costos_periodo": costos_periodo,
+        "costos_materia": costos_materia,
     }, metricas
 
 
@@ -151,11 +168,75 @@ class TestLimpiezaInscripciones(unittest.TestCase):
         self.assertEqual(self.h.loc[3, "sesiones"], 0)
         self.assertTrue(pd.isna(self.h.loc[3, "porcentaje_asistencia"]))
 
+    def test_costo_de_reprobacion_solo_en_reprobados(self):
+        # PRG115 en 2025-I: 4 UV × $25 = $100.
+        self.assertEqual(self.h.loc[2, "costo_inscripcion"], 100.0)
+        self.assertEqual(self.h.loc[2, "costo_reprobacion"], 100.0)
+        # Aprobado y retirado tienen costo invertido, pero no costo de reprobación.
+        self.assertEqual(self.h.loc[1, "costo_reprobacion"], 0.0)
+        self.assertEqual(self.h.loc[5, "costo_inscripcion"], 100.0)
+        self.assertEqual(self.h.loc[5, "costo_reprobacion"], 0.0)
+        # El costo usa el costo por UV del período: PRG115 en 2025-II = 4 × $30.
+        self.assertEqual(self.h.loc[8, "costo_inscripcion"], 120.0)
+
+    def test_repeticion(self):
+        self.assertTrue(self.h.loc[2, "es_repeticion"])
+        self.assertFalse(self.h.loc[1, "es_repeticion"])
+
     def test_inscripcion_con_seccion_inexistente_detiene_el_pipeline(self):
         datos, metricas = _datos_base()
         datos["inscripciones"].loc[0, "seccion_id"] = 999
         with self.assertRaises(ErrorIntegridad):
             transformar(datos, metricas, FECHA_CORTE)
+
+
+class TestPatronDeRiesgo(unittest.TestCase):
+    """Fase 4.2: nota final < 6.00 Y 3 o más ausencias, los umbrales del
+    sistema transaccional. Las dos condiciones a la vez, nunca una sola."""
+
+    def _hechos(self, ajustar=None):
+        datos, metricas = _datos_base()
+        if ajustar:
+            ajustar(datos)
+        r = transformar(datos, metricas, FECHA_CORTE)
+        return r.datasets["hechos_inscripcion"].set_index("inscripcion_id")
+
+    def test_reprobado_con_faltas_presenta_el_patron(self):
+        # Inscripción 2: REPROBADO con 4 ausencias.
+        self.assertTrue(self._hechos().loc[2, "patron_riesgo"])
+
+    def test_faltas_sin_reprobar_no_es_patron(self):
+        def aprobado_con_faltas(d):
+            d["asistencia"].loc[d["asistencia"]["inscripcion_id"] == 1, "ausentes"] = 5
+        self.assertFalse(self._hechos(aprobado_con_faltas).loc[1, "patron_riesgo"])
+
+    def test_reprobar_con_pocas_faltas_no_es_patron(self):
+        def dos_faltas(d):
+            d["asistencia"].loc[d["asistencia"]["inscripcion_id"] == 2, "ausentes"] = 2
+        self.assertFalse(self._hechos(dos_faltas).loc[2, "patron_riesgo"])
+
+    def test_justo_en_el_umbral_si_es_patron(self):
+        def tres_faltas(d):
+            d["asistencia"].loc[d["asistencia"]["inscripcion_id"] == 2, "ausentes"] = 3
+        self.assertTrue(self._hechos(tres_faltas).loc[2, "patron_riesgo"])
+
+    def test_retirado_con_faltas_no_es_patron(self):
+        def retirado_con_faltas(d):
+            d["asistencia"].loc[len(d["asistencia"])] = [5, 10, 2, 8, 0]
+        self.assertFalse(self._hechos(retirado_con_faltas).loc[5, "patron_riesgo"])
+
+    def test_el_turno_viene_de_la_seccion(self):
+        def nocturno(d):
+            d["secciones"].loc[d["secciones"]["seccion_id"] == 100, "turno"] = "NOCTURNO"
+        h = self._hechos(nocturno)
+        self.assertEqual(h.loc[1, "turno"], "NOCTURNO")
+        self.assertEqual(h.loc[3, "turno"], "MATUTINO")
+
+    def test_area_viene_del_grafo_y_se_rotula_si_falta(self):
+        datos, metricas = _datos_base()
+        m = transformar(datos, metricas, FECHA_CORTE).datasets["materias"].set_index("codigo_materia")
+        self.assertEqual(m.loc["PRG115", "area"], "Desarrollo de Software")
+        self.assertEqual(m.loc["ZZZ999", "area"], "Sin área en la malla")
 
 
 class TestEstudiantePeriodo(unittest.TestCase):
@@ -239,3 +320,38 @@ class TestAnonimizacion(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPreparacionDW(unittest.TestCase):
+    """La traducción al modelo estrella (etl/carga.py), sin tocar la base."""
+
+    def setUp(self):
+        from etl.carga import preparar_tablas
+        datos, metricas = _datos_base()
+        self.tablas = preparar_tablas(transformar(datos, metricas, FECHA_CORTE))
+        self.fact = self.tablas["fact_inscripcion"].set_index("inscripcion_id")
+
+    def test_toda_inscripcion_llega_a_los_hechos_con_sus_llaves(self):
+        self.assertEqual(len(self.fact), 8)
+        llaves = ["periodo_key", "materia_key", "estudiante_key", "carrera_key"]
+        self.assertFalse(self.fact[llaves].isna().any().any())
+
+    def test_banderas_y_costo_cumplen_el_check_del_ddl(self):
+        # Mismo invariante que chk_costo_reprobacion en 10_dw_academico.sql.
+        f = self.fact
+        valido = (f["costo_reprobacion"] == 0) | (
+            f["reprobado"] & (f["costo_reprobacion"] == f["costo_inscripcion"]))
+        self.assertTrue(valido.all())
+        self.assertEqual(f["reprobado"].sum(), 1)
+        self.assertEqual(f["cerrada"].sum(), 3)
+        self.assertTrue(f.loc[5, "retirado"])
+
+    def test_periodos_ordenados_y_con_costo(self):
+        p = self.tablas["dim_periodo"].set_index("codigo_periodo")
+        self.assertEqual(p.loc["2025-I", "orden"], 1)
+        self.assertEqual(p.loc["2025-II", "costo_por_uv"], 30.0)
+
+    def test_dimension_de_estudiante_sin_datos_identificables(self):
+        columnas = set(self.tablas["dim_estudiante"].columns)
+        self.assertNotIn("nombre", columnas)
+        self.assertIn("carnet_hash", columnas)

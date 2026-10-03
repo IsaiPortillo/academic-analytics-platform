@@ -17,7 +17,7 @@ Dos decisiones atraviesan todo el módulo:
 """
 
 import pandas as pd
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from .conexiones import calculos_oltp, modelos_oltp
@@ -137,6 +137,47 @@ def extraer_asistencia_por_inscripcion(sesion: Session) -> pd.DataFrame:
     ).group_by(m.Asistencia.inscripcion_id))
 
 
+def extraer_carreras(sesion: Session) -> pd.DataFrame:
+    """Carreras con su departamento ya resuelto, para la dimensión de carrera."""
+    m = modelos_oltp()
+    return _leer(sesion, select(
+        m.Carrera.carrera_id,
+        m.Carrera.codigo_carrera,
+        m.Carrera.nombre.label("nombre_carrera"),
+        m.Departamento.departamento_id,
+        m.Departamento.codigo_departamento,
+        m.Departamento.nombre.label("nombre_departamento"),
+    ).join(m.Departamento, m.Carrera.departamento_id == m.Departamento.departamento_id))
+
+
+def extraer_costos_periodo(sesion: Session) -> pd.DataFrame:
+    """Costo por UV de cada período, con su fuente (SCRUM-36).
+
+    La fuente viaja hasta el DW para que el dashboard pueda advertir cuando la
+    cifra es un supuesto paramétrico y no un dato presupuestario oficial.
+    """
+    m = modelos_oltp()
+    return _leer(sesion, select(
+        m.CostoUV.periodo_id,
+        m.CostoUV.costo_por_uv,
+        m.CostoUV.moneda,
+        m.CostoUV.fuente.label("fuente_costo"),
+    ))
+
+
+def extraer_costo_materia_periodo(sesion: Session) -> pd.DataFrame:
+    """Costo de impartir cada materia en cada período.
+
+    Se lee de la vista v_costo_materia_periodo (database/oltp/08) y no se
+    recalcula aquí: la multiplicación UV × costo por UV vive en un solo lugar,
+    igual que la nota final vive en backend/app/calculos.py.
+    """
+    return _leer(sesion, text(
+        "SELECT materia_id, periodo_id, costo_materia "
+        "FROM academico_oltp.v_costo_materia_periodo"
+    ))
+
+
 EXTRACTORES = {
     "estudiantes": extraer_estudiantes,
     "materias": extraer_materias,
@@ -145,6 +186,9 @@ EXTRACTORES = {
     "inscripciones": extraer_inscripciones,
     "notas": extraer_notas_por_inscripcion,
     "asistencia": extraer_asistencia_por_inscripcion,
+    "carreras": extraer_carreras,
+    "costos_periodo": extraer_costos_periodo,
+    "costos_materia": extraer_costo_materia_periodo,
 }
 
 

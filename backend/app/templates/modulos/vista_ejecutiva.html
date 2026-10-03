@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge %}
+{% block titulo %}Vista ejecutiva{% endblock %}
+
+{% block contenido %}
+<div class="flex items-start justify-between flex-wrap gap-3 mb-4">
+    <div>
+        <h1 class="page-title mb-1">Vista ejecutiva: costo y rendimiento</h1>
+        <p class="text-sm text-muted">Nivel analítico descriptivo — ¿qué ocurrió en el ciclo y cuánto costó?</p>
+    </div>
+    {# Hecho de arquitectura real: de dónde salen estos números y con qué rol. #}
+    <span class="telemetry-badge"><span class="dot"></span>Data Warehouse · dw_academico · rol_dashboard</span>
+</div>
+
+{% if error %}
+<div class="alert alert-danger" role="alert"><span>{{ error }}</span></div>
+{% else %}
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" action="/vista-ejecutiva" class="flex items-end gap-2 flex-wrap">
+            <div>
+                <label for="periodo" class="field-label">Período</label>
+                <select id="periodo" name="periodo" class="select" onchange="this.form.submit()">
+                    {% for codigo in periodos|reverse %}
+                    <option value="{{ codigo }}" {% if codigo == periodo %}selected{% endif %}>{{ codigo }}</option>
+                    {% endfor %}
+                    <option value="todos" {% if periodo == "todos" %}selected{% endif %}>Todos los períodos</option>
+                </select>
+            </div>
+            <div>
+                <label for="departamento" class="field-label">Departamento</label>
+                <select id="departamento" name="departamento" class="select" onchange="this.form.submit()">
+                    <option value="">Todos</option>
+                    {% for d in departamentos %}
+                    <option value="{{ d.codigo_departamento }}" {% if d.codigo_departamento == departamento %}selected{% endif %}>
+                        {{ d.nombre_departamento }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="carrera" class="field-label">Carrera</label>
+                <select id="carrera" name="carrera" class="select" onchange="this.form.submit()">
+                    <option value="">Todas</option>
+                    {% for c in carreras %}
+                    <option value="{{ c.codigo_carrera }}" {% if c.codigo_carrera == carrera %}selected{% endif %}>
+                        {{ c.nombre_carrera }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if supuesto %}
+<div class="alert alert-warning mb-4" role="note">
+    <span>
+        <strong>Costo por unidad valorativa: {{ supuesto.cifra }}, supuesto paramétrico.</strong>
+        No es una cifra presupuestaria oficial de la UES (fuente registrada: “{{ supuesto.fuente }}”).
+        Los montos muestran el orden de magnitud y se recalculan solos cuando se registre la cifra oficial.
+    </span>
+</div>
+{% endif %}
+
+<div class="flex items-baseline justify-between flex-wrap gap-2 mb-2">
+    <h2 class="page-subtitle">Indicadores clave · {{ etiqueta_periodo }}</h2>
+    {% if periodo_anterior %}
+    <span class="text-xs text-muted">Variación contra {{ periodo_anterior }} · en rojo cuando el indicador empeora</span>
+    {% endif %}
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
+    {% for kpi in kpis %}
+    <div class="kpi-card{% if loop.first %} kpi-card-wash{% endif %}">
+        <div class="kpi-label" title="{{ kpi.ayuda }}">{{ kpi.etiqueta }}</div>
+        <div class="kpi-value">{{ kpi.valor }}</div>
+        {% if kpi.variacion %}
+        <div class="kpi-trend {{ kpi.variacion.clase }}">{{ kpi.variacion.texto }} vs. {{ periodo_anterior }}</div>
+        {% endif %}
+        <p class="kpi-interpretacion">{{ kpi.texto }}</p>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="card mb-6">
+    <div class="card-header">Materias que concentran el mayor costo de reprobación</div>
+    <div class="card-body">
+        {% if ranking %}
+        <div class="bar-list" role="list">
+            {% for m in ranking %}
+            <div class="bar-row" role="listitem"
+                 title="{{ m.codigo_materia }} · {{ m.nombre_materia }} — {{ m.costo_texto }}, {{ m.reprobados }} reprobados de {{ m.cerradas }} con nota final ({{ m.tasa_texto }})">
+                <div>
+                    <div class="font-semibold">
+                        {{ m.codigo_materia }}
+                        {% if m.es_cuello_botella %}<span class="ml-1">{{ badge('danger', 'Cuello de botella') }}</span>{% endif %}
+                    </div>
+                    <div class="text-xs text-muted">{{ m.nombre_materia }} · {{ m.reprobados }} reprobados · {{ m.tasa_texto }}</div>
+                </div>
+                <div class="bar-track"><div class="bar-fill" style="--pct: {{ '%.4f'|format(m.pct) }};"></div></div>
+                <div class="bar-value">{{ m.costo_texto }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        <p class="kpi-interpretacion">{{ texto_ranking }}</p>
+
+        {% if ranking %}
+        <details class="mt-3">
+            <summary class="text-sm text-muted" style="cursor: pointer;">Ver como tabla</summary>
+            <div class="table-wrap mt-2">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Materia</th>
+                            <th class="text-center">Reprobados</th>
+                            <th class="text-center">Con nota final</th>
+                            <th class="text-center">Tasa</th>
+                            <th class="text-center">Costo ({{ moneda }})</th>
+                            <th class="text-center">Materias que bloquea</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in ranking %}
+                        <tr>
+                            <td>
+                                <div class="font-semibold">{{ m.codigo_materia }}</div>
+                                <div class="text-xs text-muted">{{ m.nombre_materia }}</div>
+                            </td>
+                            <td class="text-center">{{ m.reprobados }}</td>
+                            <td class="text-center">{{ m.cerradas }}</td>
+                            <td class="text-center">{{ m.tasa_texto }}</td>
+                            <td class="text-center font-semibold">{{ m.costo_texto }}</td>
+                            <td class="text-center">{{ m.dependientes_totales }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </details>
+        {% endif %}
+    </div>
+</div>
+
+{% if columnas %}
+<div class="card mb-4">
+    <div class="card-header">Costo de reprobación por período</div>
+    <div class="card-body">
+        <div class="column-chart" role="list" aria-label="Costo de reprobación por período">
+            {% for c in columnas %}
+            <div class="column{% if c.seleccionado %} is-selected{% endif %}" role="listitem"
+                 title="{{ c.codigo }} — {{ c.costo_texto }} · tasa de reprobación {{ c.tasa_texto }}">
+                <span class="column-value">{{ c.costo_texto }}</span>
+                <div class="column-bar" style="--pct: {{ '%.4f'|format(c.pct) }};"></div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="column-labels" aria-hidden="true">
+            {% for c in columnas %}<span>{{ c.codigo }}</span>{% endfor %}
+        </div>
+        {% if texto_evolucion %}
+        <p class="kpi-interpretacion">
+            {{ texto_evolucion }} Las columnas resaltadas son los períodos del filtro; este gráfico
+            respeta el departamento y la carrera, pero muestra siempre todos los períodos.
+        </p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% if ultima_carga %}
+<p class="text-xs text-muted">
+    Última carga del Data Warehouse: {{ ultima_carga.ejecutada_en.strftime("%Y-%m-%d %H:%M") }} UTC
+    · fecha de corte {{ ultima_carga.fecha_corte }} · {{ "{:,}".format(ultima_carga.filas_hechos) }} inscripciones.
+    Esta vista no consulta el sistema transaccional: lee solo el Data Warehouse.
+</p>
+{% endif %}
+
+{% endif %}
+{% endblock %}

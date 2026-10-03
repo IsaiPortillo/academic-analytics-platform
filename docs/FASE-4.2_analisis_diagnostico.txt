@@ -1,0 +1,216 @@
+===============================================================================
+ FASE 4.2 — ANÁLISIS DIAGNÓSTICO: CORRELACIONES Y PATRONES DE RIESGO
+===============================================================================
+
+Como coordinador académico, quiero entender por qué se reprueba y qué
+caracteriza a los casos de riesgo, para actuar sobre las causas y no solo
+sobre el síntoma. Nivel analítico: diagnóstico (¿por qué ocurrió?).
+
+ALCANCE. La pantalla describe patrones OBSERVADOS en el historial. No predice
+quién va a reprobar o desertar ni recomienda acciones: predictivo y
+prescriptivo están fuera del alcance que fijó el docente. Toda la redacción de
+la interfaz lo respeta ("ya presentan el patrón", "patrón observado en el
+historial, no un pronóstico") y hay pruebas que lo verifican.
+
+
+-------------------------------------------------------------------------------
+ 1. DÓNDE VIVE Y CÓMO SE CONECTA
+-------------------------------------------------------------------------------
+
+Pantalla "Análisis diagnóstico" de la aplicación web (menú "Inteligencia
+institucional", solo coordinador), con el mismo diseño que el resto. Igual
+que la vista ejecutiva (4.1), lee SOLO dw_academico con su propia conexión
+como rol_dashboard, que PostgreSQL no deja leer el esquema operacional.
+
+    http://localhost:8000/analisis-diagnostico
+
+
+-------------------------------------------------------------------------------
+ 2. ARCHIVOS
+-------------------------------------------------------------------------------
+
+  backend/app/calculos.py              UMBRAL_FALTAS_RIESGO se mudó aquí desde
+                                       reportes.py: el reporte y el DW usan la
+                                       MISMA constante (no dos copias).
+  backend/app/routers/reportes.py      Importa el umbral de calculos.py.
+  database/oltp/12_dw_diagnostico.sql  NUEVO. Migración del DW: área, turno,
+                                       patron_riesgo, CHECK e índice.
+  etl/grafo.py                         Trae el área de cada materia desde Neo4j.
+  etl/transformacion.py                Turno y patron_riesgo por inscripción.
+  etl/anonimizacion.py, etl/carga.py   Columnas nuevas.
+  etl/validar_dw.py                    NUEVO. Validación entre capas y registro.
+  backend/app/dw.py                    Consultas diagnósticas (solo DW).
+  backend/app/indicadores_diagnostico.py  NUEVO. Lecturas en texto + estadística.
+  backend/app/routers/analisis_diagnostico.py  NUEVO. La ruta.
+  backend/app/templates/modulos/analisis_diagnostico.html  NUEVO. La pantalla.
+  backend/app/static/src/input.css     Mapa de calor y par de colores divergente.
+  docs/validacion/registro_validacion.md  Registro generado por la validación.
+
+
+-------------------------------------------------------------------------------
+ 3. QUÉ MUESTRA (cada gráfico con su lectura en texto)
+-------------------------------------------------------------------------------
+
+3.1 Matriz de correlaciones (Pearson)
+    Variables: asistencia acumulada (%), nota final, número de intento y costo
+    de reprobación, sobre inscripciones cerradas. Calculada con corr() de
+    PostgreSQL por pares (cada par usa las filas donde ambas existen).
+
+    ¿Por qué costo_reprobacion y no costo_inscripcion? Todas las materias
+    tienen 4 UV y el costo por UV es el mismo supuesto ($25) en todos los
+    períodos: costo_inscripcion es constante (desviación 0) y su correlación
+    no está definida. El par nota–costo sale fuerte (−0.74) pero es POR
+    CONSTRUCCIÓN (el costo solo existe con nota < 6.00): la pantalla lo marca
+    con * y textura, y su lectura dice que no es un hallazgo.
+
+    Junto a la matriz: tasa de reprobación con 3+ ausencias frente al resto.
+
+3.2 Análisis por cohorte de ingreso (dim_estudiante.anio_ingreso)
+    Reprobación, nota, asistencia, costo y estudiantes con el patrón por
+    cohorte, en barras y en tabla.
+
+3.3 Segmentación por variables cualitativas
+    Turno, área de la materia (del grafo de Neo4j: el OLTP no la tiene) y
+    ciclo del plan, como pide el criterio. Más una variable adicional,
+    marcada como tal: condición laboral (trabaja / no trabaja), porque es la
+    que más separa la reprobación en estos datos.
+
+3.4 Estudiantes que ya presentan el patrón de riesgo
+    Patrón = inscripción con nota final < 6.00 Y 3 o más ausencias.
+    Son los umbrales del sistema transaccional:
+      - 6.00 = UMBRAL_NOTA_APROBACION (reporte de notas finales, SCRUM-10)
+      - 3    = UMBRAL_FALTAS_RIESGO   (reporte de asistencia, SCRUM-25)
+    Ambos en backend/app/calculos.py; el ETL los importa de ahí y calcula la
+    bandera patron_riesgo una sola vez. El DW tiene un CHECK que impide marcar
+    el patrón en una inscripción que no esté reprobada con 3+ ausencias.
+    La tabla identifica a cada estudiante por estudiante_id (el mismo que
+    muestran los reportes) y su carnet anonimizado (SHA-256): nada personal.
+
+
+-------------------------------------------------------------------------------
+ 4. CÓMO SE LEE (reglas para no afirmar de más)
+-------------------------------------------------------------------------------
+
+  Fuerza de una correlación (Cohen, 1988): |r| < 0.10 despreciable,
+  < 0.30 débil, < 0.50 moderada, ≥ 0.50 fuerte.
+
+  Significancia al 95 %:
+    - correlación: prueba t de Pearson, t = r·√((n−2)/(1−r²)), |t| ≥ 1.96
+    - diferencia entre grupos: prueba z de dos proporciones, |z| ≥ 1.96,
+      entre el grupo de mayor y el de menor reprobación.
+  Una diferencia solo se presenta como hallazgo si es significativa. Con
+  miles de casos casi todo es significativo, así que además se informa la
+  magnitud ("real pero pequeña" si es menor a 2 puntos porcentuales).
+
+  Toda lectura de correlaciones cierra recordando que correlación no es
+  causalidad.
+
+
+-------------------------------------------------------------------------------
+ 5. HALLAZGOS CON LOS DATOS ACTUALES (todos los períodos)
+-------------------------------------------------------------------------------
+
+  - Asistencia y nota: r = +0.015, despreciable y no distinguible del azar.
+    Con 3+ ausencias se reprueba 25.5 % vs 24.6 % sin ellas: no se distingue
+    del azar. En estos datos las ausencias NO explican la reprobación.
+  - Número de intento y nota: r = −0.145, débil y real.
+  - Condición laboral: trabaja 42.3 % vs no trabaja 19.8 % de reprobación,
+    22.5 puntos porcentuales: la diferencia más fuerte y real.
+  - Turno, área y ciclo: diferencias de 0.7 a 1.7 puntos, no distinguibles
+    del azar. Cohorte: 1.5 puntos, real pero pequeña.
+  - 395 estudiantes presentan el patrón, en 481 inscripciones (16.2 % de las
+    reprobaciones que tienen asistencia registrada).
+
+  ATENCIÓN PARA LA DEFENSA: estos resultados reflejan cómo se generaron los
+  datos sintéticos, y la pantalla los reporta con fidelidad. El generador:
+    - crea la asistencia al azar, sin relación con la nota (por eso r ≈ 0);
+    - resta 0.6 puntos de media a quien trabaja y 0.4 a quien repite (por
+      eso esas dos son las únicas relaciones claras);
+    - no modela turno, área, ciclo ni cohorte (por eso no separan).
+  Que el análisis encuentre exactamente lo que el generador puso, y no
+  encuentre lo que no puso, es evidencia de que funciona.
+
+
+-------------------------------------------------------------------------------
+ 6. VALIDACIÓN DE DATOS Y PROCESOS (registro para la documentación)
+-------------------------------------------------------------------------------
+
+    python -m etl.validar_dw
+
+Corre 46 verificaciones entre capas y escribe
+docs/validacion/registro_validacion.md con fecha, commit, resultados y
+observaciones. Resultado actual: 46 de 46 correctas.
+
+  Completitud        conteos del DW = conteos del OLTP
+  Costo              SQL independiente sobre el OLTP (escrito en el script,
+                     no reutiliza el ETL): 8,020 reprobadas, $802,000
+  Sist. transaccional  reprobadas/cerradas por período = reporte de notas
+  Patrón de riesgo   por período, CASO POR CASO, el DW = intersección de los
+                     reportes de notas (SCRUM-10) y asistencia (SCRUM-25):
+                     2022-I 140 · 2022-II 173 · 2023-I 168 → 481
+  Umbrales           el reporte y el ETL usan la misma constante
+  Correlaciones      corr() de PostgreSQL = pandas (6 pares, error < 1e-6)
+  Particiones        cada segmentación reparte exactamente el total
+  Cruce con grafo    área de las 16 materias = la de Neo4j
+  Seguridad          rol_dashboard no lee el OLTP ni escribe el DW
+  Anonimización      carnet_hash con forma SHA-256, sin columnas personales
+  Integridad         el CHECK del patrón está activo
+
+Lo que encontró la validación al construirse (vale la pena contarlo):
+  La primera corrida dio 154 vs 140 en el patrón de 2022-I. No era un error
+  del DW: la validación comparaba por (estudiante, materia), y hay
+  estudiantes inscritos en DOS secciones de la misma materia en el mismo
+  período (por ejemplo, reprobó la sección 1 con 1 falta y aprobó la 2 con 3
+  faltas: ninguna cumple el patrón, pero mezcladas parecían cumplirlo). Se
+  corrigió la clave a estudiante + materia + sección. Resultó ser un problema
+  de calidad del OLTP: 1,901 dobles inscripciones de 1,052 estudiantes, que
+  el esquema permite (solo exige estudiante + sección únicos) y el generador
+  produce al elegir secciones al azar. Queda registrado en las observaciones.
+
+Prueba de que la validación detecta errores (hecha el 2026-10-02):
+  1. Marcar el patrón en una inscripción aprobada → PostgreSQL lo rechaza
+     al instante (chk_patron_riesgo_reprobado).
+  2. Quitar el patrón a 1 inscripción y borrar 1 hecho reprobado → la
+     validación falla en 5 verificaciones, justo donde se dañó (completitud,
+     reprobadas, costo, patrón 2022-I, tasa 2025-II) y sale con código 1.
+  3. python -m etl.carga restaura el DW → 46 de 46 otra vez.
+
+
+-------------------------------------------------------------------------------
+ 7. CÓMO PROBARLO
+-------------------------------------------------------------------------------
+
+Requisitos: Docker Desktop abierto, docker compose up -d. Desde la raíz del
+repositorio, con el entorno virtual del proyecto.
+
+PASO 1 — Solo si tu base ya existía: aplicar la migración del DW
+    docker exec -i academico_postgres psql -U postgres -d academico_db \
+        < database/oltp/12_dw_diagnostico.sql
+    (es idempotente: correrla dos veces no hace daño)
+
+PASO 2 — Recargar el DW
+    python -m etl.carga
+
+PASO 3 — Pruebas unitarias (sin base de datos)
+    python -m unittest discover -s etl/tests -v           (31 pruebas)
+    cd backend && python -m unittest discover -s tests -v (31 pruebas)
+
+PASO 4 — Validación entre capas + registro para la memoria
+    python -m etl.validar_dw
+    Esperado: "46 de 46 verificaciones correctas." y el archivo
+    docs/validacion/registro_validacion.md actualizado.
+
+PASO 5 — La pantalla
+    cd backend && uvicorn app.main:app --reload
+    Entrar como coordinador → "Análisis diagnóstico". Probar:
+      - "Todos los períodos" (por defecto) y 2022-I: hay asistencia.
+      - 2025-I: no hay asistencia; la matriz dice "sin datos" en esas
+        celdas y las lecturas lo explican en vez de inventar.
+      - Pasar el cursor por las celdas (lectura de cada par) y las barras.
+      - Como docente: la opción no aparece y la URL responde 403.
+
+PASO 6 — Cotejar un caso con el sistema transaccional
+    Tomar un estudiante de la tabla del patrón (ej. el primero), abrir
+    Reportes → Asistencia acumulada con "solo en riesgo" en su período, y
+    Notas finales: debe aparecer con 3+ ausencias y nota < 6.00 en la misma
+    materia y sección.

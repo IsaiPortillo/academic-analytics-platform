@@ -30,6 +30,8 @@ ESTADO_RETIRADO = _calculos.ESTADO_RETIRADO
 ESTADO_INSCRITO = "INSCRITO"
 # Mismo umbral que el reporte de notas finales de SCRUM-10.
 UMBRAL_APROBACION = float(_calculos.UMBRAL_NOTA_APROBACION)
+# Mismo umbral que el reporte de asistencia acumulada de SCRUM-25.
+UMBRAL_FALTAS_RIESGO = int(_calculos.UMBRAL_FALTAS_RIESGO)
 
 # Resultado de una inscripción. Solo APROBADO y REPROBADO llevan nota final.
 APROBADO = "APROBADO"
@@ -86,7 +88,7 @@ def _clasificar_resultado(h: pd.DataFrame, fecha_corte: date) -> pd.Series:
 
 
 def construir_hechos_inscripcion(datos: dict[str, pd.DataFrame], fecha_corte: date) -> pd.DataFrame:
-    secciones = datos["secciones"][["seccion_id", "materia_id", "docente_id", "periodo_id"]]
+    secciones = datos["secciones"][["seccion_id", "materia_id", "docente_id", "periodo_id", "turno"]]
     periodos = datos["periodos"][["periodo_id", "fecha_fin"]].assign(
         fecha_fin=lambda df: pd.to_datetime(df["fecha_fin"])
     )
@@ -97,6 +99,8 @@ def construir_hechos_inscripcion(datos: dict[str, pd.DataFrame], fecha_corte: da
         .merge(periodos, on="periodo_id", how="left", validate="many_to_one")
         .merge(datos["notas"], on="inscripcion_id", how="left", validate="one_to_one")
         .merge(datos["asistencia"], on="inscripcion_id", how="left", validate="one_to_one")
+        .merge(datos["costos_materia"], on=["materia_id", "periodo_id"], how="left",
+               validate="many_to_one")
     )
     _exigir_sin_nulos(h, ["materia_id", "periodo_id", "fecha_fin", "ponderacion_evaluada"],
                       "hechos_inscripcion")
@@ -122,24 +126,43 @@ def construir_hechos_inscripcion(datos: dict[str, pd.DataFrame], fecha_corte: da
         h.loc[cerrada, "ponderacion_calificada"] >= h.loc[cerrada, "ponderacion_evaluada"]
     )
 
+    # Costo (SCRUM-36). costo_inscripcion es lo que la institución invirtió en
+    # que el estudiante cursara la materia; costo_reprobacion es esa misma
+    # inversión cuando terminó en REPROBADO, y 0 en cualquier otro caso. Un
+    # retiro no cuenta como reprobación, igual que en el resto del pipeline.
+    # Un período sin costo registrado deja el costo nulo (no 0) y se cuenta en
+    # el reporte de calidad.
+    h["costo_inscripcion"] = h["costo_materia"]
+    h["costo_reprobacion"] = h["costo_inscripcion"].where(h["resultado"] == REPROBADO, 0.0).fillna(0.0)
+    h["es_repeticion"] = h["numero_intento"] > 1
+
+    # Patrón de riesgo (Fase 4.2): inscripción cerrada con nota final < 6.00 Y
+    # 3 o más ausencias. Son los dos umbrales que ya usa el sistema
+    # transaccional (reportes de SCRUM-10 y SCRUM-25), tomados de
+    # backend/app/calculos.py: el dashboard y el reporte miden lo mismo. Es un
+    # patrón OBSERVADO en datos históricos, no una predicción.
+    h["patron_riesgo"] = (h["resultado"] == REPROBADO) & (h["ausentes"] >= UMBRAL_FALTAS_RIESGO)
+
     return h[[
         "inscripcion_id", "estudiante_id", "seccion_id", "materia_id", "periodo_id",
         "docente_id", "fecha_inscripcion", "numero_intento", "estado_inscripcion",
         "resultado", "nota_final", "aprobado", "nota_completa",
         "ponderacion_evaluada", "ponderacion_calificada", "evaluaciones_sin_nota",
         "sesiones", "presentes", "ausentes", "justificados", "porcentaje_asistencia",
+        "es_repeticion", "costo_inscripcion", "costo_reprobacion",
+        "turno", "patron_riesgo",
     ]].sort_values("inscripcion_id", ignore_index=True)
 
 
 def construir_estudiante_periodo(hechos: pd.DataFrame, materias: pd.DataFrame) -> pd.DataFrame:
-    """Resumen por estudiante y periodo, base de la alerta de deserción (4.2).
+    """Resumen por estudiante y periodo, base del análisis de patrones de abandono (4.2).
 
     Estudiantes sin actividad en el periodo: solo existe fila para los periodos
     en que el estudiante se inscribió a algo — no se fabrican filas para cada
     combinación estudiante × periodo. Si se inscribió pero no muestra actividad
     (retiró todo, o no tiene ni notas ni asistencia), la fila se conserva con
     con_actividad = False y promedio nulo: es exactamente el patrón de abandono
-    que la Fase 4.2 debe detectar, y un promedio de 0 lo confundiría con un
+    que la Fase 4.2 debe identificar, y un promedio de 0 lo confundiría con un
     estudiante que reprobó todo.
     """
     h = hechos.merge(materias[["materia_id", "unidades_valorativas"]], on="materia_id",
@@ -180,6 +203,14 @@ def construir_estudiante_periodo(hechos: pd.DataFrame, materias: pd.DataFrame) -
     ep["promedio_periodo"] = (ep["nota_por_uv"] / ep["uv_cerradas"].where(ep["uv_cerradas"] > 0)).round(2)
     ep["porcentaje_asistencia"] = (ep["presentes"] / ep["sesiones"].where(ep["sesiones"] > 0) * 100).round(2)
     return ep.drop(columns=["nota_por_uv", "uv_cerradas", "sesiones", "presentes"])
+
+
+def construir_periodos(periodos: pd.DataFrame, costos_periodo: pd.DataFrame) -> pd.DataFrame:
+    """Dimensión de períodos con su orden cronológico y su costo por UV."""
+    p = periodos.merge(costos_periodo, on="periodo_id", how="left", validate="one_to_one")
+    p = p.sort_values("fecha_inicio", ignore_index=True)
+    p["orden"] = range(1, len(p) + 1)
+    return p
 
 
 def construir_estudiantes(estudiantes: pd.DataFrame, estudiante_periodo: pd.DataFrame,
@@ -232,6 +263,9 @@ def construir_materias(materias: pd.DataFrame, metricas_grafo: pd.DataFrame,
     m[metricas_conteo] = m[metricas_conteo].fillna(0).astype("int64")
     m["indice_bloqueo"] = m["indice_bloqueo"].fillna(0.0)
     m["es_cuello_botella"] = m["es_cuello_botella"].fillna(False).astype(bool)
+    # Una materia del OLTP que no está en la malla no tiene área: se rotula en
+    # vez de quedar nula, para que aparezca como su propio segmento.
+    m["area"] = m["area"].fillna("Sin área en la malla")
 
     rendimiento = hechos.groupby("materia_id").agg(
         inscripciones=("inscripcion_id", "count"),
@@ -277,6 +311,7 @@ def _reporte_calidad(datos, hechos, estudiante_periodo, estudiantes, materias, m
         "nodos_de_grafo_sin_materia_en_oltp": sorted(
             set(metricas_grafo["codigo_materia"]) - set(materias["codigo_materia"])
         ),
+        "inscripciones_sin_costo": int(hechos["costo_inscripcion"].isna().sum()),
         "cuellos_de_botella": materias.loc[
             materias["es_cuello_botella"], "codigo_materia"
         ].tolist(),
@@ -299,7 +334,8 @@ def transformar(datos: dict[str, pd.DataFrame], metricas_grafo: pd.DataFrame,
         "estudiante_periodo": estudiante_periodo,
         "estudiantes": estudiantes,
         "materias": materias,
-        "periodos": datos["periodos"].sort_values("fecha_inicio", ignore_index=True),
+        "periodos": construir_periodos(datos["periodos"], datos["costos_periodo"]),
+        "carreras": datos["carreras"].sort_values("carrera_id", ignore_index=True),
         "secciones": datos["secciones"].sort_values("seccion_id", ignore_index=True),
     }
     calidad = _reporte_calidad(datos, hechos, estudiante_periodo, estudiantes,

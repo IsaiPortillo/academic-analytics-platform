@@ -1,0 +1,215 @@
+===============================================================================
+ FASE 4.1 — VISTA EJECUTIVA CON KPIs DE COSTO Y RENDIMIENTO
+ (incluye el mínimo de la Fase 3.3 / SCRUM-35: Data Warehouse dw_academico)
+===============================================================================
+
+Como coordinador académico, quiero una vista ejecutiva con los indicadores
+clave del ciclo, para ver qué ocurrió con el rendimiento y cuánto costó, sin
+escribir consultas. Nivel analítico: descriptivo (¿qué ocurrió?).
+
+
+-------------------------------------------------------------------------------
+ 1. POR QUÉ ESTE TICKET INCLUYE EL DATA WAREHOUSE
+-------------------------------------------------------------------------------
+
+El criterio exige que el dashboard consulte dw_academico, y ese esquema no
+existía (docs/recorrido_del_sistema.md lo registraba como bloqueo). Tampoco
+existía en ninguna parte la medida de costo por inscripción: SCRUM-36 creó el
+catálogo costos_uv, pero el ETL aún no lo leía. Se construyó lo mínimo de la
+Fase 3.3 que el dashboard necesita, completo y demostrable:
+
+    OLTP ──(rol_etl, solo lectura)──> ETL SCRUM-34 + costos ──> dw_academico
+                                                                    │
+     app web, pantalla Vista ejecutiva <──(rol_dashboard, solo lectura del DW)
+
+DÓNDE VIVE: dentro de la misma aplicación web (FastAPI + Jinja2 + Tailwind),
+como la pantalla "Vista ejecutiva" del menú "Inteligencia institucional", con
+el mismo diseño, sesión y navegación que el resto del sistema. El criterio
+original pedía una app Streamlit aparte; el equipo decidió integrarla para ver
+la operación y la analítica en un solo lugar. Lo que el criterio pedía de
+fondo se mantiene: solo lee dw_academico, con un rol de solo lectura propio y
+credenciales desde .env.
+
+
+-------------------------------------------------------------------------------
+ 2. ARCHIVOS
+-------------------------------------------------------------------------------
+
+  database/oltp/10_dw_academico.sql       NUEVO. Esquema estrella + permisos.
+  database/oltp/11_bootstrap_rol_dashboard.sh  NUEVO. Login de rol_dashboard.
+  docker-compose.yml, .env.example        Variables DASHBOARD_DB_USER/PASSWORD.
+  etl/extraccion.py                       + carreras, costos_uv y la vista
+                                          v_costo_materia_periodo.
+  etl/transformacion.py                   + costo_inscripcion, costo_reprobacion,
+                                          es_repeticion; períodos con orden y costo.
+  etl/anonimizacion.py                    Lista blanca con las columnas nuevas.
+  etl/carga.py                            NUEVO. Carga del DW (python -m etl.carga).
+  backend/app/config.py                   + credenciales de rol_dashboard (.env).
+  backend/app/dw.py                       NUEVO. Consultas, solo sobre dw_academico,
+                                          con su propia conexión (no get_db()).
+  backend/app/indicadores.py              NUEVO. KPIs + interpretación en texto.
+  backend/app/routers/vista_ejecutiva.py  NUEVO. Ruta /vista-ejecutiva (coordinador).
+  backend/app/templates/modulos/vista_ejecutiva.html  NUEVO. La pantalla.
+  backend/app/templates/base.html, inicio.html        Entrada en el menú e inicio.
+  backend/app/static/src/input.css (+ app.css)        Componentes nuevos del
+                                          sistema de diseño (barras, columnas,
+                                          interpretación), documentados en DESIGN.md.
+  backend/app/verificar_dw.py             NUEVO. Prueba en vivo del aislamiento.
+  backend/tests/, etl/tests/              Pruebas nuevas (34 en total).
+
+
+-------------------------------------------------------------------------------
+ 3. EL MODELO DIMENSIONAL (dw_academico)
+-------------------------------------------------------------------------------
+
+Grano de los hechos: UNA INSCRIPCIÓN (un estudiante cursando una sección en un
+período). Es el grano más fino que el análisis necesita, y permite sumar
+costos y contar reprobados por cualquier combinación de filtros sin doble
+conteo.
+
+  fact_inscripcion   36,704 filas. Medidas: costo_inscripcion,
+                     costo_reprobacion (aditiva), nota_final, banderas
+                     cerrada / reprobado / retirado / es_repeticion, asistencia.
+  dim_periodo        con orden cronológico, costo por UV y SU FUENTE.
+  dim_carrera        con el departamento desnormalizado (estrella, no copo de
+                     nieve): filtrar por departamento no cuesta otro JOIN.
+  dim_materia        con las métricas del grafo de Neo4j (dependientes,
+                     cuello de botella). Las tasas NO van aquí: dependen del
+                     filtro, así que se agregan desde los hechos.
+  dim_estudiante     carnet_hash (SHA-256), sin nada identificable.
+  carga_control      una fila por carga: cuándo, fecha de corte, calidad.
+
+Decisiones defendibles:
+  - Llaves sustitutas (*_key) asignadas por el ETL; las *_id del OLTP se
+    guardan como atributo para rastrear cada dato hasta su fuente.
+  - La carrera de un hecho es la que OFERTA la materia (la que asume su
+    costo), no la del estudiante.
+  - Recarga completa dentro de UNA transacción: si algo falla, el DW queda
+    como estaba, y el dashboard nunca ve una carga a medias. Con ~37k hechos
+    tarda segundos; una carga incremental no se justifica todavía, y el grano
+    por inscripción permite pasar a incremental sin rediseñar.
+  - CHECK en el DDL: costo_reprobacion es 0, o es igual a costo_inscripcion
+    en un hecho reprobado. La base rechaza cualquier carga que lo viole.
+  - La multiplicación UV × costo por UV se toma de la vista del equipo
+    (v_costo_materia_periodo), no se reescribe en Python.
+
+Seguridad, impuesta por GRANT (no por el código):
+  rol_etl        lee academico_oltp; es el único que escribe dw_academico.
+  rol_dashboard  SOLO SELECT sobre dw_academico. Sin ningún permiso sobre
+                 academico_oltp: que el dashboard nunca consulte las tablas
+                 transaccionales no es una promesa, PostgreSQL lo rechaza.
+
+
+-------------------------------------------------------------------------------
+ 4. LOS CUATRO KPIs (definiciones)
+-------------------------------------------------------------------------------
+
+  Costo de reprobación
+      SUM(costo_reprobacion) = lo invertido (UV × costo por UV del período)
+      en inscripciones que terminaron REPROBADO. Los retiros no cuentan.
+
+  Costo por estudiante
+      costo de reprobación ÷ estudiantes que reprobaron al menos una materia.
+      Se divide entre quienes reprobaron (no entre todos) porque mide cuánto
+      representa cada caso de reprobación. El promedio sobre todos los
+      estudiantes evaluados aparece en el texto como contexto.
+
+  Tasa de reprobación
+      reprobadas ÷ inscripciones cerradas (con nota final). Retiros y cursos
+      sin cierre no entran: no son reprobación. Mismo criterio que SCRUM-10.
+
+  Proporción del costo atribuible a repetición
+      costo de reprobación de inscripciones con numero_intento > 1 ÷ costo de
+      reprobación total: qué parte del costo viene de estudiantes que ya
+      cursaban la materia por segunda vez o más.
+
+Cada KPI tiene su interpretación en texto, generada con las cifras del
+filtro activo (backend/app/indicadores.py). No son frases fijas: dicen, por
+ejemplo, "1 de cada 4", qué proporción de lo invertido se perdió, o si los
+repitentes pesan más en el costo que en la matrícula. Con un solo período
+seleccionado, además se comparan contra el período anterior.
+
+Ejemplo real (2022-I):
+  Costo de reprobación $98,900 · tasa 24.0 % · 709 estudiantes reprobaron ·
+  22.3 % del costo viene de repitentes, que son solo el 15.2 % de la
+  matrícula: los repitentes reprueban en mayor proporción.
+
+Ranking de materias: ordenadas por costo de reprobación, con su tasa y su
+papel en la malla. Si alguna es cuello de botella (Neo4j), el texto lo dice:
+su costo real es mayor porque bloquea materias posteriores.
+
+El costo por UV ($25.00) es un SUPUESTO PARAMÉTRICO del equipo (SCRUM-36). El
+dashboard lo advierte con un aviso, y ese aviso sale del dato
+(costos_uv.fuente viaja hasta dim_periodo.fuente_costo), no está escrito en
+el código: cuando se registre la cifra oficial, el aviso desaparece solo.
+
+
+-------------------------------------------------------------------------------
+ 5. CÓMO PROBARLO
+-------------------------------------------------------------------------------
+
+Requisitos: Docker Desktop abierto y docker compose up -d. Todos los comandos
+desde la RAÍZ del repositorio, con el entorno virtual del proyecto.
+
+PASO 0 — Dependencias
+    pip install -r backend/requirements.txt -r etl/requirements.txt
+
+PASO 1 — Solo si tu base ya existía antes de este cambio
+    Los scripts de database/oltp/ corren solos únicamente al crear el
+    volumen. Agrega a tu .env (ver .env.example):
+        DASHBOARD_DB_USER=rol_dashboard
+        DASHBOARD_DB_PASSWORD=<una contraseña>
+    y aplica 08, 10 y 11 sin perder datos (los comandos están en el README,
+    sección "Solución de problemas").
+
+PASO 2 — Cargar el DW
+    python -m etl.carga
+    Esperado: "fact_inscripcion 36,704 filas" y "DW cargado."
+
+PASO 3 — Pruebas unitarias (sin base de datos)
+    python -m unittest discover -s etl/tests -v         (24 pruebas)
+    cd backend && python -m unittest discover -s tests -v   (10 pruebas)
+
+PASO 4 — Demostrar que la vista ejecutiva NO puede leer el OLTP (para el jurado)
+    cd backend && python -m app.verificar_dw
+    Esperado:
+      [OK] Lectura del DW como 'rol_dashboard': 36,704 hechos de inscripción
+      [OK] Lectura de academico_oltp rechazada: permission denied for schema academico_oltp
+      [OK] Escritura en dw_academico rechazada: permission denied for table carga_control
+
+PASO 5 — Abrir la vista ejecutiva
+    cd backend && uvicorn app.main:app --reload
+    Entrar como COORDINADOR en http://localhost:8000 y abrir "Vista
+    ejecutiva" en el menú lateral (http://localhost:8000/vista-ejecutiva).
+    Probar: cambiar período (uno o "Todos los períodos"), departamento y
+    carrera; pasar el cursor por las barras y columnas (detalle); "Ver como
+    tabla"; modo claro/oscuro. Como DOCENTE la opción no aparece en el menú y
+    la URL responde 403, igual que Reportes.
+
+PASO 6 — Comprobar las cifras contra un cálculo independiente
+    El script del equipo scripts/analisis/costo_reprobacion.sql calcula el
+    costo de 2022-I directo desde el OLTP, sin pasar por el DW:
+      docker exec -i academico_postgres psql -U postgres -d academico_db \
+          < scripts/analisis/costo_reprobacion.sql
+    Debe dar lo mismo que la vista ejecutiva con el filtro 2022-I:
+      $98,900 · tasa 24.0 % · MAT315 primera con 126 reprobados y $12,600.
+    (Verificado: coincide exactamente.)
+
+
+-------------------------------------------------------------------------------
+ 6. LIMITACIONES CONOCIDAS
+-------------------------------------------------------------------------------
+
+  - Los datos sintéticos tienen una sola carrera y un solo departamento, así
+    que esos filtros funcionan pero hoy no cambian las cifras. Con más
+    carreras en el OLTP, se poblarán solos en la próxima carga.
+  - El costo por UV es igual en todos los períodos ($25.00, supuesto), por lo
+    que costo y reprobados se mueven juntos. Con cifras reales por período
+    el costo podría subir aunque bajen los reprobados.
+  - La Fase 3.3 queda en lo que el dashboard necesita. estudiante_periodo
+    (patrones de abandono, Fase 4.2) se produce en staging pero todavía no
+    se carga al DW.
+  - scripts/analisis/costo_reprobacion.sql calcula la nota como
+    SUM(nota·%) / SUM(%), mientras que el reporte, el ETL y el DW usan
+    SUM(nota·%/100). Solo coinciden cuando todas las evaluaciones tienen
+    nota, que es el caso de los datos actuales. Conviene alinear ese script.

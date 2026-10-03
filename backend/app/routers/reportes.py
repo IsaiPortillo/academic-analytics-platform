@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 
 from ..calculos import (
     ESTADO_RETIRADO,
+    UMBRAL_FALTAS_RIESGO,
     UMBRAL_NOTA_APROBACION,
     conteo_asistencia,
     expresiones_nota_final,
@@ -45,12 +46,6 @@ from ..models import (
 from ..templating import templates
 
 router = APIRouter(prefix="/reportes", tags=["reportes"])
-
-# Umbral de faltas a partir del cual se marca al estudiante en riesgo. Coincide
-# con el HAVING del benchmark de la Fase 1.4 y con el badge rojo que ya usa el
-# resumen por sección de asistencia.html, para que el equipo no vea dos criterios
-# distintos de "muchas faltas" en la misma aplicación.
-UMBRAL_FALTAS_RIESGO = 3
 
 # El reporte se ordena por faltas descendentes, así que el corte deja fuera los
 # casos menos relevantes, no una porción arbitraria.

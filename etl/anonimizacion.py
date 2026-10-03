@@ -39,6 +39,8 @@ COLUMNAS_PERMITIDAS: dict[str, set[str]] = {
         "resultado", "nota_final", "aprobado", "nota_completa",
         "ponderacion_evaluada", "ponderacion_calificada", "evaluaciones_sin_nota",
         "sesiones", "presentes", "ausentes", "justificados", "porcentaje_asistencia",
+        "es_repeticion", "costo_inscripcion", "costo_reprobacion",
+        "turno", "patron_riesgo",
     },
     "estudiante_periodo": {
         "estudiante_id", "periodo_id", "materias_inscritas", "materias_retiradas",
@@ -54,7 +56,7 @@ COLUMNAS_PERMITIDAS: dict[str, set[str]] = {
     },
     "materias": {
         "materia_id", "codigo_materia", "nombre", "unidades_valorativas", "ciclo_plan",
-        "carrera_id", "activo", "en_grafo", "dependientes_directos",
+        "carrera_id", "activo", "en_grafo", "area", "dependientes_directos",
         "dependientes_indirectos", "dependientes_totales", "prerrequisitos_directos",
         "longitud_cascada", "profundidad_prerrequisitos", "indice_bloqueo",
         "es_cuello_botella", "inscripciones", "retiros", "inscripciones_cerradas",
@@ -62,6 +64,11 @@ COLUMNAS_PERMITIDAS: dict[str, set[str]] = {
     },
     "periodos": {
         "periodo_id", "codigo_periodo", "anio", "ciclo_romano", "fecha_inicio", "fecha_fin",
+        "orden", "costo_por_uv", "moneda", "fuente_costo",
+    },
+    "carreras": {
+        "carrera_id", "codigo_carrera", "nombre_carrera", "departamento_id",
+        "codigo_departamento", "nombre_departamento",
     },
     "secciones": {
         "seccion_id", "materia_id", "docente_id", "periodo_id", "numero_seccion",

@@ -11,7 +11,15 @@ from .config import settings
 from .database import get_db
 from .dependencies import UsuarioSesion, usuario_actual, usuario_opcional
 from .models import Estudiante, Inscripcion, Seccion
-from .routers import asistencia, auth, calificaciones, matricula, reportes
+from .routers import (
+    analisis_diagnostico,
+    asistencia,
+    auth,
+    calificaciones,
+    matricula,
+    reportes,
+    vista_ejecutiva,
+)
 from .templating import DIRECTORIO_APP, templates
 
 app = FastAPI(
@@ -34,6 +42,8 @@ app.include_router(matricula.router)
 app.include_router(calificaciones.router)
 app.include_router(asistencia.router)
 app.include_router(reportes.router)
+app.include_router(vista_ejecutiva.router)
+app.include_router(analisis_diagnostico.router)
 
 
 @app.exception_handler(StarletteHTTPException)

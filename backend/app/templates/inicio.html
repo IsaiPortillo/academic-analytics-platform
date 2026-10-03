@@ -36,6 +36,14 @@
         <h2 class="text-xs uppercase font-medium text-muted mb-3">Módulos disponibles</h2>
         <div class="divide-y divide-border">
             {% if usuario.es_coordinador %}
+            <a href="/vista-ejecutiva" class="-mx-4 block px-4 py-3 transition-colors hover:bg-subtle">
+                <strong class="font-semibold">Vista ejecutiva</strong>
+                <span class="text-muted"> — costo de reprobación y rendimiento del ciclo (Data Warehouse)</span>
+            </a>
+            <a href="/analisis-diagnostico" class="-mx-4 block px-4 py-3 transition-colors hover:bg-subtle">
+                <strong class="font-semibold">Análisis diagnóstico</strong>
+                <span class="text-muted"> — correlaciones, cohortes, segmentos y patrón de riesgo observado</span>
+            </a>
             <a href="/matricula" class="-mx-4 block px-4 py-3 transition-colors hover:bg-subtle">
                 <strong class="font-semibold">Matrícula</strong>
                 <span class="text-muted"> — inscribir y retirar estudiantes de secciones</span>

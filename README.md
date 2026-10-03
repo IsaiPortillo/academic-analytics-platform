@@ -27,7 +27,7 @@ El sistema se compone de cuatro capas fundamentales:
    - **Alcance:** Extracción, anonimización (SHA-256), transformación, cruce relacional-grafo y carga en el Data Warehouse.
 4. **Capa Analítica y Visualización (OLAP / BI):**
    - **Almacenamiento:** Modelo estrella en esquema dimensional (`dw_academico`).
-   - **Dashboard:** Streamlit (KPIs ejecutivos, matrices de correlación, alertas de deserción y visualización de redes curriculares).
+   - **Dashboard:** dentro de la misma aplicación web (FastAPI + Jinja2 + Tailwind), leyendo solo el Data Warehouse con un rol propio: KPIs ejecutivos, patrones de abandono observados y visualización de la red curricular.
 
 Backend transaccional (Fase 2): **FastAPI + Jinja2 + Tailwind CSS**, con autorización resuelta en PostgreSQL — ver [Modelo de seguridad](#modelo-de-seguridad-de-la-aplicación) más abajo.
 
@@ -45,9 +45,9 @@ academic-analytics-platform/
 │   ├── diagramas/              # Modelo operacional, arquitectura y esquema dimensional
 │   └── memoria/                 # Los 21 capítulos y el calendario de entregas
 ├── database/                  # Definición de persistencia y migraciones
-│   ├── oltp/                  # Scripts DDL, triggers y roles operacionales (se auto-ejecutan)
-│   ├── nosql/                 # Script de carga (Python) y consultas Cypher del grafo
-│   └── dw/                    # DDL del modelo dimensional (Data Mart) — Fase 3
+│   ├── oltp/                  # Scripts de inicialización (se auto-ejecutan): OLTP, roles,
+│   │                           #   costos y el DW (10_dw_academico.sql, 11_bootstrap_rol_dashboard.sh)
+│   └── nosql/                 # Script de carga (Python) y consultas Cypher del grafo
 ├── scripts/                   # Utilidades de datos y de desarrollo
 │   ├── generator/              # Generador de datos sintéticos (Fase 1.2)
 │   ├── benchmark/               # Benchmarks EXPLAIN ANALYZE (Fase 1.4)
@@ -57,6 +57,11 @@ academic-analytics-platform/
 │   │   ├── routers/            # matricula, calificaciones, asistencia, reportes, auth
 │   │   ├── templates/          # Jinja2 (base.html + un template por módulo)
 │   │   └── static/src/         # input.css (tokens Tailwind) -> se compila a static/app.css
+│   ├── app/dw.py               # Fase 4: consultas al DW con rol_dashboard (sin acceso al OLTP)
+│   ├── app/indicadores.py      # Fase 4: definición de los KPIs y su interpretación en texto
+│   ├── app/indicadores_diagnostico.py  # Fase 4.2: lecturas diagnósticas y pruebas estadísticas
+│   ├── app/verificar_dw.py     # Demuestra que la vista ejecutiva no puede leer el OLTP
+│   ├── tests/                  # Pruebas de los KPIs (sin base de datos)
 │   └── scripts/                # Utilidades de administración (alta de usuarios)
 ├── etl/                       # Pipelines de extracción, transformación y carga — Fase 3
 │   ├── config.py               # Credenciales del ETL (rol_etl, solo lectura)
@@ -68,9 +73,10 @@ academic-analytics-platform/
 │   ├── anonimizacion.py        # Verificación de que nada identificable sale al DW
 │   ├── pipeline.py             # Orquestador: python -m etl.pipeline
 │   ├── verificar_pipeline.py   # Nota = SCRUM-10 y bloqueo de fugas, en vivo
+│   ├── carga.py                # Carga del DW dw_academico: python -m etl.carga
+│   ├── validar_dw.py           # Validación entre capas → docs/validacion/registro_validacion.md
 │   ├── tests/                  # Pruebas de las reglas (unittest, sin base de datos)
 │   └── staging/                # Salida del pipeline (no versionada)
-└── dashboard/                  # Interfaz interactiva de analítica en Streamlit — Fase 4
 ```
 
 ---
@@ -105,11 +111,11 @@ academic-analytics-platform/
 ### Fase 3: Ingeniería de Datos (ETL y Data Warehouse)
 - [x] **3.1:** Conexión y extracción híbrida (SQLAlchemy para PostgreSQL y driver oficial Neo4j).
 - [x] **3.2:** Pipeline de extracción, anonimización (SHA-256), limpieza de datos y cálculo de métricas de grafo.
-- [ ] **3.3:** Diseño del modelo dimensional estrella (`dw_academico`) y carga incremental/controlada a hechos y dimensiones.
+- [x] **3.3:** Diseño del modelo dimensional estrella (`dw_academico`) y carga incremental/controlada a hechos y dimensiones.
 
-### Fase 4: Dashboard Analítico e Inteligencia de Negocios (Streamlit)
-- [ ] **4.1:** Vista ejecutiva con los KPIs de costo y rendimiento, filtrados por período, carrera y departamento.
-- [ ] **4.2:** Matriz de correlaciones, análisis por cohorte e identificación de los estudiantes que presentan el patrón de riesgo observado.
+### Fase 4: Dashboard Analítico e Inteligencia de Negocios
+- [x] **4.1:** Vista ejecutiva con los KPIs de costo y rendimiento, filtrados por período, carrera y departamento.
+- [x] **4.2:** Matriz de correlaciones, análisis por cohorte e identificación de los estudiantes que presentan el patrón de riesgo observado.
 - [ ] **4.3:** Visualización interactiva de la red curricular (PyVis / NetworkX) y reporte de asignaturas críticas/cuellos de botella, cruzado con el costo.
 
 > **Alcance analítico:** el proyecto se limita a los niveles **descriptivo** («¿qué ocurrió?») y
@@ -160,10 +166,11 @@ docker compose up -d
 
 En el **primer arranque sobre un volumen vacío**, PostgreSQL ejecuta automáticamente los
 scripts de `database/oltp/` en orden alfabético (`01_init...` → `05_usuarios_auth` →
-`06_bootstrap_rol_app` → `07_bootstrap_rol_etl` → `08_costos_institucionales`): crea el
-esquema operacional, la tabla de usuarios de la aplicación, el rol de servicio de la app,
-el rol de solo lectura del ETL y el catálogo de costos institucionales. No hay que
-ejecutar ningún `.sql` a mano.
+`06_bootstrap_rol_app` → `07_bootstrap_rol_etl` → `08_costos_institucionales` → … →
+`10_dw_academico` → `11_bootstrap_rol_dashboard`): crea el esquema operacional, la tabla de
+usuarios de la aplicación, el rol de servicio de la app, el rol de solo lectura del ETL, el
+catálogo de costos institucionales, el Data Warehouse y el rol de solo lectura del dashboard.
+No hay que ejecutar ningún `.sql` a mano.
 
 > ⚠️ Esos scripts **solo corren la primera vez**. Si ya tenías el contenedor creado desde
 > antes (por ejemplo, de un clone anterior) y cambias algo en `.env`, el cambio **no** se
@@ -258,6 +265,51 @@ Neo4j (dependientes directos e indirectos por asignatura) y verifica que ningún
 identificable salga hacia el DW. Si la verificación falla, no escribe ningún archivo. El
 detalle de cada regla y cómo probarlas está en [`etl/SCRUM-34_pipeline.txt`](etl/SCRUM-34_pipeline.txt).
 
+### 10. Cargar el Data Warehouse (Fase 3.3)
+
+```bash
+python -m etl.carga
+```
+
+Corre el pipeline completo y, solo si la verificación de anonimización pasa, recarga el
+esquema estrella `dw_academico` (hechos por inscripción + dimensiones de período, carrera,
+materia y estudiante) en **una sola transacción**: si algo falla, el DW queda como estaba.
+
+### 11. Abrir la vista ejecutiva (Fase 4.1)
+
+```bash
+cd backend
+uvicorn app.main:app --reload                  # http://localhost:8000/vista-ejecutiva
+python -m app.verificar_dw                     # la vista ejecutiva NO puede leer el OLTP
+python -m unittest discover -s tests -v        # definición de los KPIs
+```
+
+Pantalla **Vista ejecutiva** de la misma aplicación web (menú *Inteligencia institucional*,
+solo coordinador): costo de reprobación, costo por estudiante, tasa de reprobación y proporción
+del costo atribuible a repetición, con filtros por período, carrera y departamento, ranking de
+materias por costo y la interpretación en texto de cada indicador. A diferencia del resto de la
+app, no usa la sesión con `SET LOCAL ROLE`: lee el DW con su propia conexión como
+`rol_dashboard`, que solo tiene `SELECT` sobre `dw_academico` — PostgreSQL le niega
+`academico_oltp`. Detalle y guía de pruebas en
+[`docs/FASE-4.1_vista_ejecutiva.txt`](docs/FASE-4.1_vista_ejecutiva.txt).
+
+### 12. Análisis diagnóstico y validación de datos (Fase 4.2)
+
+```bash
+python -m etl.carga                 # el DW necesita database/oltp/12_dw_diagnostico.sql
+python -m etl.validar_dw            # 46 verificaciones entre capas + registro para la memoria
+```
+
+Pantalla **Análisis diagnóstico** (mismo menú, solo coordinador): matriz de correlaciones,
+análisis por cohorte, segmentación por turno, área y ciclo del plan, y los estudiantes que
+**ya presentan** el patrón de riesgo (nota < 6.00 y 3+ ausencias, los mismos umbrales del
+sistema transaccional, definidos una sola vez en `backend/app/calculos.py`). Describe patrones
+observados; no predice. `etl/validar_dw.py` reconcilia el DW contra el OLTP y contra los
+reportes del coordinador caso por caso, y escribe
+[`docs/validacion/registro_validacion.md`](docs/validacion/registro_validacion.md). Detalle,
+hallazgos y guía de pruebas en
+[`docs/FASE-4.2_analisis_diagnostico.txt`](docs/FASE-4.2_analisis_diagnostico.txt).
+
 ---
 
 ## 🆘 Solución de problemas
@@ -300,6 +352,23 @@ set -a && . ./.env && set +a
 docker exec -i -e PGPASSWORD="$POSTGRES_PASSWORD" academico_postgres \
     psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 \
     < database/oltp/08_costos_institucionales.sql
+```
+
+**`column "patron_riesgo" ... does not exist` al cargar el DW**
+Tu DW se creó antes de la Fase 4.2. Aplica la migración (idempotente) y recarga:
+```bash
+docker exec -i academico_postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1     < database/oltp/12_dw_diagnostico.sql
+python -m etl.carga
+```
+
+**`schema "dw_academico" does not exist` o `password authentication failed for user "rol_dashboard"`**
+Tu contenedor se creó antes del Data Warehouse. Agrega `DASHBOARD_DB_USER` y
+`DASHBOARD_DB_PASSWORD` a tu `.env` (ver `.env.example`) y aplica los dos scripts sin perder datos:
+```bash
+set -a && . ./.env && set +a
+docker exec -i academico_postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1     < database/oltp/10_dw_academico.sql
+docker exec -i -e POSTGRES_USER -e POSTGRES_DB -e DASHBOARD_DB_USER -e DASHBOARD_DB_PASSWORD     academico_postgres bash -s < database/oltp/11_bootstrap_rol_dashboard.sh
+python -m etl.carga
 ```
 
 **`password authentication failed for user "rol_etl"` al correr el ETL**
@@ -387,8 +456,13 @@ Se optó por **FastAPI + Jinja2 + Bootstrap** sobre la alternativa de Streamlit 
 | Manejo de formularios y validación | Completo | Restringido a widgets |
 | Representatividad de un OLTP real | Alta | Baja |
 
-Streamlit se reserva para la **Fase 4 (dashboard analítico)**, donde su orientación a la
-exploración de datos sí es la herramienta adecuada.
+Streamlit se había reservado para la **Fase 4 (dashboard analítico)**.
+
+> **Actualización (octubre 2026):** por decisión del equipo, la Fase 4 **no** usa Streamlit: la
+> vista ejecutiva vive dentro de esta misma aplicación, con su menú, su sesión y su sistema de
+> diseño, para que el coordinador vea la operación y la analítica en un solo lugar. Lo que el
+> requisito pedía de fondo se conserva: el dashboard lee **solo** `dw_academico`, con un rol de
+> solo lectura propio (`rol_dashboard`) y credenciales desde `.env`.
 
 > **Actualización (septiembre 2026):** la capa visual migró de Bootstrap 5.3 (CDN) a
 > **Tailwind CSS v4**, compilado con el binario standalone (`scripts/setup-tailwind.sh`, sin
