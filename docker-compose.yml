@@ -26,6 +26,16 @@ services:
       # Los scripts de database/oltp se ejecutan en orden alfabético durante el
       # primer arranque (01_init... -> 05_usuarios_auth -> 06_bootstrap_rol_app)
       - ./database/oltp:/docker-entrypoint-initdb.d
+    # Sin esto, `docker compose up -d` vuelve en cuanto el contenedor existe, aunque el
+    # primer arranque aún esté ejecutando los scripts de database/oltp/ (decenas de
+    # segundos). Con -h 127.0.0.1 solo responde cuando ya acepta conexiones TCP, no
+    # durante el servidor temporal de inicialización. Úsalo con `up -d --wait`.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 60
+      start_period: 5s
     networks:
       - red_academica
 
@@ -45,6 +55,12 @@ services:
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:7474 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 15s
     networks:
       - red_academica
 

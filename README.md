@@ -144,6 +144,16 @@ academic-analytics-platform/
 - **Python** >= 3.11
 - **Docker & Docker Compose** — esta guía asume Docker para levantar PostgreSQL y Neo4j; sin él tendrías que instalar y configurar ambos motores a mano y ejecutar los scripts de `database/oltp/` manualmente, un camino que este README no cubre.
 
+> **Todos los comandos de esta guía son de bash.** En Windows usa **Git Bash** (o WSL), no
+> PowerShell ni `cmd`: ahí no existen `source`, `./script.sh`, `$VARIABLE` ni la redirección
+> `< archivo`, y los pasos fallan con errores que no tienen que ver con el proyecto.
+> En Git Bash el entorno virtual se activa con `source .venv/Scripts/activate` (en Linux/macOS,
+> `source .venv/bin/activate`); ver el paso 3.
+
+> **Siempre desde la raíz del repositorio.** Todos los comandos asumen que estás en la raíz
+> (donde está este README). Los pocos que necesitan estar en `backend/` van entre paréntesis,
+> `( cd backend && … )`, para que tu terminal no se quede allí.
+
 > Nota: varios comandos de esta guía (verificación del modelo de seguridad, solución de problemas) usan variables como `$APP_DB_PASSWORD` directamente en la terminal. Para que existan en tu shell, expórtalas primero desde `.env`:
 > ```bash
 > set -a && source .env && set +a
@@ -164,12 +174,23 @@ Edita `.env` y reemplaza los valores marcados como `cambiar_...`. Para la clave 
 python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
+> ⚠️ Si ya tenías un `.env` de una versión anterior, **no basta con conservarlo**: la plantilla
+> ganó variables nuevas (`ETL_DB_*`, `DASHBOARD_DB_*`, `DW_CARGA_DB_*`). Compara con
+> `.env.example` y agrega las que falten. Si falta alguna, `docker compose` lo avisa con
+> `The "…" variable is not set. Defaulting to a blank string` y los scripts de inicialización
+> (`07`, `11`, `14`) se niegan a crear ese rol. Ver [Solución de problemas](#solución-de-problemas).
+
 ### 2. Despliegue de los motores de base de datos
 
 ```bash
-# Levanta PostgreSQL 17 y Neo4j en segundo plano
-docker compose up -d
+# Levanta PostgreSQL 17 y Neo4j en segundo plano y ESPERA a que estén listos
+docker compose up -d --wait
 ```
+
+`--wait` importa: el primer arranque ejecuta todos los scripts de `database/oltp/` y tarda
+unas decenas de segundos. Sin él, `up -d` vuelve de inmediato y el generador del paso 4
+falla con `connection refused` o con tablas que aún no existen. (Los contenedores declaran un
+`healthcheck`; puedes ver su estado con `docker compose ps`, debe decir `healthy`.)
 
 En el **primer arranque sobre un volumen vacío**, PostgreSQL ejecuta automáticamente los
 scripts de `database/oltp/` en orden alfabético (`01_init...` → `05_usuarios_auth` →
@@ -190,10 +211,15 @@ No hay que ejecutar ningún `.sql` a mano.
 ### 3. Dependencias de Python
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
+python -m venv .venv
+source .venv/Scripts/activate      # Git Bash en Windows  (Linux/macOS: source .venv/bin/activate)
 pip install -r backend/requirements.txt -r scripts/generator/requirements.txt \
             -r etl/requirements.txt
 ```
+
+Comprueba que el entorno quedó activo: `which python` debe apuntar a `.venv/`. Si apunta a
+tu Python global, `pip` instalará allí y comandos como `uvicorn` no se encontrarán (por eso
+esta guía los invoca como `python -m …`).
 
 ### 4. Poblar con datos sintéticos (Fase 1.2)
 
@@ -247,11 +273,12 @@ este paso solo hace falta si vas a tocar clases de Tailwind en `backend/app/temp
 ### 7. Levantar el sistema transaccional (Fase 2)
 
 ```bash
-cd backend
-uvicorn app.main:app --reload
+python -m uvicorn --app-dir backend app.main:app --reload
 ```
 
-Disponible en `http://localhost:8000` (documentación de la API en `/api/docs`).
+Disponible en `http://localhost:8000` (documentación de la API en `/api/docs`). El servidor
+**ocupa esa terminal**: déjalo corriendo y abre **otra** (también en la raíz, con el entorno
+virtual activado) para los pasos siguientes.
 
 ### 8. Verificar las conexiones del ETL (Fase 3)
 
@@ -313,10 +340,9 @@ la vista `dw_academico.v_mart_departamento`.
 ### 11. Abrir la vista ejecutiva (Fase 4.1)
 
 ```bash
-cd backend
-uvicorn app.main:app --reload                  # http://localhost:8000/vista-ejecutiva
-python -m app.verificar_dw                     # la vista ejecutiva NO puede leer el OLTP
-python -m unittest discover -s tests -v        # definición de los KPIs
+# http://localhost:8000/vista-ejecutiva  (con el servidor del paso 7 corriendo)
+( cd backend && python -m app.verificar_dw )                  # la vista ejecutiva NO puede leer el OLTP
+( cd backend && python -m unittest discover -s tests -v )     # definición de los KPIs
 ```
 
 Pantalla **Vista ejecutiva** de la misma aplicación web (menú *Inteligencia institucional*,
@@ -351,7 +377,7 @@ limita a `SELECT` sobre `dw_academico`.
 
 ```bash
 python -m etl.carga                 # el DW necesita database/oltp/12_dw_diagnostico.sql
-python -m etl.validar_dw            # 46 verificaciones entre capas + registro para la memoria
+python -m etl.validar_dw            # 66 verificaciones entre capas + registro para la memoria
 ```
 
 Pantalla **Análisis diagnóstico** (mismo menú, solo coordinador): matriz de correlaciones,
@@ -367,6 +393,33 @@ hallazgos y guía de pruebas en
 ---
 
 ## 🆘 Solución de problemas
+
+**`The "DASHBOARD_DB_PASSWORD" variable is not set. Defaulting to a blank string` (o `ETL_DB_*`, `DW_CARGA_DB_*`) al usar `docker compose`**
+Tu `.env` es de una versión anterior y le faltan variables. Cópialas de `.env.example` y
+ponles valor. Si el contenedor de PostgreSQL ya existía, los roles nuevos no se crean solos:
+aplica las secciones de abajo que correspondan (`rol_etl`, `rol_dashboard`, `rol_dw_carga`).
+
+**`ValidationError … etl_db_password` (o `dashboard_db_password`, `dw_carga_db_password`) `Field required`, incluso al correr las pruebas**
+Mismo origen: a tu `.env` le falta esa variable. Los módulos del ETL y del dashboard leen su
+configuración al importarse, así que hasta las pruebas "sin base de datos" necesitan el `.env`
+completo (aunque no se conecten a nada). Agrega `ETL_DB_USER`/`ETL_DB_PASSWORD`,
+`DASHBOARD_DB_USER`/`DASHBOARD_DB_PASSWORD` y `DW_CARGA_DB_USER`/`DW_CARGA_DB_PASSWORD` desde
+`.env.example`. Si tu contenedor de PostgreSQL ya existía, además hay que crear esos roles en
+la base (siguientes entradas).
+
+**`uvicorn: command not found` / `No module named 'etl'` / `No module named 'app'`**
+Casi siempre es una de dos cosas: el entorno virtual no está activo (`which python` debe
+apuntar a `.venv/`; en Git Bash se activa con `source .venv/Scripts/activate`), o estás en el
+directorio equivocado. Los comandos de `etl.*` y `dashboard/` van desde la **raíz**; solo
+`app.verificar_dw` y las pruebas del backend van desde `backend/` (`( cd backend && … )`).
+
+**`connection refused` o `relation "…" does not exist` justo después de `docker compose up -d`**
+Los scripts del primer arranque aún no terminaron. Usa `docker compose up -d --wait` o espera
+a que `docker compose ps` muestre `healthy` en los dos contenedores.
+
+**`-bash: source: .venv/bin/activate: No such file` o `The term 'source' is not recognized`**
+En Windows el entorno virtual vive en `.venv/Scripts/`, no en `.venv/bin/`, y `source` solo
+existe en Git Bash/WSL. Abre **Git Bash** y usa `source .venv/Scripts/activate`.
 
 **`password authentication failed for user "rol_app"` (o similar) al iniciar sesión o abrir el sitio**
 Editaste `.env` después de que el contenedor de PostgreSQL ya se había inicializado una vez;
