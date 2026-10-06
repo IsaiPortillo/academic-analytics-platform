@@ -141,7 +141,7 @@ academic-analytics-platform/
 
 ### Requisitos previos
 
-- **Python** >= 3.11
+- **Python** >= 3.11 (en Ubuntu 20.04 el del sistema es 3.8: ver [Despliegue en un servidor](#️-despliegue-en-un-servidor-ubuntu))
 - **Docker & Docker Compose** — esta guía asume Docker para levantar PostgreSQL y Neo4j; sin él tendrías que instalar y configurar ambos motores a mano y ejecutar los scripts de `database/oltp/` manualmente, un camino que este README no cubre.
 
 > **Todos los comandos de esta guía son de bash.** En Windows usa **Git Bash** (o WSL), no
@@ -389,6 +389,63 @@ reportes del coordinador caso por caso, y escribe
 [`docs/validacion/registro_validacion.md`](docs/validacion/registro_validacion.md). Detalle,
 hallazgos y guía de pruebas en
 [`docs/FASE-4.2_analisis_diagnostico.txt`](docs/FASE-4.2_analisis_diagnostico.txt).
+
+---
+
+## 🖥️ Despliegue en un servidor (Ubuntu)
+
+Probado en Ubuntu 20.04 (x86_64) con nginx delante y Cloudflare apuntando al dominio. Los
+pasos 1 a 12 de arriba siguen siendo válidos; esto es lo que cambia en un servidor.
+
+**1. Python 3.11 o superior.** Ubuntu 20.04 trae 3.8 y las dependencias no instalan. Sin tocar el
+Python del sistema, con [`uv`](https://docs.astral.sh/uv/):
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh && export PATH="$HOME/.local/bin:$PATH"
+uv venv --python 3.12 .venv && source .venv/bin/activate
+uv pip install -r backend/requirements.txt -r scripts/generator/requirements.txt                -r etl/requirements.txt -r dashboard/requirements.txt
+```
+
+**2. Docker Engine con el plugin `docker compose` v2** (2.1.1 o superior, por `--wait`), desde el
+repositorio oficial de Docker, no el `docker.io` de Ubuntu. Si tu usuario no está en el grupo
+`docker`, los comandos llevan `sudo`, y **`sudo` borra las variables de entorno**: en los
+scripts `07`, `11` y `14` pasa los valores explícitos, `sudo docker exec -i -e VAR="$VAR" …`
+(un `-e VAR` a secas llega vacío y el script se niega a correr).
+
+**3. Bases de datos solo en loopback.** `docker-compose.yml` publica PostgreSQL y Neo4j en
+`127.0.0.1`. Docker se salta `ufw`/`iptables` cuando publica en `0.0.0.0`, así que no confíes en
+el firewall del host. Para llegar desde tu equipo, túnel SSH:
+`ssh -L 7474:127.0.0.1:7474 usuario@servidor`.
+
+**4. La web como servicio de systemd**, escuchando solo en `127.0.0.1:8000` (nginx publica el
+puerto 80/443 y hace `proxy_pass http://127.0.0.1:8000`). Sin `--reload` en servidor:
+
+```ini
+# /etc/systemd/system/academico-web.service
+[Service]
+User=ubuntu
+WorkingDirectory=/var/www/academic-analytics-platform
+ExecStart=/var/www/academic-analytics-platform/.venv/bin/python -m uvicorn --app-dir backend     app.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=on-failure
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl enable --now academico-web
+```
+
+**5. Streamlit** (`dashboard/`) no tiene login: déjalo en `127.0.0.1:8501` y entra por túnel SSH
+(`ssh -L 8501:127.0.0.1:8501 usuario@servidor`). No lo publiques por nginx sin autenticación.
+
+**6. Lista de seguridad antes de abrirlo a internet**
+- `MODO_DEMO=false` en `.env` (es el valor por defecto).
+- **No dejes los usuarios de `--demo` con la contraseña `demo1234`**: es pública en este README.
+  En un servidor crea usuarios con contraseña propia (`crear_usuario.py` sin `--demo`) o
+  cámbiales la contraseña a los demo.
+- `.env` con permisos `600` y contraseñas generadas (`openssl rand -base64 24`).
+- Comprueba desde fuera que solo responde el 80/443: `5432`, `7474`, `7687`, `8000` y `8501`
+  deben estar cerrados.
 
 ---
 
