@@ -46,7 +46,8 @@ academic-analytics-platform/
 │   └── memoria/                 # Los 21 capítulos y el calendario de entregas
 ├── database/                  # Definición de persistencia y migraciones
 │   ├── oltp/                  # Scripts de inicialización (se auto-ejecutan): OLTP, roles,
-│   │                           #   costos y el DW (10_dw_academico.sql, 11_bootstrap_rol_dashboard.sh)
+│   │                           #   costos y el DW (10 a 14: esquema estrella, roles dashboard y carga)
+│   │                           #   (el DW va aquí y no en database/dw/: ver nota del script 10)
 │   └── nosql/                 # Script de carga (Python) y consultas Cypher del grafo
 ├── scripts/                   # Utilidades de datos y de desarrollo
 │   ├── generator/              # Generador de datos sintéticos (Fase 1.2)
@@ -64,7 +65,7 @@ academic-analytics-platform/
 │   ├── tests/                  # Pruebas de los KPIs (sin base de datos)
 │   └── scripts/                # Utilidades de administración (alta de usuarios)
 ├── etl/                       # Pipelines de extracción, transformación y carga — Fase 3
-│   ├── config.py               # Credenciales del ETL (rol_etl, solo lectura)
+│   ├── config.py               # Credenciales del ETL (rol_etl lee; rol_dw_carga escribe el DW)
 │   ├── conexiones.py           # Conexión híbrida PostgreSQL + Neo4j (punto único)
 │   ├── verificar_conexiones.py # Comprobación de conectividad y de solo-lectura
 │   ├── extraccion.py           # Extracción de entidades OLTP (columnas explícitas)
@@ -77,6 +78,12 @@ academic-analytics-platform/
 │   ├── validar_dw.py           # Validación entre capas → docs/validacion/registro_validacion.md
 │   ├── tests/                  # Pruebas de las reglas (unittest, sin base de datos)
 │   └── staging/                # Salida del pipeline (no versionada)
+├── dashboard/                 # Vista ejecutiva en Streamlit — SCRUM-44 (solo lee dw_academico)
+│   ├── app.py                  # streamlit run dashboard/app.py
+│   ├── config.py               # DASHBOARD_DB_* desde .env (rol_dashboard, sin credenciales del backend)
+│   ├── requirements.txt        # streamlit, pandas, sqlalchemy, psycopg2, pydantic-settings
+│   └── tests/                  # Pruebas de la configuración
+└── .streamlit/config.toml     # Streamlit: solo 127.0.0.1, tema carmesí, sin telemetría
 ```
 
 ---
@@ -167,9 +174,11 @@ docker compose up -d
 En el **primer arranque sobre un volumen vacío**, PostgreSQL ejecuta automáticamente los
 scripts de `database/oltp/` en orden alfabético (`01_init...` → `05_usuarios_auth` →
 `06_bootstrap_rol_app` → `07_bootstrap_rol_etl` → `08_costos_institucionales` → … →
-`10_dw_academico` → `11_bootstrap_rol_dashboard`): crea el esquema operacional, la tabla de
+`10_dw_academico` → `11_bootstrap_rol_dashboard` → `12_dw_diagnostico` →
+`13_dw_cierre_scrum35` → `14_bootstrap_rol_dw_carga`): crea el esquema operacional, la tabla de
 usuarios de la aplicación, el rol de servicio de la app, el rol de solo lectura del ETL, el
-catálogo de costos institucionales, el Data Warehouse y el rol de solo lectura del dashboard.
+catálogo de costos institucionales, el Data Warehouse, el rol de solo lectura del dashboard y
+el rol que escribe el DW.
 No hay que ejecutar ningún `.sql` a mano.
 
 > ⚠️ Esos scripts **solo corren la primera vez**. Si ya tenías el contenedor creado desde
@@ -194,6 +203,19 @@ python database/nosql/03_cargar_grafo_neo4j.py   # grafo curricular en Neo4j
 ```
 
 Ambos scripts toman las credenciales del `.env`; ya no hay que editarlos.
+
+> ⚠️ **Siembra los costos después de poblar.** `08_costos_institucionales.sql` corre al crear el
+> contenedor, cuando todavía no hay períodos, así que no siembra nada. Sin costos, el DW carga
+> `costo_inscripcion`/`costo_reprobacion`/`costo_repeticion` vacíos y la medida central del
+> proyecto queda en cero sin ningún error. Tras el generador, ejecuta (idempotente):
+> ```bash
+> docker exec -i academico_postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
+>   "INSERT INTO academico_oltp.costos_uv (periodo_id, costo_por_uv, moneda, fuente)
+>    SELECT periodo_id, 25.00, 'USD', 'SUPUESTO PARAMETRICO - pendiente de sustituir por cifra presupuestaria oficial'
+>    FROM academico_oltp.periodos_academicos ON CONFLICT (periodo_id) DO NOTHING;"
+> ```
+> El valor de $25.00 por UV es un **supuesto paramétrico**, no una cifra oficial (ver la nota del
+> script 08): sustitúyelo por el costo real, o decláralo como supuesto en la memoria.
 
 ### 5. Crear los usuarios de la aplicación
 
@@ -273,7 +295,20 @@ python -m etl.carga
 
 Corre el pipeline completo y, solo si la verificación de anonimización pasa, recarga el
 esquema estrella `dw_academico` (hechos por inscripción + dimensiones de período, carrera,
-materia y estudiante) en **una sola transacción**: si algo falla, el DW queda como estaba.
+materia, estudiante, docente y sección) en **una sola transacción**: si algo falla, el DW queda
+como estaba. Es **idempotente**: re-ejecutarla reemplaza el contenido, nunca duplica filas.
+
+**Lectura y escritura son roles distintos.** El pipeline lee el OLTP con `rol_etl` (solo
+lectura); la carga escribe el DW con `rol_dw_carga`, que **no** puede leer el OLTP. Define
+`DW_CARGA_DB_USER` y `DW_CARGA_DB_PASSWORD` en tu `.env` (ver `.env.example`); sin ellas la
+carga se detiene antes de tocar nada.
+
+**Medidas de costo** en `fact_inscripcion` (costo institucional por UV × unidades valorativas,
+SCRUM-36): `costo_inscripcion` (la matrícula de la materia), `costo_reprobacion` (lo anterior
+solo si termina reprobada; la medida central del proyecto) y `costo_repeticion` (lo anterior
+solo si `numero_intento > 1`). Las dos últimas **no son excluyentes** — una repetición reprobada
+cuenta en ambas — así que no se suman entre sí. El corte por departamento ya viene resuelto en
+la vista `dw_academico.v_mart_departamento`.
 
 ### 11. Abrir la vista ejecutiva (Fase 4.1)
 
@@ -292,6 +327,25 @@ app, no usa la sesión con `SET LOCAL ROLE`: lee el DW con su propia conexión c
 `rol_dashboard`, que solo tiene `SELECT` sobre `dw_academico` — PostgreSQL le niega
 `academico_oltp`. Detalle y guía de pruebas en
 [`docs/FASE-4.1_vista_ejecutiva.txt`](docs/FASE-4.1_vista_ejecutiva.txt).
+
+**Versión Streamlit (SCRUM-44).** Los mismos cuatro KPIs, filtros, ranking e interpretaciones
+existen también como app independiente en `dashboard/`. Comparte con la vista web las
+definiciones de `backend/app/indicadores.py` y las consultas de `backend/app/dw.py`, así que
+ambas muestran las mismas cifras.
+
+```bash
+pip install -r dashboard/requirements.txt      # una sola vez (dentro del .venv)
+streamlit run dashboard/app.py                 # desde la raíz del repo → http://127.0.0.1:8501
+python -m unittest discover -s dashboard/tests -v
+```
+
+Solo necesita `POSTGRES_*` y `DASHBOARD_DB_PASSWORD` en el `.env` (ver `.env.example`); no lee
+`APP_*` ni ninguna credencial del backend. Se conecta como `rol_dashboard`, que PostgreSQL
+limita a `SELECT` sobre `dw_academico`.
+
+> **Seguridad:** esta app **no tiene inicio de sesión** (la vista `/vista-ejecutiva` sí exige un
+> coordinador). Por eso `.streamlit/config.toml` la deja escuchando solo en `127.0.0.1`. No la
+> expongas a una red ni a internet sin poner antes un proxy con autenticación.
 
 ### 12. Análisis diagnóstico y validación de datos (Fase 4.2)
 
@@ -370,6 +424,21 @@ docker exec -i academico_postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v 
 docker exec -i -e POSTGRES_USER -e POSTGRES_DB -e DASHBOARD_DB_USER -e DASHBOARD_DB_PASSWORD     academico_postgres bash -s < database/oltp/11_bootstrap_rol_dashboard.sh
 python -m etl.carga
 ```
+
+**`password authentication failed for user "rol_dw_carga"`, `DW_CARGA_DB_PASSWORD` faltante o `column "seccion_key" does not exist` al cargar el DW**
+Tu DW se creó antes del cierre de SCRUM-35 (dimensiones de docente y sección, `costo_repeticion` y
+el rol de escritura propio). Agrega `DW_CARGA_DB_USER` y `DW_CARGA_DB_PASSWORD` a tu `.env`,
+aplica la migración y el bootstrap (idempotentes, sin perder datos), recarga y vuelve a aplicar
+la migración para que las llaves nuevas queden `NOT NULL`:
+```bash
+set -a && . ./.env && set +a
+docker exec -i academico_postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1     < database/oltp/13_dw_cierre_scrum35.sql
+docker exec -i -e POSTGRES_USER -e POSTGRES_DB -e DW_CARGA_DB_USER -e DW_CARGA_DB_PASSWORD     academico_postgres bash -s < database/oltp/14_bootstrap_rol_dw_carga.sh
+python -m etl.carga
+docker exec -i academico_postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1     < database/oltp/13_dw_cierre_scrum35.sql
+```
+> La migración también le **quita** a `rol_etl` los permisos de escritura sobre el DW que le
+> había dado el script 10: `rol_etl` queda de solo lectura, como dice el criterio de SCRUM-35.
 
 **`password authentication failed for user "rol_etl"` al correr el ETL**
 Mismo caso que con `rol_app`: `07_bootstrap_rol_etl.sh` es un script de primer arranque y no
@@ -458,11 +527,14 @@ Se optó por **FastAPI + Jinja2 + Bootstrap** sobre la alternativa de Streamlit 
 
 Streamlit se había reservado para la **Fase 4 (dashboard analítico)**.
 
-> **Actualización (octubre 2026):** por decisión del equipo, la Fase 4 **no** usa Streamlit: la
-> vista ejecutiva vive dentro de esta misma aplicación, con su menú, su sesión y su sistema de
-> diseño, para que el coordinador vea la operación y la analítica en un solo lugar. Lo que el
-> requisito pedía de fondo se conserva: el dashboard lee **solo** `dw_academico`, con un rol de
-> solo lectura propio (`rol_dashboard`) y credenciales desde `.env`.
+> **Actualización (octubre 2026):** la Fase 4 tiene **dos** frontends sobre el mismo DW. La
+> vista ejecutiva vive dentro de esta aplicación (`/vista-ejecutiva`, con su menú, su sesión y su
+> sistema de diseño) para que el coordinador vea operación y analítica en un solo lugar; y, por
+> el requisito SCRUM-44, existe además una app Streamlit en `dashboard/`. Ambas comparten las
+> definiciones de los KPIs y las consultas, y cumplen lo que el requisito pedía de fondo: leen
+> **solo** `dw_academico`, con un rol de solo lectura propio (`rol_dashboard`) y credenciales
+> desde `.env`. La diferencia es de acceso: la vista web exige sesión de coordinador; la app
+> Streamlit no tiene login y solo escucha en `127.0.0.1`.
 
 > **Actualización (septiembre 2026):** la capa visual migró de Bootstrap 5.3 (CDN) a
 > **Tailwind CSS v4**, compilado con el binario standalone (`scripts/setup-tailwind.sh`, sin

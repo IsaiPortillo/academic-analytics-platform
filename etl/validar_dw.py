@@ -30,8 +30,10 @@ from datetime import datetime
 import pandas as pd
 from sqlalchemy import text
 
-from .conexiones import _backend_en_path, sesion_grafo, sesion_oltp
-from .config import RAIZ_PROYECTO
+from sqlalchemy.exc import DBAPIError
+
+from .conexiones import _backend_en_path, engine_carga, sesion_grafo, sesion_oltp
+from .config import RAIZ_PROYECTO, ErrorConfiguracion
 
 REGISTRO = RAIZ_PROYECTO / "docs" / "validacion" / "registro_validacion.md"
 TOLERANCIA = 1e-9
@@ -80,6 +82,8 @@ def validar_completitud(s):
         ("Estudiantes → dim_estudiante", "academico_oltp.estudiantes", "dw_academico.dim_estudiante"),
         ("Materias → dim_materia", "academico_oltp.materias", "dw_academico.dim_materia"),
         ("Períodos → dim_periodo", "academico_oltp.periodos_academicos", "dw_academico.dim_periodo"),
+        ("Docentes → dim_docente", "academico_oltp.docentes", "dw_academico.dim_docente"),
+        ("Secciones → dim_seccion", "academico_oltp.secciones", "dw_academico.dim_seccion"),
     ]
     for nombre, origen, destino in pares:
         registrar("Completitud", nombre,
@@ -113,6 +117,16 @@ WHERE n.ponderacion > 0 AND n.nota < :umbral
 """
 
 
+COSTO_INSCRIPCIONES_OLTP = """
+SELECT COUNT(*) AS inscripciones, SUM(m.unidades_valorativas * cu.costo_por_uv) AS costo
+FROM academico_oltp.inscripciones i
+JOIN academico_oltp.secciones s ON s.seccion_id = i.seccion_id
+JOIN academico_oltp.materias m ON m.materia_id = s.materia_id
+JOIN academico_oltp.costos_uv cu ON cu.periodo_id = s.periodo_id
+WHERE {filtro}
+"""
+
+
 def validar_costo(s):
     oltp = s.execute(text(COSTO_OLTP), {"umbral": calculos.UMBRAL_NOTA_APROBACION}).one()
     dw_ = s.execute(text(
@@ -122,6 +136,45 @@ def validar_costo(s):
     registrar("Costo", "Inscripciones reprobadas (OLTP independiente vs DW)", oltp[0], dw_[0])
     registrar("Costo", "Costo de reprobación total en USD (OLTP independiente vs DW)",
               f"{float(oltp[1]):,.2f}", f"{float(dw_[1]):,.2f}")
+
+    # Las otras dos medidas de costo (SCRUM-35): matrícula (todas las
+    # inscripciones) y repetición (numero_intento > 1), con SQL propio sobre el
+    # OLTP. Ninguna depende de la nota, así que no hace falta reproducir la
+    # clasificación del ETL: solo UV × costo por UV de cada inscripción.
+    for nombre, filtro, columna, condicion_dw in (
+        ("matrícula", "TRUE", "costo_inscripcion", "TRUE"),
+        ("repetición", "i.numero_intento > 1", "costo_repeticion", "es_repeticion"),
+    ):
+        oltp = s.execute(text(COSTO_INSCRIPCIONES_OLTP.format(filtro=filtro))).one()
+        dw_ = s.execute(text(
+            f"SELECT COUNT(*) FILTER (WHERE {condicion_dw}), SUM({columna}) "
+            "FROM dw_academico.fact_inscripcion"
+        )).one()
+        registrar("Costo", f"Inscripciones con costo de {nombre} (OLTP independiente vs DW)",
+                  oltp[0], dw_[0])
+        registrar("Costo", f"Costo de {nombre} total en USD (OLTP independiente vs DW)",
+                  f"{float(oltp[1]):,.2f}", f"{float(dw_[1]):,.2f}")
+
+    registrar("Costo", "Costo de repetición nunca supera el costo de la inscripción (filas que lo violan)",
+              0, _escalar(s, "SELECT count(*) FROM dw_academico.fact_inscripcion "
+                             "WHERE costo_repeticion > costo_inscripcion"))
+
+
+def validar_mart_departamento(s):
+    """El data mart por departamento debe repartir exactamente cada medida."""
+    medidas = ("costo_matricula_materia", "costo_reprobacion", "costo_repeticion")
+    total = s.execute(text(
+        "SELECT SUM(costo_inscripcion), SUM(costo_reprobacion), SUM(costo_repeticion) "
+        "FROM dw_academico.fact_inscripcion")).one()
+    mart = s.execute(text(
+        "SELECT SUM(costo_matricula_materia), SUM(costo_reprobacion), SUM(costo_repeticion) "
+        "FROM dw_academico.v_mart_departamento")).one()
+    for nombre, esperado, obtenido in zip(medidas, total, mart):
+        registrar("Data mart", f"Suma por departamento = total ({nombre})",
+                  f"{float(esperado):,.2f}", f"{float(obtenido):,.2f}")
+    sin_depto = _escalar(s, "SELECT count(*) FROM dw_academico.v_mart_departamento "
+                            "WHERE codigo_departamento IS NULL")
+    registrar("Data mart", "Filas del mart sin departamento", 0, sin_depto)
 
 
 # ---------------------------------------------------------------------------
@@ -273,6 +326,95 @@ def validar_seguridad(s):
     registrar("Anonimización", "Columnas con datos personales en dim_estudiante", "[]", str(prohibidas))
     registrar("Integridad", "CHECK del patrón de riesgo activo en el DW", 1, _escalar(
         s, "SELECT count(*) FROM pg_constraint WHERE conname = 'chk_patron_riesgo_reprobado'"))
+    registrar("Integridad", "CHECK de costo_repeticion activo en el DW", 1, _escalar(
+        s, "SELECT count(*) FROM pg_constraint WHERE conname = 'chk_costo_repeticion'"))
+    registrar("Integridad", "Hechos sin sección o sin docente (llaves nulas)", 0, _escalar(
+        s, "SELECT count(*) FROM dw_academico.fact_inscripcion "
+           "WHERE seccion_key IS NULL OR docente_key IS NULL"))
+    registrar("Integridad", "Llaves de sección y docente exigidas NOT NULL por el DDL", 2, _escalar(
+        s, "SELECT count(*) FROM pg_attribute WHERE attrelid = 'dw_academico.fact_inscripcion'::regclass "
+           "AND attname IN ('seccion_key', 'docente_key') AND attnotnull"))
+    # Cada hecho debe apuntar a la sección y al docente que el OLTP registra
+    # para esa inscripción (comparación inscripción por inscripción).
+    registrar("Integridad", "Hechos cuya sección o docente difiere del OLTP", 0, _escalar(s, """
+        SELECT count(*) FROM dw_academico.fact_inscripcion f
+        JOIN dw_academico.dim_seccion ds ON ds.seccion_key = f.seccion_key
+        JOIN dw_academico.dim_docente dd ON dd.docente_key = f.docente_key
+        JOIN academico_oltp.inscripciones i ON i.inscripcion_id = f.inscripcion_id
+        JOIN academico_oltp.secciones sec ON sec.seccion_id = i.seccion_id
+        WHERE ds.seccion_id <> sec.seccion_id OR dd.docente_id <> sec.docente_id"""))
+    columnas_docente = {c for (c,) in s.execute(text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_schema = 'dw_academico' AND table_name = 'dim_docente'"))}
+    registrar("Anonimización", "Columnas con datos personales o código institucional en dim_docente", "[]",
+              str(sorted(c for c in columnas_docente
+                         if any(p in c for p in ("nombre_docente", "codigo_docente", "correo",
+                                                 "email", "telefono", "direccion", "dui")))))
+
+    # Separación de roles (SCRUM-35): leer el OLTP y escribir el DW son permisos
+    # de roles distintos. Solo un rechazo por permisos (42501) demuestra algo.
+    def _rechazado(ejecutar) -> bool:
+        try:
+            ejecutar()
+        except DBAPIError as exc:
+            if getattr(exc.orig, "pgcode", None) == "42501":
+                return True
+            raise
+        return False
+
+    def _etl_escribe_dw():
+        # Savepoint: se deshace SIEMPRE (también si el INSERT fuera permitido),
+        # sin tocar el resto de la transacción de validación.
+        savepoint = s.begin_nested()
+        try:
+            s.execute(text("INSERT INTO dw_academico.carga_control (fecha_corte, filas_hechos, calidad) "
+                           "VALUES (current_date, 0, '{}'::jsonb)"))
+        finally:
+            savepoint.rollback()
+
+    def _carga_lee_oltp():
+        with engine_carga().connect() as conexion:
+            try:
+                conexion.execute(text("SELECT 1 FROM academico_oltp.estudiantes LIMIT 1"))
+            finally:
+                conexion.rollback()
+
+    # Además del intento en vivo (que podría ser rechazado por una causa ajena,
+    # p. ej. el permiso sobre una secuencia), se inspeccionan los privilegios
+    # reales de cada tabla: es lo que no se puede esquivar con una coincidencia.
+    escribibles = [r[0] for r in s.execute(text("""
+        SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'dw_academico' AND c.relkind IN ('r', 'p')
+          AND (has_table_privilege('rol_etl', c.oid, 'INSERT')
+            OR has_table_privilege('rol_etl', c.oid, 'UPDATE')
+            OR has_table_privilege('rol_etl', c.oid, 'DELETE')
+            OR has_table_privilege('rol_etl', c.oid, 'TRUNCATE'))
+        ORDER BY c.relname"""))]
+    registrar("Seguridad", "Tablas de dw_academico que rol_etl puede escribir (privilegios del catálogo)",
+              "[]", str(escribibles))
+    privilegios_oltp = _escalar(s, """
+        SELECT (CASE WHEN has_schema_privilege('rol_dw_carga', 'academico_oltp', 'USAGE') THEN 1 ELSE 0 END)
+             + (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'academico_oltp' AND c.relkind IN ('r', 'p', 'v')
+                  AND (has_table_privilege('rol_dw_carga', c.oid, 'SELECT')
+                    OR has_table_privilege('rol_dw_carga', c.oid, 'INSERT')
+                    OR has_table_privilege('rol_dw_carga', c.oid, 'UPDATE')
+                    OR has_table_privilege('rol_dw_carga', c.oid, 'DELETE')
+                    OR has_table_privilege('rol_dw_carga', c.oid, 'TRUNCATE')))""")
+    registrar("Seguridad", "Privilegios de rol_dw_carga sobre academico_oltp (esquema + tablas, catálogo)",
+              0, privilegios_oltp)
+
+    for nombre, ejecutar in (
+        ("rol_etl (lee el OLTP) NO puede escribir en dw_academico", _etl_escribe_dw),
+        ("rol_dw_carga (escribe el DW) NO puede leer academico_oltp", _carga_lee_oltp),
+    ):
+        try:
+            ok = _rechazado(ejecutar)
+        except ErrorConfiguracion as exc:
+            ok, nombre = False, f"{nombre} ({exc})"
+        except Exception as exc:  # noqa: BLE001
+            ok, nombre = False, f"{nombre} ({exc})"
+        registrar("Seguridad", nombre, "permiso denegado", "permiso denegado" if ok else "permitido", ok)
 
 
 # ---------------------------------------------------------------------------
@@ -369,7 +511,8 @@ def escribir_registro(contexto: dict):
         "| Grupo | Fuente de comparación |",
         "|---|---|",
         "| Completitud | Conteos del esquema operacional (`academico_oltp`) |",
-        "| Costo | SQL independiente sobre el OLTP, escrito en este script (no reutiliza el ETL) |",
+        "| Costo | SQL independiente sobre el OLTP, escrito en este script (no reutiliza el ETL): reprobación, matrícula y repetición |",
+        "| Data mart | El corte por departamento reparte exactamente cada medida de costo |",
         "| Sistema transaccional | Las mismas funciones de los reportes del coordinador (SCRUM-10) |",
         "| Patrón de riesgo | Intersección de los reportes de notas (SCRUM-10) y asistencia (SCRUM-25), caso por caso |",
         "| Umbrales | Identidad de las constantes en `backend/app/calculos.py`, el reporte y el ETL |",
@@ -404,6 +547,7 @@ def main() -> int:
         s.connection(execution_options={"isolation_level": "REPEATABLE READ"})
         validar_completitud(s)
         validar_costo(s)
+        validar_mart_departamento(s)
         validar_contra_reportes(s)
         validar_umbrales()
         correlaciones = validar_correlaciones(s)

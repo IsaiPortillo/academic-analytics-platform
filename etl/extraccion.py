@@ -150,6 +150,24 @@ def extraer_carreras(sesion: Session) -> pd.DataFrame:
     ).join(m.Departamento, m.Carrera.departamento_id == m.Departamento.departamento_id))
 
 
+def extraer_docentes(sesion: Session) -> pd.DataFrame:
+    """Docentes con su departamento ya resuelto, para la dimensión de docente.
+
+    Sin codigo_docente: es un identificador institucional y no es insumo de
+    ningún análisis (la sección ya lleva docente_id, la llave sustituta interna).
+    El OLTP no guarda nombres de docentes; lo que sale es escalafón y departamento.
+    """
+    m = modelos_oltp()
+    return _leer(sesion, select(
+        m.Docente.docente_id,
+        m.Docente.escalafon,
+        m.Departamento.departamento_id,
+        m.Departamento.codigo_departamento,
+        m.Departamento.nombre.label("nombre_departamento"),
+        m.Docente.activo,
+    ).join(m.Departamento, m.Docente.departamento_id == m.Departamento.departamento_id))
+
+
 def extraer_costos_periodo(sesion: Session) -> pd.DataFrame:
     """Costo por UV de cada período, con su fuente (SCRUM-36).
 
@@ -187,6 +205,7 @@ EXTRACTORES = {
     "notas": extraer_notas_por_inscripcion,
     "asistencia": extraer_asistencia_por_inscripcion,
     "carreras": extraer_carreras,
+    "docentes": extraer_docentes,
     "costos_periodo": extraer_costos_periodo,
     "costos_materia": extraer_costo_materia_periodo,
 }

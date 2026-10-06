@@ -227,3 +227,81 @@ def interpretar_ranking(ranking, costo_total: float, moneda: str = "USD") -> str
         f"malla curricular (Neo4j): reprobarla impide avanzar hasta en {maximo} materias "
         f"posteriores, así que su costo real va más allá de la cifra de esta tabla."
     )
+
+
+# ---------------------------------------------------------------------------
+# Tarjetas de KPI compartidas por las dos pantallas (SCRUM-44)
+#
+# La vista web (/vista-ejecutiva, FastAPI) y la app Streamlit de dashboard/
+# muestran exactamente los mismos cuatro indicadores. Sus etiquetas, ayudas e
+# interpretaciones viven AQUÍ, una sola vez: si una pantalla cambiara una
+# definición sin la otra, el jurado vería dos cifras distintas para el mismo
+# indicador.
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class Tarjeta:
+    etiqueta: str
+    valor: str          # ya formateado para mostrar
+    ayuda: str          # definición corta del indicador
+    texto: str          # interpretación en texto, con las cifras del filtro activo
+    actual: float | None
+    previo: float | None
+    formato: str        # "dinero" o "puntos": cómo se muestra el cambio contra el período previo
+
+
+def formatear_cambio(valor: float, formato: str, moneda: str = "USD") -> str:
+    return dinero(valor, moneda) if formato == "dinero" else f"{valor * 100:.1f} pp"
+
+
+def tarjetas(ind: Indicadores, previos: Indicadores | None, periodo_anterior: str | None,
+             moneda: str = "USD") -> list[Tarjeta]:
+    def previo(campo: str):
+        return getattr(previos, campo) if previos else None
+
+    return [
+        Tarjeta(
+            "Costo de reprobación", dinero(ind.costo_reprobacion, moneda),
+            "Suma de lo invertido (UV × costo por UV) en inscripciones que terminaron reprobadas.",
+            interpretar_costo(ind, previos, periodo_anterior, moneda),
+            ind.costo_reprobacion, previo("costo_reprobacion"), "dinero",
+        ),
+        Tarjeta(
+            "Costo por estudiante que reprobó", dinero(ind.costo_por_estudiante, moneda),
+            "Costo de reprobación ÷ estudiantes que reprobaron al menos una materia.",
+            interpretar_costo_por_estudiante(ind, moneda),
+            ind.costo_por_estudiante, previo("costo_por_estudiante"), "dinero",
+        ),
+        Tarjeta(
+            "Tasa de reprobación", porcentaje(ind.tasa_reprobacion),
+            "Reprobadas ÷ inscripciones con nota final. Los retiros no cuentan.",
+            interpretar_tasa(ind, previos, periodo_anterior),
+            ind.tasa_reprobacion, previo("tasa_reprobacion"), "puntos",
+        ),
+        Tarjeta(
+            "Costo atribuible a repetición", porcentaje(ind.proporcion_repeticion),
+            "Costo de reprobación de inscripciones en segundo intento o más ÷ costo total.",
+            interpretar_repeticion(ind, moneda),
+            ind.proporcion_repeticion, previo("proporcion_repeticion"), "puntos",
+        ),
+    ]
+
+
+def interpretar_evolucion(evolucion, moneda: str = "USD") -> str | None:
+    """Contexto para leer el ciclo: el período más caro y el más barato.
+
+    evolucion: DataFrame de dw.evolucion_por_periodo. None si no hay costo que comparar.
+    """
+    if evolucion.empty:
+        return None
+    mayor = evolucion.loc[evolucion["costo_reprobacion"].idxmax()]
+    menor = evolucion.loc[evolucion["costo_reprobacion"].idxmin()]
+    if not mayor["costo_reprobacion"]:
+        return None
+    diferencia = (mayor["costo_reprobacion"] - menor["costo_reprobacion"]) / mayor["costo_reprobacion"]
+    return (
+        f"Contexto para leer el ciclo: entre {len(evolucion)} períodos, el de mayor costo fue "
+        f"{mayor['codigo_periodo']} ({dinero(mayor['costo_reprobacion'], moneda)}) y el de menor, "
+        f"{menor['codigo_periodo']} ({dinero(menor['costo_reprobacion'], moneda)}). La diferencia "
+        f"entre ambos es del {porcentaje(diferencia)}."
+    )

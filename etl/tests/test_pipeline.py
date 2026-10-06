@@ -120,6 +120,11 @@ def _datos_base():
         "nombre_carrera": ["Ingeniería de Sistemas Informáticos"], "departamento_id": [1],
         "codigo_departamento": ["DIA"], "nombre_departamento": ["Ingeniería y Arquitectura"],
     })
+    docentes = pd.DataFrame({
+        "docente_id": [1], "escalafon": ["TITULAR"], "departamento_id": [1],
+        "codigo_departamento": ["DIA"], "nombre_departamento": ["Ingeniería y Arquitectura"],
+        "activo": [True],
+    })
     costos_periodo = pd.DataFrame({
         "periodo_id": [1, 2], "costo_por_uv": [25.0, 30.0], "moneda": ["USD", "USD"],
         "fuente_costo": ["SUPUESTO PARAMETRICO", "SUPUESTO PARAMETRICO"],
@@ -133,8 +138,8 @@ def _datos_base():
     return {
         "estudiantes": estudiantes, "materias": materias, "periodos": periodos,
         "secciones": secciones, "inscripciones": inscripciones, "notas": notas,
-        "asistencia": asistencia, "carreras": carreras, "costos_periodo": costos_periodo,
-        "costos_materia": costos_materia,
+        "asistencia": asistencia, "carreras": carreras, "docentes": docentes,
+        "costos_periodo": costos_periodo, "costos_materia": costos_materia,
     }, metricas
 
 
@@ -182,6 +187,25 @@ class TestLimpiezaInscripciones(unittest.TestCase):
     def test_repeticion(self):
         self.assertTrue(self.h.loc[2, "es_repeticion"])
         self.assertFalse(self.h.loc[1, "es_repeticion"])
+
+    def test_costo_de_repeticion_solo_en_reintentos(self):
+        # Inscripción 2: numero_intento = 2, PRG115 en 2025-I = 4 UV × $25.
+        self.assertEqual(self.h.loc[2, "costo_repeticion"], 100.0)
+        # Primer intento: cuesta, pero no es costo de repetición.
+        self.assertEqual(self.h.loc[1, "costo_inscripcion"], 100.0)
+        self.assertEqual(self.h.loc[1, "costo_repeticion"], 0.0)
+        # Nunca es mayor que la inversión de la inscripción.
+        self.assertTrue((self.h["costo_repeticion"] <= self.h["costo_inscripcion"]).all())
+
+    def test_repeticion_aprobada_cuesta_repeticion_pero_no_reprobacion(self):
+        # Una repetición que se aprueba es costo de repetición y NO de reprobación:
+        # las dos medidas no son excluyentes, pero tampoco son la misma.
+        datos, metricas = _datos_base()
+        datos["inscripciones"].loc[0, "numero_intento"] = 2   # inscripción 1: aprobada
+        h = transformar(datos, metricas, FECHA_CORTE).datasets["hechos_inscripcion"].set_index("inscripcion_id")
+        self.assertEqual(h.loc[1, "resultado"], APROBADO)
+        self.assertEqual(h.loc[1, "costo_repeticion"], 100.0)
+        self.assertEqual(h.loc[1, "costo_reprobacion"], 0.0)
 
     def test_inscripcion_con_seccion_inexistente_detiene_el_pipeline(self):
         datos, metricas = _datos_base()
@@ -314,6 +338,11 @@ class TestAnonimizacion(unittest.TestCase):
         self.datasets["materias"].loc[0, "nombre"] = "contacto: ana@ues.edu.sv"
         self.assertTrue(escanear_contenido(self.datasets))
 
+    def test_docentes_sin_codigo_ni_nombre(self):
+        self.assertNotIn("codigo_docente", self.datasets["docentes"].columns)
+        self.datasets["docentes"]["nombre"] = "Pedro Pérez"
+        self.assertTrue(validar_columnas(self.datasets))
+
     def test_codigos_de_materia_y_periodo_no_son_falsos_positivos(self):
         self.assertEqual(escanear_contenido(self.datasets), [])
 
@@ -350,6 +379,39 @@ class TestPreparacionDW(unittest.TestCase):
         p = self.tablas["dim_periodo"].set_index("codigo_periodo")
         self.assertEqual(p.loc["2025-I", "orden"], 1)
         self.assertEqual(p.loc["2025-II", "costo_por_uv"], 30.0)
+
+    def test_dimensiones_de_docente_y_seccion(self):
+        docente = self.tablas["dim_docente"]
+        self.assertEqual(len(docente), 1)
+        self.assertNotIn("codigo_docente", docente.columns)
+        seccion = self.tablas["dim_seccion"].set_index("seccion_id")
+        self.assertEqual(len(seccion), 4)
+        # La sección 400 es PRG115 en 2025-II: legible por sí sola.
+        self.assertEqual(seccion.loc[400, "codigo_materia"], "PRG115")
+        self.assertEqual(seccion.loc[400, "codigo_periodo"], "2025-II")
+
+    def test_cada_hecho_apunta_a_su_seccion_y_docente(self):
+        f = self.fact
+        secciones = self.tablas["dim_seccion"].set_index("seccion_key")["seccion_id"]
+        # Inscripción 8 está en la sección 400.
+        self.assertEqual(secciones[f.loc[8, "seccion_key"]], 400)
+        self.assertFalse(f[["seccion_key", "docente_key"]].isna().any().any())
+
+    def test_costo_repeticion_cumple_el_check_del_ddl(self):
+        # Mismo invariante que chk_costo_repeticion en 13_dw_cierre_scrum35.sql.
+        f = self.fact
+        valido = (f["costo_repeticion"] == 0) | (
+            f["es_repeticion"] & (f["costo_repeticion"] == f["costo_inscripcion"]))
+        self.assertTrue(valido.all())
+        self.assertEqual(f["costo_repeticion"].sum(), 100.0)
+
+    def test_hecho_con_seccion_inexistente_en_la_dimension_detiene_la_carga(self):
+        from etl.carga import preparar_tablas
+        datos, metricas = _datos_base()
+        r = transformar(datos, metricas, FECHA_CORTE)
+        r.datasets["secciones"] = r.datasets["secciones"][r.datasets["secciones"]["seccion_id"] != 100]
+        with self.assertRaises(ErrorIntegridad):
+            preparar_tablas(r)
 
     def test_dimension_de_estudiante_sin_datos_identificables(self):
         columnas = set(self.tablas["dim_estudiante"].columns)

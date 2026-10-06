@@ -2,18 +2,19 @@
 
 Generado automáticamente por `python -m etl.validar_dw`. No editar a mano: se regenera en cada corrida, y el historial de corridas queda en git.
 
-- **Fecha:** 2026-10-02 01:00
-- **Commit:** `e147b44`
-- **Última carga del DW:** 2026-10-02 06:58 UTC, fecha de corte 2026-10-02
+- **Fecha:** 2026-10-05 14:25
+- **Commit:** `14073fd`
+- **Última carga del DW:** 2026-10-05 20:25 UTC, fecha de corte 2026-10-02
 - **Volumen:** 36,704 hechos de inscripción, 1,500 estudiantes
-- **Resultado:** 46 de 46 verificaciones correctas ✅
+- **Resultado:** 66 de 66 verificaciones correctas ✅
 
 ## Qué se verifica y contra qué
 
 | Grupo | Fuente de comparación |
 |---|---|
 | Completitud | Conteos del esquema operacional (`academico_oltp`) |
-| Costo | SQL independiente sobre el OLTP, escrito en este script (no reutiliza el ETL) |
+| Costo | SQL independiente sobre el OLTP, escrito en este script (no reutiliza el ETL): reprobación, matrícula y repetición |
+| Data mart | El corte por departamento reparte exactamente cada medida de costo |
 | Sistema transaccional | Las mismas funciones de los reportes del coordinador (SCRUM-10) |
 | Patrón de riesgo | Intersección de los reportes de notas (SCRUM-10) y asistencia (SCRUM-25), caso por caso |
 | Umbrales | Identidad de las constantes en `backend/app/calculos.py`, el reporte y el ETL |
@@ -30,8 +31,19 @@ Generado automáticamente por `python -m etl.validar_dw`. No editar a mano: se r
 | Completitud | Estudiantes → dim_estudiante | 1500 | 1500 | ✅ OK |
 | Completitud | Materias → dim_materia | 16 | 16 | ✅ OK |
 | Completitud | Períodos → dim_periodo | 8 | 8 | ✅ OK |
+| Completitud | Docentes → dim_docente | 20 | 20 | ✅ OK |
+| Completitud | Secciones → dim_seccion | 194 | 194 | ✅ OK |
 | Costo | Inscripciones reprobadas (OLTP independiente vs DW) | 8020 | 8020 | ✅ OK |
 | Costo | Costo de reprobación total en USD (OLTP independiente vs DW) | 802,000.00 | 802,000.00 | ✅ OK |
+| Costo | Inscripciones con costo de matrícula (OLTP independiente vs DW) | 36704 | 36704 | ✅ OK |
+| Costo | Costo de matrícula total en USD (OLTP independiente vs DW) | 3,670,400.00 | 3,670,400.00 | ✅ OK |
+| Costo | Inscripciones con costo de repetición (OLTP independiente vs DW) | 5511 | 5511 | ✅ OK |
+| Costo | Costo de repetición total en USD (OLTP independiente vs DW) | 551,100.00 | 551,100.00 | ✅ OK |
+| Costo | Costo de repetición nunca supera el costo de la inscripción (filas que lo violan) | 0 | 0 | ✅ OK |
+| Data mart | Suma por departamento = total (costo_matricula_materia) | 3,670,400.00 | 3,670,400.00 | ✅ OK |
+| Data mart | Suma por departamento = total (costo_reprobacion) | 802,000.00 | 802,000.00 | ✅ OK |
+| Data mart | Suma por departamento = total (costo_repeticion) | 551,100.00 | 551,100.00 | ✅ OK |
+| Data mart | Filas del mart sin departamento | 0 | 0 | ✅ OK |
 | Sistema transaccional | Reprobadas/cerradas 2022-I (reporte de notas vs DW) | 989/4122 | 989/4122 | ✅ OK |
 | Patrón de riesgo | 2022-I: inscripciones con nota < 6.00 y ≥ 3 ausencias (reportes vs DW, caso por caso) | 140 | 140 | ✅ OK |
 | Sistema transaccional | Reprobadas/cerradas 2022-II (reporte de notas vs DW) | 1015/4044 | 1015/4044 | ✅ OK |
@@ -72,6 +84,15 @@ Generado automáticamente por `python -m etl.validar_dw`. No editar a mano: se r
 | Anonimización | carnet_hash con formato distinto de SHA-256 en el DW | 0 | 0 | ✅ OK |
 | Anonimización | Columnas con datos personales en dim_estudiante | [] | [] | ✅ OK |
 | Integridad | CHECK del patrón de riesgo activo en el DW | 1 | 1 | ✅ OK |
+| Integridad | CHECK de costo_repeticion activo en el DW | 1 | 1 | ✅ OK |
+| Integridad | Hechos sin sección o sin docente (llaves nulas) | 0 | 0 | ✅ OK |
+| Integridad | Llaves de sección y docente exigidas NOT NULL por el DDL | 2 | 2 | ✅ OK |
+| Integridad | Hechos cuya sección o docente difiere del OLTP | 0 | 0 | ✅ OK |
+| Anonimización | Columnas con datos personales o código institucional en dim_docente | [] | [] | ✅ OK |
+| Seguridad | Tablas de dw_academico que rol_etl puede escribir (privilegios del catálogo) | [] | [] | ✅ OK |
+| Seguridad | Privilegios de rol_dw_carga sobre academico_oltp (esquema + tablas, catálogo) | 0 | 0 | ✅ OK |
+| Seguridad | rol_etl (lee el OLTP) NO puede escribir en dw_academico | permiso denegado | permiso denegado | ✅ OK |
+| Seguridad | rol_dw_carga (escribe el DW) NO puede leer academico_oltp | permiso denegado | permiso denegado | ✅ OK |
 
 ## Observaciones sobre los datos
 

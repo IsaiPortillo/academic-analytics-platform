@@ -16,25 +16,42 @@ from dataclasses import dataclass
 import pandas as pd
 from sqlalchemy import create_engine, text
 
-from .config import settings
-
 
 class DWNoConfigurado(Exception):
     """Falta DASHBOARD_DB_PASSWORD en el .env."""
 
 
 _engine = None
+_url_inyectada: str | None = None
+
+
+def configurar(url: str) -> None:
+    """Fija la conexión al DW, en vez de leerla de la configuración del backend.
+
+    Lo usa la app Streamlit de dashboard/ (SCRUM-44): reutiliza estas mismas
+    consultas, pero tiene su propia configuración con solo las credenciales de
+    rol_dashboard, sin cargar las del rol de servicio de la aplicación web.
+    """
+    global _engine, _url_inyectada
+    _url_inyectada = url
+    _engine = None
 
 
 def engine():
     """Engine perezoso: la app arranca aunque el DW no esté configurado."""
     global _engine
     if _engine is None:
-        if settings.dw_url is None:
+        url = _url_inyectada
+        if url is None:
+            # Import diferido: quien inyecta su propia URL no necesita (ni debe
+            # cargar) la configuración completa del backend.
+            from .config import settings
+            url = settings.dw_url
+        if url is None:
             raise DWNoConfigurado(
                 "Falta DASHBOARD_DB_PASSWORD en el .env (ver .env.example)."
             )
-        _engine = create_engine(settings.dw_url, pool_pre_ping=True, future=True)
+        _engine = create_engine(url, pool_pre_ping=True, future=True)
     return _engine
 
 DESDE_HECHOS = """

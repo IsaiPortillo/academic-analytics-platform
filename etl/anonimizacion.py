@@ -39,7 +39,7 @@ COLUMNAS_PERMITIDAS: dict[str, set[str]] = {
         "resultado", "nota_final", "aprobado", "nota_completa",
         "ponderacion_evaluada", "ponderacion_calificada", "evaluaciones_sin_nota",
         "sesiones", "presentes", "ausentes", "justificados", "porcentaje_asistencia",
-        "es_repeticion", "costo_inscripcion", "costo_reprobacion",
+        "es_repeticion", "costo_inscripcion", "costo_reprobacion", "costo_repeticion",
         "turno", "patron_riesgo",
     },
     "estudiante_periodo": {
@@ -73,6 +73,12 @@ COLUMNAS_PERMITIDAS: dict[str, set[str]] = {
     "secciones": {
         "seccion_id", "materia_id", "docente_id", "periodo_id", "numero_seccion",
         "turno", "cupo_maximo",
+    },
+    # Sin codigo_docente ni nombre: el OLTP no guarda nombres y el código es un
+    # identificador institucional que ningún análisis necesita.
+    "docentes": {
+        "docente_id", "escalafon", "departamento_id", "codigo_departamento",
+        "nombre_departamento", "activo",
     },
 }
 

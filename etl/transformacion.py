@@ -135,6 +135,11 @@ def construir_hechos_inscripcion(datos: dict[str, pd.DataFrame], fecha_corte: da
     h["costo_inscripcion"] = h["costo_materia"]
     h["costo_reprobacion"] = h["costo_inscripcion"].where(h["resultado"] == REPROBADO, 0.0).fillna(0.0)
     h["es_repeticion"] = h["numero_intento"] > 1
+    # costo_repeticion (SCRUM-35): la misma inversión cuando es un reintento
+    # (numero_intento > 1), sin importar cómo termine. No excluye a
+    # costo_reprobacion: una repetición reprobada cuenta en las dos medidas, así
+    # que no deben sumarse entre sí.
+    h["costo_repeticion"] = h["costo_inscripcion"].where(h["es_repeticion"], 0.0).fillna(0.0)
 
     # Patrón de riesgo (Fase 4.2): inscripción cerrada con nota final < 6.00 Y
     # 3 o más ausencias. Son los dos umbrales que ya usa el sistema
@@ -149,7 +154,7 @@ def construir_hechos_inscripcion(datos: dict[str, pd.DataFrame], fecha_corte: da
         "resultado", "nota_final", "aprobado", "nota_completa",
         "ponderacion_evaluada", "ponderacion_calificada", "evaluaciones_sin_nota",
         "sesiones", "presentes", "ausentes", "justificados", "porcentaje_asistencia",
-        "es_repeticion", "costo_inscripcion", "costo_reprobacion",
+        "es_repeticion", "costo_inscripcion", "costo_reprobacion", "costo_repeticion",
         "turno", "patron_riesgo",
     ]].sort_values("inscripcion_id", ignore_index=True)
 
@@ -336,6 +341,7 @@ def transformar(datos: dict[str, pd.DataFrame], metricas_grafo: pd.DataFrame,
         "materias": materias,
         "periodos": construir_periodos(datos["periodos"], datos["costos_periodo"]),
         "carreras": datos["carreras"].sort_values("carrera_id", ignore_index=True),
+        "docentes": datos["docentes"].sort_values("docente_id", ignore_index=True),
         "secciones": datos["secciones"].sort_values("seccion_id", ignore_index=True),
     }
     calidad = _reporte_calidad(datos, hechos, estudiante_periodo, estudiantes,

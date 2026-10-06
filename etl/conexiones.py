@@ -26,6 +26,16 @@ engine = create_engine(settings.database_url, pool_pre_ping=True, future=True)
 SesionOLTP = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
+def engine_carga():
+    """Conexión de ESCRITURA al Data Warehouse (SCRUM-35), como rol_dw_carga.
+
+    Distinta de `engine` a propósito: ese lee el OLTP con rol_etl y no puede
+    escribir el DW; este escribe el DW y no puede leer el OLTP. Se crea al
+    pedirla (no al importar) para que quien solo lee no necesite la credencial.
+    """
+    return create_engine(settings.database_url_carga, pool_pre_ping=True, future=True)
+
+
 def _backend_en_path() -> None:
     ruta_backend = str(RAIZ_PROYECTO / "backend")
     if ruta_backend not in sys.path:
