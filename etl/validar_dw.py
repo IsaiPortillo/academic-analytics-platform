@@ -542,6 +542,11 @@ def escribir_registro(contexto: dict):
 
 
 def main() -> int:
+    # Los nombres de las verificaciones llevan "→"; la consola de Windows (cp1252) no
+    # puede codificarlo y el script moría a la primera línea. Con errors="replace" lo
+    # peor que pasa es que se vea "?", y el registro .md se escribe siempre en UTF-8.
+    for flujo in (sys.stdout, sys.stderr):
+        flujo.reconfigure(errors="replace")
     print("Validación de datos y procesos del DW (Fases 3.3, 4.1 y 4.2)\n")
     with sesion_oltp() as s:
         s.connection(execution_options={"isolation_level": "REPEATABLE READ"})

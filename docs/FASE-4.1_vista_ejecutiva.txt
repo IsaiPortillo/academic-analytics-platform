@@ -187,7 +187,8 @@ PASO 4 — Demostrar que la vista ejecutiva NO puede leer el OLTP (para el jurad
       [OK] Escritura en dw_academico rechazada: permission denied for table carga_control
 
 PASO 5 — Abrir la vista ejecutiva
-    cd backend && uvicorn app.main:app --reload
+    python -m uvicorn --app-dir backend app.main:app --reload   (desde la raíz;
+    ocupa esa terminal, el resto de comandos va en otra)
     Entrar como COORDINADOR en http://localhost:8000 y abrir "Vista
     ejecutiva" en el menú lateral (http://localhost:8000/vista-ejecutiva).
     Probar: cambiar período (uno o "Todos los períodos"), departamento y

@@ -132,10 +132,11 @@ falle. Que el ETL sea de solo lectura no depende de que quien escriba el pipelin
 ## 3. La aplicación web
 
 ```bash
-cd backend && ../.venv/bin/python -m uvicorn app.main:app --reload
+.venv/bin/python -m uvicorn --app-dir backend app.main:app --reload   # en Git Bash: .venv/Scripts/python
 ```
 
-Queda en `http://localhost:8000`, con la documentación de la API en `/api/docs`.
+Queda en `http://localhost:8000`, con la documentación de la API en `/api/docs`. Se lanza
+desde la raíz y ocupa esa terminal: los comandos siguientes van en otra.
 
 Usuarios de prueba (contraseña `demo1234` en ambos):
 
