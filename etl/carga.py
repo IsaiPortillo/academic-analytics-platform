@@ -4,6 +4,9 @@ Toma lo que produce el pipeline de SCRUM-34 (ya limpio, enriquecido y con la
 anonimización verificada) y lo escribe en el esquema estrella definido en
 database/oltp/10_dw_academico.sql.
 
+Escribe con rol_dw_carga, no con rol_etl: el pipeline LEE el OLTP con un rol de
+solo lectura, y la carga ESCRIBE el DW con otro que no puede leer el OLTP.
+
 Estrategia: recarga completa dentro de UNA transacción. Se vacían hechos y
 dimensiones y se vuelven a llenar; si algo falla a mitad, el ROLLBACK deja el
 DW exactamente como estaba. Mientras dura la carga, el dashboard sigue viendo
@@ -26,7 +29,8 @@ import pandas as pd
 from sqlalchemy import text
 
 from .anonimizacion import ErrorAnonimizacion
-from .conexiones import engine
+from .conexiones import engine_carga
+from .config import ErrorConfiguracion
 from .pipeline import ejecutar_pipeline
 from .transformacion import (
     REPROBADO,
@@ -39,7 +43,10 @@ from .transformacion import (
 ESQUEMA_DW = "dw_academico"
 
 # Orden de inserción: dimensiones antes que hechos, por las llaves foráneas.
-TABLAS_DW = ["dim_periodo", "dim_carrera", "dim_materia", "dim_estudiante", "fact_inscripcion"]
+TABLAS_DW = [
+    "dim_periodo", "dim_carrera", "dim_materia", "dim_estudiante",
+    "dim_docente", "dim_seccion", "fact_inscripcion",
+]
 
 
 def _asignar_llave(df: pd.DataFrame, columna_id: str, columna_llave: str) -> pd.DataFrame:
@@ -84,6 +91,28 @@ def preparar_tablas(resultado: ResultadoTransformacion) -> dict[str, pd.DataFram
         "carrera_key", "trabaja", "condicion_academica",
     ]]
 
+    dim_docente = _asignar_llave(ds["docentes"], "docente_id", "docente_key")[[
+        "docente_key", "docente_id", "escalafon", "departamento_id",
+        "codigo_departamento", "nombre_departamento", "activo",
+    ]]
+
+    # Los códigos de materia y período viajan como texto para que una sección
+    # sea legible por sí sola; la dimensión no encadena llaves a otras dimensiones.
+    dim_seccion = _asignar_llave(ds["secciones"], "seccion_id", "seccion_key")
+    dim_seccion["codigo_materia"] = dim_seccion["materia_id"].map(
+        dim_materia.set_index("materia_id")["codigo_materia"])
+    dim_seccion["codigo_periodo"] = dim_seccion["periodo_id"].map(
+        dim_periodo.set_index("periodo_id")["codigo_periodo"])
+    sin_contexto = dim_seccion[["codigo_materia", "codigo_periodo"]].isna().any(axis=1)
+    if sin_contexto.any():
+        raise ErrorIntegridad(
+            f"dim_seccion: {int(sin_contexto.sum())} sección(es) con materia o período inexistente"
+        )
+    dim_seccion = dim_seccion[[
+        "seccion_key", "seccion_id", "numero_seccion", "turno", "cupo_maximo",
+        "codigo_materia", "codigo_periodo",
+    ]]
+
     h = ds["hechos_inscripcion"]
     materia = dim_materia.set_index("materia_id")
     fact = pd.DataFrame({
@@ -93,6 +122,8 @@ def preparar_tablas(resultado: ResultadoTransformacion) -> dict[str, pd.DataFram
         "estudiante_key": h["estudiante_id"].map(_mapa(dim_estudiante, "estudiante_id", "estudiante_key")),
         # La carrera que oferta la materia: es la que asume su costo.
         "carrera_key": h["materia_id"].map(materia["carrera_key"]),
+        "seccion_key": h["seccion_id"].map(_mapa(dim_seccion, "seccion_id", "seccion_key")),
+        "docente_key": h["docente_id"].map(_mapa(dim_docente, "docente_id", "docente_key")),
         "numero_intento": h["numero_intento"],
         "es_repeticion": h["es_repeticion"],
         "resultado": h["resultado"],
@@ -103,6 +134,7 @@ def preparar_tablas(resultado: ResultadoTransformacion) -> dict[str, pd.DataFram
         "unidades_valorativas": h["materia_id"].map(materia["unidades_valorativas"]),
         "costo_inscripcion": h["costo_inscripcion"],
         "costo_reprobacion": h["costo_reprobacion"],
+        "costo_repeticion": h["costo_repeticion"],
         "sesiones": h["sesiones"],
         "presentes": h["presentes"],
         "ausentes": h["ausentes"],
@@ -111,7 +143,7 @@ def preparar_tablas(resultado: ResultadoTransformacion) -> dict[str, pd.DataFram
         "patron_riesgo": h["patron_riesgo"],
     })
 
-    llaves = ["periodo_key", "materia_key", "estudiante_key", "carrera_key"]
+    llaves = ["periodo_key", "materia_key", "estudiante_key", "carrera_key", "seccion_key", "docente_key"]
     huerfanos = fact[llaves].isna().any(axis=1)
     if huerfanos.any():
         raise ErrorIntegridad(
@@ -124,14 +156,18 @@ def preparar_tablas(resultado: ResultadoTransformacion) -> dict[str, pd.DataFram
         "dim_carrera": dim_carrera,
         "dim_materia": dim_materia,
         "dim_estudiante": dim_estudiante,
+        "dim_docente": dim_docente,
+        "dim_seccion": dim_seccion,
         "fact_inscripcion": fact,
     }
 
 
 def cargar_dw(resultado: ResultadoTransformacion) -> dict[str, int]:
     """Recarga completa y atómica del DW. Devuelve filas cargadas por tabla."""
+    # Se prepara todo ANTES de abrir la conexión de escritura: si los datos no
+    # cuadran, ni siquiera se intenta tocar el DW.
     tablas = preparar_tablas(resultado)
-    with engine.begin() as conexion:
+    with engine_carga().begin() as conexion:
         # Un solo TRUNCATE para todas: PostgreSQL resuelve las llaves foráneas
         # entre ellas. carga_control no se vacía: es el historial de cargas.
         conexion.execute(text(
@@ -163,7 +199,7 @@ def main(argv: list[str] | None = None) -> int:
         resultado = ejecutar_pipeline(args.fecha_corte)
         print("[DW] Cargando el modelo dimensional (una sola transacción)...")
         filas = cargar_dw(resultado)
-    except (ErrorAnonimizacion, ErrorIntegridad) as exc:
+    except (ErrorAnonimizacion, ErrorIntegridad, ErrorConfiguracion) as exc:
         print(f"\n[DETENIDO] {exc}\nEl DW no se modificó.", file=sys.stderr)
         return 1
 

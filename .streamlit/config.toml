@@ -1,0 +1,28 @@
+# Configuración de la app Streamlit de dashboard/ (SCRUM-44).
+# Streamlit lee este archivo del directorio desde el que se lanza, por eso vive
+# en la raíz del proyecto:   streamlit run dashboard/app.py
+
+[server]
+# Solo accesible desde esta máquina. La app NO tiene inicio de sesión (a diferencia
+# de /vista-ejecutiva, que exige un coordinador autenticado): si se publica en una
+# red o en internet, hay que ponerle delante autenticación. Ver README.
+address = "127.0.0.1"
+port = 8501
+headless = true
+
+[client]
+# Sin el botón "Deploy" ni opciones de publicación: es una app local de consulta.
+toolbarMode = "minimal"
+
+[browser]
+# Sin telemetría de uso hacia Streamlit.
+gatherUsageStats = false
+
+# Misma paleta que el sistema (DESIGN.md): carmesí institucional sobre
+# superficies frías.
+[theme]
+base = "light"
+primaryColor = "#8b0105"
+backgroundColor = "#f7f9fb"
+secondaryBackgroundColor = "#eef2f6"
+textColor = "#0f172a"

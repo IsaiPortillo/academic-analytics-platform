@@ -22,13 +22,22 @@ Fase 3.3 que el dashboard necesita, completo y demostrable:
                                                                     │
      app web, pantalla Vista ejecutiva <──(rol_dashboard, solo lectura del DW)
 
-DÓNDE VIVE: dentro de la misma aplicación web (FastAPI + Jinja2 + Tailwind),
-como la pantalla "Vista ejecutiva" del menú "Inteligencia institucional", con
-el mismo diseño, sesión y navegación que el resto del sistema. El criterio
-original pedía una app Streamlit aparte; el equipo decidió integrarla para ver
-la operación y la analítica en un solo lugar. Lo que el criterio pedía de
-fondo se mantiene: solo lee dw_academico, con un rol de solo lectura propio y
-credenciales desde .env.
+DÓNDE VIVE: en dos frontends sobre las mismas consultas y definiciones.
+
+  a) Dentro de la aplicación web (FastAPI + Jinja2 + Tailwind), como la pantalla
+     "Vista ejecutiva" del menú "Inteligencia institucional", con el mismo
+     diseño, sesión y navegación que el resto del sistema (exige coordinador).
+  b) Como app Streamlit independiente en dashboard/ (SCRUM-44), que es lo que
+     pedía el criterio original:  streamlit run dashboard/app.py
+     No tiene inicio de sesión: .streamlit/config.toml la limita a 127.0.0.1 y
+     no debe exponerse a una red sin autenticación delante.
+
+Ambas importan backend/app/dw.py (consultas) y backend/app/indicadores.py
+(KPIs, tarjetas e interpretaciones), así que muestran las mismas cifras. Lo
+que el criterio pedía de fondo se mantiene en las dos: solo leen dw_academico,
+con rol_dashboard (solo SELECT sobre ese esquema) y credenciales desde .env.
+La app Streamlit solo usa DASHBOARD_DB_* y POSTGRES_*; no carga la configuración
+del backend (dw.configurar() le inyecta su conexión).
 
 
 -------------------------------------------------------------------------------

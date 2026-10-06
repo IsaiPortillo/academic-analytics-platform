@@ -1,0 +1,5 @@
+streamlit>=1.40
+pandas>=2.2
+sqlalchemy>=2.0.30
+psycopg2-binary>=2.9.9
+pydantic-settings>=2.4.0

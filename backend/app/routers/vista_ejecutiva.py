@@ -106,42 +106,16 @@ def vista_ejecutiva(
     def dinero(v):
         return ind.dinero(v, moneda)
 
-    def puntos(v):
-        return f"{v * 100:.1f} pp"
-
     kpis = [
         {
-            "etiqueta": "Costo de reprobación",
-            "valor": dinero(totales.costo_reprobacion),
-            "ayuda": "Suma de lo invertido (UV × costo por UV) en inscripciones que terminaron reprobadas.",
-            "variacion": _variacion(totales.costo_reprobacion,
-                                    previos.costo_reprobacion if previos else None, dinero),
-            "texto": ind.interpretar_costo(totales, previos, periodo_anterior, moneda),
-        },
-        {
-            "etiqueta": "Costo por estudiante que reprobó",
-            "valor": dinero(totales.costo_por_estudiante),
-            "ayuda": "Costo de reprobación ÷ estudiantes que reprobaron al menos una materia.",
-            "variacion": _variacion(totales.costo_por_estudiante,
-                                    previos.costo_por_estudiante if previos else None, dinero),
-            "texto": ind.interpretar_costo_por_estudiante(totales, moneda),
-        },
-        {
-            "etiqueta": "Tasa de reprobación",
-            "valor": ind.porcentaje(totales.tasa_reprobacion),
-            "ayuda": "Reprobadas ÷ inscripciones con nota final. Los retiros no cuentan.",
-            "variacion": _variacion(totales.tasa_reprobacion,
-                                    previos.tasa_reprobacion if previos else None, puntos),
-            "texto": ind.interpretar_tasa(totales, previos, periodo_anterior),
-        },
-        {
-            "etiqueta": "Costo atribuible a repetición",
-            "valor": ind.porcentaje(totales.proporcion_repeticion),
-            "ayuda": "Costo de reprobación de inscripciones en segundo intento o más ÷ costo total.",
-            "variacion": _variacion(totales.proporcion_repeticion,
-                                    previos.proporcion_repeticion if previos else None, puntos),
-            "texto": ind.interpretar_repeticion(totales, moneda),
-        },
+            "etiqueta": t.etiqueta,
+            "valor": t.valor,
+            "ayuda": t.ayuda,
+            "variacion": _variacion(t.actual, t.previo,
+                                    lambda v, t=t: ind.formatear_cambio(v, t.formato, moneda)),
+            "texto": t.texto,
+        }
+        for t in ind.tarjetas(totales, previos, periodo_anterior, moneda)
     ]
 
     ranking = dw.ranking_materias(filtros, LIMITE_RANKING)
@@ -168,17 +142,7 @@ def vista_ejecutiva(
         }
         for fila in evolucion.to_dict("records")
     ]
-    texto_evolucion = None
-    if not evolucion.empty:
-        mayor = evolucion.loc[evolucion["costo_reprobacion"].idxmax()]
-        menor = evolucion.loc[evolucion["costo_reprobacion"].idxmin()]
-        texto_evolucion = (
-            f"Contexto para leer el ciclo: entre {len(evolucion)} períodos, el de mayor costo fue "
-            f"{mayor['codigo_periodo']} ({dinero(mayor['costo_reprobacion'])}) y el de menor, "
-            f"{menor['codigo_periodo']} ({dinero(menor['costo_reprobacion'])}). La diferencia "
-            f"entre ambos es del {ind.porcentaje((mayor['costo_reprobacion'] - menor['costo_reprobacion']) / mayor['costo_reprobacion'])}."
-            if mayor["costo_reprobacion"] else None
-        )
+    texto_evolucion = ind.interpretar_evolucion(evolucion, moneda)
 
     # El aviso sale del dato (costos_uv.fuente → dim_periodo.fuente_costo), no
     # está escrito aquí: con la cifra oficial registrada, desaparece solo.
