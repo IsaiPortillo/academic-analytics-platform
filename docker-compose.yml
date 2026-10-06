@@ -20,7 +20,10 @@ services:
       DW_CARGA_DB_PASSWORD: ${DW_CARGA_DB_PASSWORD}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "${POSTGRES_PORT}:5432"
+      # Solo en 127.0.0.1: la app, el ETL y el dashboard corren en el mismo host. Docker
+      # publica en 0.0.0.0 por defecto y se salta ufw/iptables, lo que dejaría la base
+      # alcanzable desde internet en un servidor. Para acceder desde fuera, túnel SSH.
+      - "127.0.0.1:${POSTGRES_PORT}:5432"
     volumes:
       - pgdata_academico:/var/lib/postgresql/data
       # Los scripts de database/oltp se ejecutan en orden alfabético durante el
@@ -50,8 +53,8 @@ services:
       - NEO4J_AUTH=${NEO4J_USER}/${NEO4J_PASSWORD}
       - NEO4J_PLUGINS=["apoc"]  # Biblioteca recomendada para algoritmos de grafos
     ports:
-      - "7474:7474" # Interfaz Web (Neo4j Browser)
-      - "7687:7687" # Protocolo Bolt (Conexión Python)
+      - "127.0.0.1:7474:7474" # Interfaz Web (Neo4j Browser) — solo local, ver nota arriba
+      - "127.0.0.1:7687:7687" # Protocolo Bolt (Conexión Python) — solo local
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
