@@ -36,6 +36,13 @@ class Settings(BaseSettings):
     # entorno controlado, para una demostración puntual (ej. defensa de tesis).
     modo_demo: bool = False
 
+    # Marca `Secure` de la cookie de sesión: el navegador solo la envía por HTTPS.
+    # Actívala (COOKIE_SECURE=true) cuando el sitio se sirva por HTTPS, aunque el
+    # TLS termine en un proxy (nginx, Cloudflare): la bandera la interpreta el
+    # navegador, no el servidor. Apagada por defecto porque en http://localhost
+    # el navegador descartaría la cookie y nadie podría iniciar sesión.
+    cookie_secure: bool = False
+
     @property
     def dw_url(self) -> Optional[str]:
         if not self.dashboard_db_password:

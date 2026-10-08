@@ -32,7 +32,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=settings.app_secret_key,
     same_site="lax",
-    https_only=False,  # en despliegue real con HTTPS debe ser True
+    https_only=settings.cookie_secure,  # COOKIE_SECURE=true detrás de HTTPS (ver .env.example)
 )
 
 app.mount("/static", StaticFiles(directory=DIRECTORIO_APP / "static"), name="static")

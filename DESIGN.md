@@ -170,6 +170,7 @@ Mobile-web is a first-class target (staff use phones and tablets in the classroo
 - **Filters:** `.filter-bar` (controls full-width on phones, inline from 640px) replaces ad-hoc `flex items-end` rows.
 - **Touch (`@media (pointer: coarse)`):** 44px minimum targets for buttons, links, inputs, toggles and the drawer; form fields at 16px so iOS does not zoom on focus. Decided by input type, not width.
 - **Drawer:** closes on backdrop, link tap, Escape, or widening past 1024px; locks page scroll while open (`html.nav-open`); keeps closed links out of the tab order (`visibility: hidden`); focus returns to the toggle.
+- **Master-detail (asistencia, calificaciones):** below 1024px, opening a section hides the section list (`.master-detail.has-detail > .master-list`) and the period filter, leaving only the detail with a "← Cambiar de sección" link; at 1024px+ both columns stay side by side. In asistencia the tally header (`.sticky-header`) and the save bar (`.sticky-actions`) stay pinned while a long roster scrolls; `app.js` sets `--topbar-h` to the real top bar height so the header sits right under it.
 - **Matrícula dock:** on < 1024px a floating `.dock-fab` shows how many sections the dock holds and jumps to it when it is out of view.
 - **Charts:** the period column chart (`.chart-scroll`) scrolls inside its card and centers the selected period; columns are focusable so a tap reveals the value (no hover on touch).
 - **Safe areas:** `viewport-fit=cover` plus `env(safe-area-inset-*)` on the top bar, content padding and the dock shortcut.
