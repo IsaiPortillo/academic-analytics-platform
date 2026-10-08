@@ -20,7 +20,7 @@
 
 <div class="card mb-3">
     <div class="card-body">
-        <form method="get" action="/calificaciones" class="flex items-end gap-2">
+        <form method="get" action="/calificaciones" class="filter-bar">
             <div>
                 <label for="periodo_id" class="field-label">Periodo</label>
                 <select id="periodo_id" name="periodo_id" class="select" onchange="this.form.submit()">
@@ -39,7 +39,7 @@
     <div class="card">
         <div class="card-header">Secciones a cargo</div>
         <div class="table-wrap">
-            <table class="table">
+            <table class="table table-stack">
                 <thead>
                     <tr>
                         <th>Materia</th>
@@ -51,12 +51,12 @@
                 <tbody>
                     {% for s, materia, ponderacion in secciones %}
                     <tr class="{% if seccion and seccion.seccion_id == s.seccion_id %}bg-subtle{% endif %}">
-                        <td>
+                        <td class="cell-title">
                             <div class="font-semibold">{{ materia.codigo_materia }}</div>
                             <div class="text-xs text-muted">{{ materia.nombre }}</div>
                         </td>
-                        <td>{{ s.numero_seccion }}</td>
-                        <td>
+                        <td data-label="Secc.">{{ s.numero_seccion }}</td>
+                        <td data-label="Ponderación">
                             {% if ponderacion >= 100 %}
                             {{ badge('success', ponderacion ~ '%') }}
                             {% elif ponderacion > 0 %}
@@ -65,7 +65,7 @@
                             {{ badge('neutral', ponderacion ~ '%') }}
                             {% endif %}
                         </td>
-                        <td>
+                        <td class="cell-actions">
                             <a class="btn-view"
                                href="/calificaciones?periodo_id={{ periodo_id }}&amp;seccion_id={{ s.seccion_id }}">
                                 Ver
@@ -83,7 +83,7 @@
     <div>
         {% if seccion %}
         <div class="card mb-3">
-            <div class="card-header flex items-center justify-between gap-3">
+            <div class="card-header flex flex-wrap items-center justify-between gap-3">
                 <span class="whitespace-nowrap">{{ materia.codigo_materia }} &middot; Evaluaciones</span>
                 <div class="weight-check flex-1 max-w-[220px]" data-weight-check="{{ ponderacion_usada }}">
                     <div class="weight-check-track"><div class="weight-check-fill"></div></div>
@@ -109,7 +109,7 @@
                 </table>
             </div>
             <div class="card-body border-t border-border">
-                <form method="post" action="/calificaciones/evaluaciones" class="flex flex-wrap items-end gap-2"
+                <form method="post" action="/calificaciones/evaluaciones" class="filter-bar"
                       data-lock-on-submit="Creando…">
                     <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
                     <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
@@ -135,6 +135,9 @@
             <div class="card-header">Matriz de notas — {{ roster|length }} estudiante(s)</div>
             <div class="card-body">
                 {% if evaluaciones %}
+                <p class="text-xs text-muted mb-2 lg:hidden">
+                    Desliza la tabla para ver todas las evaluaciones; la columna del ID queda fija.
+                </p>
                 <div class="matrix-wrap mb-1">
                     <table class="matrix-table">
                         <thead>

@@ -18,7 +18,7 @@
 
 <div class="card mb-4">
     <div class="card-body">
-        <form method="get" action="/vista-ejecutiva" class="flex items-end gap-2 flex-wrap">
+        <form method="get" action="/vista-ejecutiva" class="filter-bar">
             <div>
                 <label for="periodo" class="field-label">Período</label>
                 <select id="periodo" name="periodo" class="select" onchange="this.form.submit()">
@@ -111,7 +111,7 @@
         <details class="mt-3">
             <summary class="text-sm text-muted" style="cursor: pointer;">Ver como tabla</summary>
             <div class="table-wrap mt-2">
-                <table class="table">
+                <table class="table table-stack">
                     <thead>
                         <tr>
                             <th>Materia</th>
@@ -125,15 +125,15 @@
                     <tbody>
                         {% for m in ranking %}
                         <tr>
-                            <td>
+                            <td class="cell-title">
                                 <div class="font-semibold">{{ m.codigo_materia }}</div>
                                 <div class="text-xs text-muted">{{ m.nombre_materia }}</div>
                             </td>
-                            <td class="text-center">{{ m.reprobados }}</td>
-                            <td class="text-center">{{ m.cerradas }}</td>
-                            <td class="text-center">{{ m.tasa_texto }}</td>
-                            <td class="text-center font-semibold">{{ m.costo_texto }}</td>
-                            <td class="text-center">{{ m.dependientes_totales }}</td>
+                            <td class="text-center" data-label="Reprobados">{{ m.reprobados }}</td>
+                            <td class="text-center" data-label="Con nota final">{{ m.cerradas }}</td>
+                            <td class="text-center" data-label="Tasa">{{ m.tasa_texto }}</td>
+                            <td class="text-center font-semibold" data-label="Costo ({{ moneda }})">{{ m.costo_texto }}</td>
+                            <td class="text-center" data-label="Materias que bloquea">{{ m.dependientes_totales }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -148,9 +148,10 @@
 <div class="card mb-4">
     <div class="card-header">Costo de reprobación por período</div>
     <div class="card-body">
+        <div class="chart-scroll" style="--n: {{ columnas|length }};">
         <div class="column-chart" role="list" aria-label="Costo de reprobación por período">
             {% for c in columnas %}
-            <div class="column{% if c.seleccionado %} is-selected{% endif %}" role="listitem"
+            <div class="column{% if c.seleccionado %} is-selected{% endif %}" role="listitem" tabindex="0"
                  title="{{ c.codigo }} — {{ c.costo_texto }} · tasa de reprobación {{ c.tasa_texto }}">
                 <span class="column-value">{{ c.costo_texto }}</span>
                 <div class="column-bar" style="--pct: {{ '%.4f'|format(c.pct) }};"></div>
@@ -159,6 +160,7 @@
         </div>
         <div class="column-labels" aria-hidden="true">
             {% for c in columnas %}<span>{{ c.codigo }}</span>{% endfor %}
+        </div>
         </div>
         {% if texto_evolucion %}
         <p class="kpi-interpretacion">

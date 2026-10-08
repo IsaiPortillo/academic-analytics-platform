@@ -1,22 +1,49 @@
-// Sidebar móvil — reemplaza el menú hamburguesa horizontal del navbar
-// anterior por un panel deslizante con fondo atenuado.
+// Sidebar móvil — panel deslizante con fondo atenuado (< 1024px). Cierra al
+// tocar el fondo, al elegir un enlace, con Escape y al ensanchar la ventana
+// (girar la tablet); mientras está abierto la página de atrás no se desplaza,
+// y el foco vuelve al botón que lo abrió.
 const sidebarEl = document.getElementById("sidebar");
 const sidebarBackdrop = document.getElementById("sidebarBackdrop");
-function cerrarSidebar() {
-  sidebarEl?.classList.remove("is-open");
-  sidebarBackdrop?.classList.remove("is-open");
+const navToggleEl = document.getElementById("navToggle");
+function fijarSidebar(abierto) {
+  sidebarEl?.classList.toggle("is-open", abierto);
+  sidebarBackdrop?.classList.toggle("is-open", abierto);
+  document.documentElement.classList.toggle("nav-open", abierto);
+  navToggleEl?.setAttribute("aria-expanded", abierto ? "true" : "false");
+  navToggleEl?.setAttribute("aria-label", abierto ? "Cerrar menú" : "Abrir menú");
 }
-document.getElementById("navToggle")?.addEventListener("click", () => {
-  sidebarEl?.classList.toggle("is-open");
-  sidebarBackdrop?.classList.toggle("is-open");
+function cerrarSidebar({ devolverFoco = false } = {}) {
+  if (!sidebarEl?.classList.contains("is-open")) return;
+  fijarSidebar(false);
+  if (devolverFoco) navToggleEl?.focus();
+}
+navToggleEl?.addEventListener("click", () => {
+  const abrir = !sidebarEl?.classList.contains("is-open");
+  fijarSidebar(abrir);
+  if (abrir) sidebarEl?.querySelector(".sidebar-link")?.focus({ preventScroll: true });
 });
-sidebarBackdrop?.addEventListener("click", cerrarSidebar);
+sidebarBackdrop?.addEventListener("click", () => cerrarSidebar());
+sidebarEl?.querySelectorAll(".sidebar-link").forEach((enlace) => {
+  enlace.addEventListener("click", () => cerrarSidebar());
+});
+document.addEventListener("keydown", (evento) => {
+  if (evento.key === "Escape") cerrarSidebar({ devolverFoco: true });
+});
+window.matchMedia("(min-width: 1024px)").addEventListener("change", (evento) => {
+  if (evento.matches) cerrarSidebar();
+});
 
 // ---------------------------------------------------------------------------
 // Login — el selector de rol solo cambia el rótulo ilustrativo del banner
 // SQL (qué SET LOCAL ROLE ejecutará el backend real al autenticar), nunca
 // decide el rol de la sesión: eso lo determina el rol_db real del usuario en
 // la tabla usuarios, leído en auth.py después de validar la contraseña.
+// El campo de usuario toma el foco solo con puntero fino: en un teléfono el
+// foco automático abre el teclado y tapa el formulario antes de que se vea.
+if (window.matchMedia("(pointer: fine)").matches) {
+  document.querySelector('form[action="/login"] #username')?.focus();
+}
+
 document.querySelectorAll("#rolSelector .tap-toggle").forEach((boton) => {
   boton.addEventListener("click", () => {
     document.querySelectorAll("#rolSelector .tap-toggle").forEach((hermano) => {
@@ -118,7 +145,33 @@ document.querySelectorAll(".js-demo-login").forEach((boton) => {
     }
   }
 
+  // Atajo flotante (solo móvil/tablet, ver .dock-fab): el dock queda debajo de
+  // toda la lista de secciones, así que mientras lleva algo y no está a la
+  // vista, un botón fijo muestra cuántas lleva y salta a él.
+  const fabEl = document.getElementById("dock-fab");
+  const fabTextoEl = document.getElementById("dock-fab-texto");
+  let dockVisible = false;
+  function actualizarFab() {
+    if (!fabEl) return;
+    const mostrar = dock.size > 0 && !dockVisible;
+    fabEl.classList.toggle("is-visible", mostrar);
+    document.body.classList.toggle("has-fab", dock.size > 0);
+    if (fabTextoEl) {
+      fabTextoEl.textContent = `Ver dock · ${dock.size} ${dock.size === 1 ? "materia" : "materias"}`;
+    }
+  }
+  fabEl?.addEventListener("click", () => {
+    dockPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  if (fabEl && "IntersectionObserver" in window) {
+    new IntersectionObserver((entradas) => {
+      dockVisible = entradas[0].isIntersecting;
+      actualizarFab();
+    }, { threshold: 0.15 }).observe(dockPanel);
+  }
+
   function actualizarUI() {
+    actualizarFab();
     if (vacioEl) vacioEl.classList.toggle("hidden", dock.size > 0);
     if (listaEl) listaEl.classList.toggle("hidden", dock.size === 0);
     actualizarAdvertencia();
@@ -261,6 +314,17 @@ document.querySelectorAll(".matrix-input").forEach((campo) => {
     ).length > 0;
     boton.disabled = algunaInvalida;
   });
+});
+
+// Gráfico de columnas por período (vista ejecutiva): en pantallas angostas desliza
+// dentro de su tarjeta; al cargar se centra en el período seleccionado, que de lo
+// contrario queda a la derecha, fuera de vista.
+document.querySelectorAll(".chart-scroll").forEach((contenedor) => {
+  const elegida = contenedor.querySelector(".column.is-selected");
+  if (!elegida || contenedor.scrollWidth <= contenedor.clientWidth) return;
+  const desplazamiento = elegida.getBoundingClientRect().left
+    - contenedor.getBoundingClientRect().left + contenedor.scrollLeft;
+  contenedor.scrollLeft = desplazamiento - (contenedor.clientWidth - elegida.offsetWidth) / 2;
 });
 
 // Chequeo de ponderación — 100% es la meta declarada por el docente al crear
