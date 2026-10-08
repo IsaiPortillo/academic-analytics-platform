@@ -38,8 +38,14 @@
 <div class="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-3 items-start">
     <div class="card">
         <div class="card-header">Secciones ofertadas</div>
+        <div class="card-body" style="padding-bottom: 0.25rem;">
+            <label for="filtro-secciones" class="field-label">Buscar sección</label>
+            <input type="search" id="filtro-secciones" class="input" placeholder="Materia, código o turno…"
+                   autocomplete="off" data-filter-rows="#tabla-secciones" data-filter-count="#filtro-secciones-n">
+            <p class="text-xs text-muted mt-1" id="filtro-secciones-n" aria-live="polite"></p>
+        </div>
         <div class="table-wrap">
-            <table class="table table-stack">
+            <table class="table table-stack" id="tabla-secciones">
                 <thead>
                     <tr>
                         <th>Materia</th>
