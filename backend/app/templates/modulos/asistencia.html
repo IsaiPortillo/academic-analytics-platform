@@ -20,7 +20,7 @@
 
 <div class="card mb-3">
     <div class="card-body">
-        <form method="get" action="/asistencia" class="flex items-end gap-2">
+        <form method="get" action="/asistencia" class="filter-bar">
             <div>
                 <label for="periodo_id" class="field-label">Periodo</label>
                 <select id="periodo_id" name="periodo_id" class="select" onchange="this.form.submit()">
@@ -39,7 +39,7 @@
     <div class="card">
         <div class="card-header">Secciones a cargo</div>
         <div class="table-wrap">
-            <table class="table">
+            <table class="table table-stack">
                 <thead>
                     <tr>
                         <th>Materia</th>
@@ -51,13 +51,13 @@
                 <tbody>
                     {% for s, materia, sesiones in secciones %}
                     <tr class="{% if seccion and seccion.seccion_id == s.seccion_id %}bg-subtle{% endif %}">
-                        <td>
+                        <td class="cell-title">
                             <div class="font-semibold">{{ materia.codigo_materia }}</div>
                             <div class="text-xs text-muted">{{ materia.nombre }}</div>
                         </td>
-                        <td>{{ s.numero_seccion }}</td>
-                        <td>{{ badge('neutral', sesiones) }}</td>
-                        <td>
+                        <td data-label="Secc.">{{ s.numero_seccion }}</td>
+                        <td data-label="Sesiones">{{ badge('neutral', sesiones) }}</td>
+                        <td class="cell-actions">
                             <a class="btn-view"
                                href="/asistencia?periodo_id={{ periodo_id }}&amp;seccion_id={{ s.seccion_id }}">
                                 Ver
@@ -93,7 +93,7 @@
                 </div>
             </div>
             <div class="card-body">
-                <form method="get" action="/asistencia" class="flex items-end gap-2 mb-3">
+                <form method="get" action="/asistencia" class="filter-bar mb-3">
                     <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
                     <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
                     <div>
@@ -107,14 +107,14 @@
                     <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
                     <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
                     <input type="hidden" name="fecha_sesion" value="{{ fecha_sesion.isoformat() }}">
-                    <div class="table-wrap mb-2" style="max-height: 320px;">
-                        <table class="table">
+                    <div class="table-wrap table-limited mb-2" style="--max-h: 320px;">
+                        <table class="table table-stack">
                             <thead><tr><th>ID estudiante</th><th style="width:220px;">Estado</th></tr></thead>
                             <tbody>
                                 {% for inscripcion, estudiante in roster %}
                                 <tr>
-                                    <td>{{ estudiante.estudiante_id }}</td>
-                                    <td>
+                                    <td class="font-semibold" data-label="Estudiante">{{ estudiante.estudiante_id }}</td>
+                                    <td class="cell-actions">
                                         <input type="hidden" name="inscripcion_id" value="{{ inscripcion.inscripcion_id }}">
                                         {% set actual = estados_sesion.get(inscripcion.inscripcion_id, 'PRESENTE') %}
                                         <input type="hidden" name="estado" value="{{ actual }}">
@@ -143,7 +143,7 @@
         <div class="card">
             <div class="card-header">Resumen de faltas acumuladas</div>
             <div class="table-wrap">
-                <table class="table">
+                <table class="table table-stack">
                     <thead>
                         <tr>
                             <th>ID estudiante</th>
@@ -156,9 +156,9 @@
                     <tbody>
                         {% for fila in resumen %}
                         <tr>
-                            <td>{{ fila.estudiante.estudiante_id }}</td>
-                            <td class="text-center">{{ fila.presentes }}</td>
-                            <td class="text-center">
+                            <td class="font-semibold" data-label="Estudiante">{{ fila.estudiante.estudiante_id }}</td>
+                            <td class="text-center" data-label="Presentes">{{ fila.presentes }}</td>
+                            <td class="text-center" data-label="Faltas">
                                 {% if fila.ausentes >= 3 %}
                                 {{ badge('danger', fila.ausentes) }}
                                 {% elif fila.ausentes > 0 %}
@@ -167,8 +167,8 @@
                                 {{ badge('neutral', fila.ausentes) }}
                                 {% endif %}
                             </td>
-                            <td class="text-center">{{ fila.justificados }}</td>
-                            <td class="text-center">{{ fila.total_sesiones }}</td>
+                            <td class="text-center" data-label="Justificadas">{{ fila.justificados }}</td>
+                            <td class="text-center" data-label="Sesiones">{{ fila.total_sesiones }}</td>
                         </tr>
                         {% else %}
                         <tr><td colspan="5" class="text-muted text-center py-3">Ningún estudiante matriculado todavía.</td></tr>

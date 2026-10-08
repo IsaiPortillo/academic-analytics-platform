@@ -11,24 +11,24 @@
 </div>
 
 <div class="card mb-4">
-    <div class="card-body flex flex-wrap items-end gap-3">
+    <div class="card-body filter-bar">
         <div>
             <label class="field-label">Cubo</label>
-            <select class="select" style="width: auto;">
+            <select class="select">
                 <option>Rendimiento x Cohorte x Carrera</option>
                 <option>Asistencia x Sección x Periodo</option>
             </select>
         </div>
         <div>
             <label class="field-label">Cohorte</label>
-            <select class="select" style="width: auto;">
+            <select class="select">
                 <option>2020 – 2024</option>
                 <option>2019 – 2023</option>
             </select>
         </div>
         <div>
             <label class="field-label">Carrera</label>
-            <select class="select" style="width: auto;">
+            <select class="select">
                 <option>Todas</option>
                 <option>Ing. en Sistemas Informáticos</option>
             </select>
@@ -88,7 +88,7 @@
 <div class="card mb-4">
     <div class="card-header">Estudiantes priorizados para intervención inmediata</div>
     <div class="table-wrap">
-        <table class="table">
+        <table class="table table-stack">
             <thead>
                 <tr><th>ID</th><th>Factor de riesgo principal</th><th class="text-center">Nota</th><th class="text-center">Asistencia</th><th></th></tr>
             </thead>
@@ -100,11 +100,11 @@
                     (33392, "Reprobaciones acumuladas (2)", 5.1, "67%"),
                 ] %}
                 <tr>
-                    <td>{{ id_est }}</td>
-                    <td>{{ factor }}</td>
-                    <td class="text-center">{{ nota }}</td>
-                    <td class="text-center">{{ asis }}</td>
-                    <td><button type="button" class="btn-outline-neutral js-notificar" style="font-size: 0.75rem; padding: 0.3125rem 0.625rem;">Notificar a Consejería</button></td>
+                    <td class="font-semibold" data-label="Estudiante">{{ id_est }}</td>
+                    <td data-label="Factor">{{ factor }}</td>
+                    <td class="text-center" data-label="Nota">{{ nota }}</td>
+                    <td class="text-center" data-label="Asistencia">{{ asis }}</td>
+                    <td class="cell-actions"><button type="button" class="btn-outline-neutral js-notificar" style="font-size: 0.75rem; padding: 0.3125rem 0.625rem;">Notificar a Consejería</button></td>
                 </tr>
                 {% endfor %}
             </tbody>

@@ -186,8 +186,20 @@
     outline-offset: 2px;
   }
 
+  /* `backwards`, no `both`: con fill-mode forwards el transform de la animación
+     se queda aplicado y convierte a <main> en el bloque contenedor de todo
+     `position: fixed` descendiente (el atajo del dock, el modal del grafo), que
+     dejaban de fijarse a la pantalla. */
   main {
-    animation: fade-rise 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: fade-rise 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+
+  /* Un hijo de grid no puede ser más angosto que su contenido por defecto
+     (min-width: auto), así que una tabla ancha dentro de una columna `fr`
+     ensanchaba la columna y la página entera (tablet apaisada, laptop chica)
+     en lugar de deslizar dentro de su propia tarjeta. */
+  .grid > * {
+    min-width: 0;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -209,6 +221,10 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-card);
+    /* Las tablas de acción deciden su forma por el ancho de SU tarjeta (container
+       query), no por el de la pantalla: la misma tabla cabe en una columna ancha
+       de laptop y no cabe en la columna estrecha de una tablet apaisada. */
+    container-type: inline-size;
   }
   .card-header {
     padding: 0.875rem 1.125rem;
@@ -293,6 +309,7 @@
   .app-shell {
     display: flex;
     min-height: 100vh;
+    min-height: 100dvh;
   }
   .topbar {
     background-color: var(--color-surface);
@@ -307,9 +324,15 @@
     z-index: 30;
     overflow-x: auto;
   }
-  @media (max-width: 639px) {
-    .topbar > .telemetry-badge,
+  /* Nombre y rol de la sesión viven en el cajón lateral (.sidebar-user) por debajo
+     de 1024px; el rótulo del rol de PostgreSQL solo cabe desde tablet. */
+  @media (max-width: 1023px) {
     .topbar > span.text-sm {
+      display: none;
+    }
+  }
+  @media (max-width: 639px) {
+    .topbar > .telemetry-badge {
       display: none;
     }
   }
@@ -344,6 +367,7 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
+    height: 100dvh;
     position: sticky;
     top: 0;
   }
@@ -1287,5 +1311,442 @@
     max-height: 85vh;
     overflow-y: auto;
     animation: fade-rise 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  /* ==================================================================
+     Adaptación a móviles y tablets
+     Mobile-first donde es nuevo (filter-bar, table-stack); donde ya existía
+     una regla de escritorio se corrige por debajo de su breakpoint. Los
+     objetivos táctiles se deciden por `pointer: coarse` (dedo), no por el
+     ancho: una tablet con teclado y un teléfono comparten el problema del
+     dedo, no el del ancho. */
+
+  /* Barra de filtros: los controles ocupan todo el ancho en teléfono para
+     que el selector sea un blanco grande, y fluyen en fila desde tablet. */
+  .filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem;
+  }
+  .filter-bar > * {
+    min-width: 0;
+  }
+  @media (max-width: 639px) {
+    .filter-bar > * {
+      flex: 1 1 100%;
+    }
+    .filter-bar .select,
+    .filter-bar .input {
+      width: 100%;
+    }
+  }
+
+  /* Altura máxima con scroll propio solo donde hay espacio: en teléfono un
+     área con scroll dentro de la página con scroll atrapa el dedo. */
+  .table-limited {
+    overflow-y: auto;
+    max-height: var(--max-h, 20rem);
+  }
+  @media (max-width: 639px) {
+    .table-limited {
+      max-height: none;
+    }
+  }
+
+  /* Pista de que la tabla desliza: sombras en los bordes que solo aparecen
+     cuando queda contenido oculto de ese lado (fondos "local" y "scroll";
+     no cuesta JS). */
+  .table-wrap {
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    background:
+      linear-gradient(to right, var(--color-surface) 30%, transparent) left center / 1.5rem 100% no-repeat local,
+      linear-gradient(to left, var(--color-surface) 30%, transparent) right center / 1.5rem 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, rgb(15 23 42 / 0.16), transparent) left center / 0.5rem 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, rgb(15 23 42 / 0.16), transparent) right center / 0.5rem 100% no-repeat scroll;
+  }
+
+  /* Tablas anchas (reportes, cohortes): la primera columna queda fija para
+     no perder a qué fila pertenece cada cifra al deslizar. */
+  @media (max-width: 1023px) {
+    .table-sticky-first th:first-child,
+    .table-sticky-first td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      background-color: var(--color-surface);
+      box-shadow: 1px 0 0 var(--color-border);
+    }
+  }
+  @media (max-width: 1023px) and (hover: hover) {
+    .table-sticky-first tbody tr:hover td:first-child {
+      background-color: var(--color-surface-sunken);
+    }
+  }
+
+  /* Tablas de acción en una tarjeta angosta (teléfono, o la columna estrecha de
+     una tablet apaisada): cada fila se vuelve una tarjeta, y las acciones
+     (Agregar, Ver, Retirar, estado de asistencia) quedan a la vista y al
+     alcance del pulgar en vez de fuera de pantalla a la derecha. Las celdas
+     llevan data-label; el encabezado se oculta solo visualmente. */
+  /* Acciones alineadas al final de la fila, sin sacar la celda del modelo de tabla
+     (con display:flex la celda perdía el borde inferior que une la fila). */
+  @container (min-width: 36rem) {
+    .table td.cell-end {
+      text-align: right;
+      white-space: nowrap;
+    }
+    .table td.cell-end > * + * {
+      margin-left: 0.5rem;
+    }
+  }
+  @container (max-width: 36rem) {
+    .table-stack,
+    .table-stack tbody {
+      display: block;
+    }
+    .table-stack thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .table-stack tr {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.375rem 1rem;
+      padding: 0.875rem 1rem;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .table-stack tbody tr:last-child {
+      border-bottom: none;
+    }
+    .table-stack td {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0;
+      border: 0;
+      max-width: 100%;
+      font-size: 0.875rem;
+    }
+    /* Dentro de un .card-body la tarjeta ya tiene su propio margen interior. */
+    .card-body .table-stack tr {
+      padding-left: 0;
+      padding-right: 0;
+    }
+    .table-stack td[data-label]::before {
+      content: attr(data-label);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--color-muted);
+    }
+    .table-stack td.cell-title {
+      flex: 1 1 100%;
+      display: block;
+    }
+    .table-stack td.cell-actions {
+      flex: 1 1 100%;
+      padding-top: 0.5rem;
+      justify-content: stretch;
+    }
+    .table-stack td.cell-actions > *,
+    .table-stack td.cell-actions form {
+      flex: 1 1 0;
+    }
+    .table-stack td.cell-actions .btn-save,
+    .table-stack td.cell-actions .btn-view,
+    .table-stack td.cell-actions .btn-destructive,
+    .table-stack td.cell-actions .btn-outline-neutral {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 2.75rem;
+    }
+    .table-stack td[colspan] {
+      flex: 1 1 100%;
+      justify-content: center;
+    }
+    .table-stack td[colspan]::before {
+      display: none;
+    }
+    /* Estado de asistencia: tres botones que reparten todo el ancho. */
+    .table-stack .tap-toggle-group {
+      display: flex;
+      width: 100%;
+    }
+    .table-stack .tap-toggle {
+      flex: 1;
+    }
+  }
+
+  /* Cabecera de página con acciones (reportes): bajan debajo del título. */
+  .page-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  .page-head-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  /* Gráfico de columnas por período: con 8+ períodos no caben en 343px sin
+     comerse las etiquetas; desliza dentro de su tarjeta en vez de ensanchar
+     la página entera. */
+  .chart-scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-top: 1.25rem;
+  }
+  .chart-scroll > .column-chart,
+  .chart-scroll > .column-labels {
+    min-width: calc(var(--n, 1) * 3.5rem);
+  }
+  .column {
+    min-width: 0;
+  }
+  .column:focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  /* En pantallas táctiles no hay hover: un toque enfoca la columna y muestra
+     su valor. */
+  .column:focus .column-bar {
+    opacity: 1;
+  }
+  .column:focus .column-value {
+    visibility: visible;
+  }
+  .column-value {
+    white-space: nowrap;
+  }
+
+  /* Cajón de navegación (< 1024px) */
+  .sidebar-user {
+    display: none;
+  }
+  @media (max-width: 1023px) {
+    .sidebar {
+      width: min(19rem, 86vw);
+      padding-left: env(safe-area-inset-left);
+      overscroll-behavior: contain;
+      /* Cerrado, sus enlaces no deben recibir foco de teclado ni de lector de
+         pantalla; la visibilidad cambia al terminar la animación. */
+      visibility: hidden;
+      transition: transform 0.2s ease-in-out, visibility 0s linear 0.2s;
+    }
+    .sidebar.is-open {
+      visibility: visible;
+      transition-delay: 0s;
+    }
+    .sidebar-user {
+      display: block;
+      padding: 0.75rem 0.625rem 0.875rem;
+      margin-bottom: 0.5rem;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .sidebar-user-name {
+      font-size: 0.9375rem;
+      font-weight: 700;
+      line-height: 1.3;
+      margin-bottom: 0.375rem;
+    }
+    html.nav-open,
+    html.nav-open body {
+      overflow: hidden;
+    }
+    .topbar {
+      padding-left: max(0.75rem, env(safe-area-inset-left));
+      padding-right: max(0.75rem, env(safe-area-inset-right));
+      padding-top: calc(0.5rem + env(safe-area-inset-top));
+    }
+  }
+
+  /* Inicio de sesión */
+  .login-shell {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background-color: var(--color-bg);
+  }
+  .login-pane {
+    padding: 2rem;
+  }
+  @media (max-width: 639px) {
+    .login-shell {
+      padding: 0.75rem;
+      align-items: flex-start;
+    }
+    .login-pane {
+      padding: 1.25rem;
+    }
+    /* El banner SQL se lee entero: en 320px el comentario no cabe en una línea. */
+    .sql-banner {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  /* Contenido: márgenes más justos en teléfono, respetando el notch. */
+  @media (max-width: 639px) {
+    .app-content {
+      padding: 1rem;
+      padding-left: max(1rem, env(safe-area-inset-left));
+      padding-right: max(1rem, env(safe-area-inset-right));
+      padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    }
+    .page-title {
+      font-size: 1.3125rem;
+    }
+    .card-header {
+      padding: 0.75rem 1rem;
+    }
+    .card-body {
+      padding: 1rem;
+    }
+    .kpi-value {
+      font-size: 1.5rem;
+    }
+    .telemetry-badge {
+      white-space: normal;
+      line-height: 1.35;
+    }
+    .modal-backdrop {
+      padding: 0.75rem;
+      align-items: flex-end;
+    }
+    .modal-panel {
+      max-height: 90dvh;
+    }
+    .corr-cell {
+      padding: 0.625rem 0.125rem;
+      font-size: 0.75rem;
+    }
+    .corr-table {
+      border-spacing: 2px;
+    }
+    .corr-table th {
+      padding: 0.25rem 0.125rem;
+      font-size: 0.6875rem;
+    }
+    .corr-table th[scope="row"] {
+      width: 4.75rem;
+    }
+  }
+
+  /* Botón flotante del dock de matrícula: en teléfono el dock queda debajo
+     de toda la lista de secciones; este atajo muestra cuántas lleva y salta
+     a él, sin duplicar su lógica. */
+  .dock-fab {
+    display: none;
+  }
+  @media (max-width: 1023px) {
+    .dock-fab {
+      position: fixed;
+      left: max(1rem, env(safe-area-inset-left));
+      right: max(1rem, env(safe-area-inset-right));
+      bottom: max(1rem, env(safe-area-inset-bottom));
+      z-index: 35;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      min-height: 3rem;
+      border-radius: var(--radius-md);
+      background-color: var(--color-brand);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.9375rem;
+      box-shadow: var(--shadow-raised);
+    }
+    .dock-fab.is-visible {
+      display: flex;
+    }
+    .dock-fab:active {
+      background-color: var(--color-brand-active);
+    }
+    body.has-fab .app-content {
+      padding-bottom: 5.5rem;
+    }
+  }
+
+  /* Dedo: objetivos de 44px, campos de 16px (iOS amplía la página si el
+     texto del campo es menor y no la devuelve), sin depender del hover. */
+  @media (pointer: coarse) {
+    .btn-save,
+    .btn-view,
+    .btn-destructive,
+    .btn-outline-neutral,
+    .btn-nav-action,
+    .btn-login {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 2.75rem;
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+    .input,
+    .select {
+      min-height: 2.75rem;
+      font-size: 1rem;
+    }
+    .sidebar-link {
+      min-height: 2.75rem;
+    }
+    .theme-toggle,
+    .sidebar-toggle {
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+    }
+    .tap-toggle {
+      min-height: 2.75rem;
+      padding-left: 0.875rem;
+      padding-right: 0.875rem;
+      font-size: 0.8125rem;
+    }
+    .matrix-input {
+      width: 5rem;
+      min-height: 2.5rem;
+      font-size: 1rem;
+    }
+    .matrix-col-save {
+      min-height: 2.25rem;
+    }
+    .dock-item-remove,
+    .alert-close {
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    details > summary {
+      min-height: 2.75rem;
+      display: flex;
+      align-items: center;
+    }
+    input[type="checkbox"] {
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+  }
+
+  @media (hover: none) {
+    .table tbody tr:hover {
+      background-color: transparent;
+    }
   }
 }

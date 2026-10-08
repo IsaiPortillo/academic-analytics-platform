@@ -159,7 +159,24 @@ Both load from Google Fonts (`base.html`, `display=swap`) and fully cover Spanis
 
 ## Layout
 
-App shell: a persistent left sidebar (`.sidebar`, fixed 15.5rem, two link groups — "Inteligencia institucional" for the preview pages, "Módulos operativos" for the four real transactional modules) plus a slim sticky top bar (`.topbar`) carrying the live `SET LOCAL ROLE` badge, theme toggle, user identity, and logout. Below 1024px the sidebar becomes an off-canvas panel (`.sidebar.is-open`, slide-in + backdrop) triggered by a hamburger button in the top bar; below 640px the top bar itself drops the role-telemetry badge and username text to avoid overflow, keeping only the essential controls.
+App shell: a persistent left sidebar (`.sidebar`, fixed 15.5rem, two link groups — "Inteligencia institucional" for the preview pages, "Módulos operativos" for the four real transactional modules) plus a slim sticky top bar (`.topbar`) carrying the live `SET LOCAL ROLE` badge, theme toggle, user identity, and logout. Below 1024px the sidebar becomes an off-canvas drawer (`.sidebar.is-open`, slide-in + backdrop) triggered by a hamburger button in the top bar. The drawer carries the user's name and role (`.sidebar-user`), since the top bar no longer has room for them; the role-telemetry badge in the top bar appears from 640px up. See Responsive behavior below.
+
+### Responsive behavior (phones and tablets)
+
+Mobile-web is a first-class target (staff use phones and tablets in the classroom and in the office). The rules, all in `input.css`:
+
+- **Breakpoints:** 640px (phone → tablet) and 1024px (drawer → persistent sidebar). Landscape tablets (1024px) keep the sidebar, so the content column is narrow; that is why tables key off their *card*, not the screen.
+- **Tables decide by their card's width** (`.card` is a `container-type: inline-size`). A `.table-stack` table inside a card narrower than 36rem turns each row into a mini-card: title cell (`.cell-title`), labelled cells (`data-label`, shown via `::before`), and a full-width action row (`.cell-actions`). The header is visually hidden, not removed. Use it for tables whose *actions* must stay in reach (matrícula, secciones, asistencia, roster). Wide *data* tables (reportes, cohortes) do not stack: they scroll horizontally (`.table-wrap` shows edge shadows when content is hidden) and pin their first column (`.table-sticky-first`).
+- **Filters:** `.filter-bar` (controls full-width on phones, inline from 640px) replaces ad-hoc `flex items-end` rows.
+- **Touch (`@media (pointer: coarse)`):** 44px minimum targets for buttons, links, inputs, toggles and the drawer; form fields at 16px so iOS does not zoom on focus. Decided by input type, not width.
+- **Drawer:** closes on backdrop, link tap, Escape, or widening past 1024px; locks page scroll while open (`html.nav-open`); keeps closed links out of the tab order (`visibility: hidden`); focus returns to the toggle.
+- **Matrícula dock:** on < 1024px a floating `.dock-fab` shows how many sections the dock holds and jumps to it when it is out of view.
+- **Charts:** the period column chart (`.chart-scroll`) scrolls inside its card and centers the selected period; columns are focusable so a tap reveals the value (no hover on touch).
+- **Safe areas:** `viewport-fit=cover` plus `env(safe-area-inset-*)` on the top bar, content padding and the dock shortcut.
+
+### Named Rules
+**The Container Rule.** Responsive components key off their container, not the viewport, whenever the same component can sit in a wide or a narrow column.
+**The Fixed-Ancestor Rule.** `main`'s entrance animation uses `fill-mode: backwards`, never `both`/`forwards`: a retained `transform` makes `<main>` the containing block of every `position: fixed` descendant (dock shortcut, graph modal), which then stops anchoring to the screen. Grid children also get `min-width: 0` so a wide table scrolls inside its card instead of widening the page.
 
 ## Elevation & Depth
 

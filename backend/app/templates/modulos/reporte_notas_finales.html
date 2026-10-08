@@ -3,9 +3,9 @@
 {% block titulo %}Reporte de notas finales{% endblock %}
 
 {% block contenido %}
-<div class="flex items-center justify-between mb-4">
+<div class="page-head mb-4">
     <h1 class="page-title">Notas finales por sección</h1>
-    <div class="flex items-center gap-2">
+    <div class="page-head-actions">
         {# Arrastra los filtros activos: el CSV entrega el periodo completo, sin el
            corte de filas de la pantalla, pero acotado a lo que se está viendo. #}
         <a class="btn-outline-neutral"
@@ -48,7 +48,7 @@
 
 <div class="card mb-3">
     <div class="card-body">
-        <form method="get" action="/reportes/notas-finales" class="flex items-end gap-2 flex-wrap">
+        <form method="get" action="/reportes/notas-finales" class="filter-bar">
             <div>
                 <label for="periodo_id" class="field-label">Periodo</label>
                 <select id="periodo_id" name="periodo_id" class="select" onchange="this.form.submit()"
@@ -101,7 +101,7 @@
         {% if solo_reprobados %}reprobadas (nota final &lt; {{ umbral_aprobacion }}){% endif %}
     </div>
     <div class="table-wrap">
-        <table class="table" id="tabla-notas">
+        <table class="table table-sticky-first" id="tabla-notas">
             <thead>
                 <tr>
                     <th>ID estudiante</th>

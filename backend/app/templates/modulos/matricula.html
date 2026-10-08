@@ -20,7 +20,7 @@
 
 <div class="card mb-3">
     <div class="card-body">
-        <form method="get" action="/matricula" class="flex items-end gap-2">
+        <form method="get" action="/matricula" class="filter-bar">
             <div>
                 <label for="periodo_id" class="field-label">Periodo</label>
                 <select id="periodo_id" name="periodo_id" class="select" onchange="this.form.submit()">
@@ -39,7 +39,7 @@
     <div class="card">
         <div class="card-header">Secciones ofertadas</div>
         <div class="table-wrap">
-            <table class="table">
+            <table class="table table-stack">
                 <thead>
                     <tr>
                         <th>Materia</th>
@@ -52,13 +52,13 @@
                 <tbody>
                     {% for s, materia, inscritos in secciones %}
                     <tr class="{% if seccion and seccion.seccion_id == s.seccion_id %}bg-subtle{% endif %}">
-                        <td>
+                        <td class="cell-title">
                             <div class="font-semibold">{{ materia.codigo_materia }}</div>
                             <div class="text-xs text-muted">{{ materia.nombre }}</div>
                         </td>
-                        <td>{{ s.numero_seccion }}</td>
-                        <td class="text-xs text-muted">{{ s.turno }}</td>
-                        <td>
+                        <td data-label="Secc.">{{ s.numero_seccion }}</td>
+                        <td class="text-xs text-muted" data-label="Turno">{{ s.turno }}</td>
+                        <td data-label="Cupo">
                             {% if inscritos >= s.cupo_maximo %}
                             {{ badge('danger', inscritos ~ '/' ~ s.cupo_maximo) }}
                             {% elif inscritos >= s.cupo_maximo * 0.8 %}
@@ -67,7 +67,7 @@
                             {{ badge('success', inscritos ~ '/' ~ s.cupo_maximo) }}
                             {% endif %}
                         </td>
-                        <td class="flex items-center gap-2 justify-end">
+                        <td class="cell-actions cell-end">
                             {% if inscritos < s.cupo_maximo %}
                             <button type="button" class="btn-save js-dock-add shrink-0"
                                     data-seccion-id="{{ s.seccion_id }}"
@@ -98,29 +98,29 @@
             <div class="card-header">Dock de matrícula</div>
             <div class="card-body">
                 <p class="text-sm text-muted mb-2">
-                    Pulsa <span class="font-semibold">Agregar</span> en una o varias secciones a la
-                    izquierda para acumularlas aquí, elige el estudiante y confirma todo junto.
+                    Pulsa <span class="font-semibold">Agregar</span> en una o varias secciones de la
+                    lista para acumularlas aquí, elige el estudiante y confirma todo junto.
                 </p>
 
                 <form method="get" action="/matricula" class="flex gap-2 mb-2">
                     <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
                     {% if seccion %}<input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">{% endif %}
                     <input type="text" name="buscar" value="{{ buscar }}" class="input"
-                           placeholder="Buscar estudiante por ID o carnet...">
+                           placeholder="Buscar por ID o carnet…">
                     <button class="btn-outline-neutral shrink-0" type="submit">Buscar</button>
                 </form>
 
                 {% if buscar %}
-                <div class="table-wrap mb-3" style="max-height: 180px;">
-                    <table class="table">
+                <div class="table-wrap table-limited mb-3" style="--max-h: 180px;">
+                    <table class="table table-stack">
                         <thead><tr><th>ID</th><th>Carnet (hash)</th><th>Año ingreso</th><th></th></tr></thead>
                         <tbody>
                             {% for e in resultados_busqueda %}
                             <tr>
-                                <td>{{ e.estudiante_id }}</td>
-                                <td class="max-w-[140px] truncate"><code>{{ e.carnet_hash[:12] }}…</code></td>
-                                <td>{{ e.anio_ingreso }}</td>
-                                <td>
+                                <td data-label="ID">{{ e.estudiante_id }}</td>
+                                <td class="max-w-[140px] truncate" data-label="Carnet"><code>{{ e.carnet_hash[:12] }}…</code></td>
+                                <td data-label="Año de ingreso">{{ e.anio_ingreso }}</td>
+                                <td class="cell-actions">
                                     <button type="button" class="btn-save js-elegir-estudiante"
                                             data-estudiante-id="{{ e.estudiante_id }}">
                                         Elegir
@@ -167,7 +167,7 @@
                 &middot; Estudiantes matriculados
             </div>
             <div class="table-wrap">
-                <table class="table">
+                <table class="table table-stack">
                     <thead>
                         <tr>
                             <th>ID</th>
@@ -179,10 +179,10 @@
                     <tbody>
                         {% for inscripcion, estudiante in roster %}
                         <tr>
-                            <td>{{ estudiante.estudiante_id }}</td>
-                            <td>{{ inscripcion.numero_intento }}</td>
-                            <td class="text-sm">{{ inscripcion.fecha_inscripcion.strftime('%d/%m/%Y') if inscripcion.fecha_inscripcion else '—' }}</td>
-                            <td>
+                            <td data-label="Estudiante">{{ estudiante.estudiante_id }}</td>
+                            <td data-label="Intento">{{ inscripcion.numero_intento }}</td>
+                            <td class="text-sm" data-label="Fecha">{{ inscripcion.fecha_inscripcion.strftime('%d/%m/%Y') if inscripcion.fecha_inscripcion else '—' }}</td>
+                            <td class="cell-actions">
                                 <form method="post" action="/matricula/retirar/{{ inscripcion.inscripcion_id }}"
                                       onsubmit="return confirm('¿Retirar al estudiante {{ estudiante.estudiante_id }} de esta sección?');">
                                     <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
@@ -207,4 +207,11 @@
         {% endif %}
     </div>
 </div>
+
+{% if periodo_id %}
+{# Atajo móvil: muestra cuántas secciones lleva el dock y salta a él (ver app.js). #}
+<button type="button" class="dock-fab" id="dock-fab" aria-controls="dock-panel">
+    <span id="dock-fab-texto">Ver dock de matrícula</span>
+</button>
+{% endif %}
 {% endblock %}
