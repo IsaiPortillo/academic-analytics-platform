@@ -1582,16 +1582,14 @@
     padding: 1.5rem;
     background-color: var(--color-bg);
   }
-  .login-pane {
-    padding: 2rem;
-  }
   @media (max-width: 639px) {
     .login-shell {
       padding: 0.75rem;
       align-items: flex-start;
     }
+    /* !important solo para ganarle al padding en línea de la plantilla. */
     .login-pane {
-      padding: 1.25rem;
+      padding: 1.25rem !important;
     }
     /* El banner SQL se lee entero: en 320px el comentario no cabe en una línea. */
     .sql-banner {
