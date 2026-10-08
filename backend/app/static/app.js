@@ -33,6 +33,18 @@ window.matchMedia("(min-width: 1024px)").addEventListener("change", (evento) => 
   if (evento.matches) cerrarSidebar();
 });
 
+// Altura real de la barra superior, para fijar debajo de ella los encabezados
+// pegajosos (cambia con objetivos táctiles de 44px y con el notch).
+(() => {
+  const barra = document.querySelector(".topbar");
+  if (!barra) return;
+  const medir = () => {
+    document.documentElement.style.setProperty("--topbar-h", `${barra.offsetHeight}px`);
+  };
+  medir();
+  window.addEventListener("resize", medir);
+})();
+
 // ---------------------------------------------------------------------------
 // Login — el selector de rol solo cambia el rótulo ilustrativo del banner
 // SQL (qué SET LOCAL ROLE ejecutará el backend real al autenticar), nunca

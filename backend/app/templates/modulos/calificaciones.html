@@ -18,7 +18,7 @@
 </div>
 {% endif %}
 
-<div class="card mb-3">
+<div class="card mb-3{% if seccion %} max-lg:hidden{% endif %}">
     <div class="card-body">
         <form method="get" action="/calificaciones" class="filter-bar">
             <div>
@@ -35,8 +35,8 @@
     </div>
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-3">
-    <div class="card">
+<div class="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-3 master-detail{% if seccion %} has-detail{% endif %}">
+    <div class="card master-list">
         <div class="card-header">Secciones a cargo</div>
         <div class="table-wrap">
             <table class="table table-stack">
@@ -82,6 +82,11 @@
 
     <div>
         {% if seccion %}
+        {# Teléfono/tablet vertical: con una sección abierta la lista de secciones se oculta
+           y este enlace la devuelve; en escritorio las dos columnas conviven. #}
+        <div class="mb-3 lg:hidden">
+            <a class="btn-outline-neutral" href="/calificaciones?periodo_id={{ periodo_id }}">&larr; Cambiar de sección</a>
+        </div>
         <div class="card mb-3">
             <div class="card-header flex flex-wrap items-center justify-between gap-3">
                 <span class="whitespace-nowrap">{{ materia.codigo_materia }} &middot; Evaluaciones</span>

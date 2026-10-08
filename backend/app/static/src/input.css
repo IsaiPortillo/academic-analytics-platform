@@ -1572,6 +1572,35 @@
     }
   }
 
+  /* Maestro-detalle (asistencia, calificaciones): en pantallas donde las dos
+     columnas no caben, abrir una sección oculta la lista y deja solo el detalle,
+     para pasar lista o poner notas sin bajar por encima de toda la lista de
+     secciones. En escritorio las dos columnas siguen juntas. */
+  @media (max-width: 1023px) {
+    .master-detail.has-detail > .master-list {
+      display: none;
+    }
+    /* Los contadores del pase de lista y el botón de guardar acompañan al
+       scroll de una lista larga. --topbar-h lo fija app.js con la altura real
+       de la barra superior (cambia con el tamaño táctil y el notch). */
+    .sticky-header {
+      position: sticky;
+      top: var(--topbar-h, 3.5rem);
+      z-index: 4;
+      background-color: var(--color-surface);
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    }
+    .sticky-actions {
+      position: sticky;
+      bottom: 0;
+      z-index: 4;
+      margin-top: 0.5rem;
+      padding: 0.75rem 0 max(0.75rem, env(safe-area-inset-bottom));
+      background-color: var(--color-surface);
+      border-top: 1px solid var(--color-border);
+    }
+  }
+
   /* Inicio de sesión */
   .login-shell {
     min-height: 100vh;
