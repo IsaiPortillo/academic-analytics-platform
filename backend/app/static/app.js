@@ -33,6 +33,37 @@ window.matchMedia("(min-width: 1024px)").addEventListener("change", (evento) => 
   if (evento.matches) cerrarSidebar();
 });
 
+// Filtro de filas — la lista de secciones del coordinador trae TODAS las del período
+// (casi 200); este campo la acota en el cliente por materia, código, número de
+// sección o turno, sin tildes ni mayúsculas y con varios términos a la vez.
+document.querySelectorAll("[data-filter-rows]").forEach((campo) => {
+  const tabla = document.querySelector(campo.dataset.filterRows);
+  if (!tabla) return;
+  const contador = campo.dataset.filterCount ? document.querySelector(campo.dataset.filterCount) : null;
+  const normalizar = (texto) => texto.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  const filas = Array.from(tabla.querySelectorAll("tbody tr")).filter((fila) => !fila.querySelector("td[colspan]"));
+  // Solo las celdas de datos: el texto de los botones ("Agregar", "Ver") no cuenta.
+  const textos = filas.map((fila) => normalizar(
+    Array.from(fila.cells).filter((c) => !c.classList.contains("cell-actions")).map((c) => c.textContent).join(" ")
+  ));
+  const aplicar = () => {
+    const terminos = normalizar(campo.value.trim()).split(/\s+/).filter(Boolean);
+    let visibles = 0;
+    filas.forEach((fila, i) => {
+      const coincide = terminos.every((termino) => textos[i].includes(termino));
+      fila.hidden = !coincide;
+      if (coincide) visibles += 1;
+    });
+    if (contador) {
+      contador.textContent = terminos.length
+        ? `${visibles} de ${filas.length} secciones`
+        : `${filas.length} secciones`;
+    }
+  };
+  campo.addEventListener("input", aplicar);
+  aplicar();
+});
+
 // Altura real de la barra superior, para fijar debajo de ella los encabezados
 // pegajosos (cambia con objetivos táctiles de 44px y con el notch).
 (() => {
