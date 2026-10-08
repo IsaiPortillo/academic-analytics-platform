@@ -440,6 +440,10 @@ sudo systemctl daemon-reload && sudo systemctl enable --now academico-web
 
 **6. Lista de seguridad antes de abrirlo a internet**
 - `MODO_DEMO=false` en `.env` (es el valor por defecto).
+- `COOKIE_SECURE=true` en `.env` cuando el sitio se sirva por HTTPS (también si el TLS termina en
+  nginx o Cloudflare): la cookie de sesión lleva la marca `Secure` y el navegador solo la envía por
+  HTTPS. Con `true` no se puede iniciar sesión por `http://<IP>` directo, solo por el dominio con
+  HTTPS; en local déjalo en `false`. Reinicia el servicio tras cambiarlo.
 - **No dejes los usuarios de `--demo` con la contraseña `demo1234`**: es pública en este README.
   En un servidor crea usuarios con contraseña propia (`crear_usuario.py` sin `--demo`) o
   cámbiales la contraseña a los demo.
