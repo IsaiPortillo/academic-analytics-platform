@@ -6,7 +6,7 @@ Los diagramas son un entregable del producto tecnológico, no un adorno del docu
 |---|---|---|---|
 | Modelo operacional (entidad-relación) | Las 13 tablas de `academico_oltp` y `auditoria`, con sus claves foráneas | 12 oct | SCRUM-40 |
 | Arquitectura de datos | Las cuatro capas: OLTP, grafo curricular, ETL y capa analítica | 12 oct | SCRUM-40 |
-| Modelo dimensional (esquema estrella) | Tabla de hechos con sus medidas, incluidas las de costo, y las dimensiones | 19 oct | SCRUM-41 |
+| Modelo dimensional (esquema estrella) — **[`modelo_dimensional.svg`](modelo_dimensional.svg)** ✅ | Tabla de hechos con sus medidas, incluidas las de costo, y las dimensiones | 19 oct | SCRUM-41 |
 | Malla curricular | El grafo de 16 materias y sus relaciones `:REQUIERE_APROBADA` | 19 oct | SCRUM-41 |
 
 ## De dónde sacar cada uno sin dibujarlo a mano
@@ -21,3 +21,7 @@ Los diagramas son un entregable del producto tecnológico, no un adorno del docu
   estructura.
 
 Guardar en PNG o SVG, con el nombre del diagrama y sin espacios (`modelo_operacional.png`).
+
+## Cómo se generó el modelo dimensional
+
+No se dibujó a mano: se generó desde el esquema real de PostgreSQL el 10 de octubre de 2026, leyendo `information_schema` y `pg_constraint`. Si el modelo cambia, hay que regenerarlo para que no quede mintiendo. Está en SVG (vectorial, para el documento) y en PNG (para pegarlo rápido en una presentación).
