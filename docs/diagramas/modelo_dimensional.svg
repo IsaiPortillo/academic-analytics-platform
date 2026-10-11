@@ -1,130 +1,127 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 930" width="1160" height="930" font-family="Arial">
-<rect width="1160" height="930" fill="#fff"/>
-<text x="20" y="26" font-size="16" font-weight="bold" fill="#111">Modelo dimensional dw_academico — esquema estrella</text>
-<text x="20" y="44" font-size="11" fill="#555">Grano del hecho: una inscripción (un estudiante cursando una sección). 36,704 filas. Las medidas van precedidas de ·</text>
-<g><rect x="20" y="58" width="300" height="201" rx="6" fill="#ffffff" stroke="#555" stroke-width="1.2"/>
-<rect x="20" y="58" width="300" height="26" rx="6" fill="#555"/>
-<rect x="20" y="78" width="300" height="6" fill="#555"/>
-<text x="30" y="76" font-family="Arial" font-size="12.5" font-weight="bold" fill="#fff">dim_periodo</text>
-<text x="30" y="95" font-family="Consolas,monospace" font-size="10.2" font-weight="bold" fill="#222">periodo_key PK</text>
-<text x="30" y="110" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">periodo_id</text>
-<text x="30" y="125" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">codigo_periodo</text>
-<text x="30" y="140" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">anio</text>
-<text x="30" y="155" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">ciclo_romano</text>
-<text x="30" y="170" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">fecha_inicio</text>
-<text x="30" y="185" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">fecha_fin</text>
-<text x="30" y="200" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">orden</text>
-<text x="30" y="215" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">costo_por_uv</text>
-<text x="30" y="230" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">moneda</text>
-<text x="30" y="245" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">fuente_costo</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 865" width="1160" height="865" font-family="Arial">
+<rect width="1160" height="865" fill="#fff"/>
+<g><rect x="20" y="20" width="300" height="201" rx="6" fill="#ffffff" stroke="#555" stroke-width="1.2"/>
+<rect x="20" y="20" width="300" height="26" rx="6" fill="#555"/>
+<rect x="20" y="40" width="300" height="6" fill="#555"/>
+<text x="30" y="38" font-family="Arial" font-size="12.5" font-weight="bold" fill="#fff">dim_periodo</text>
+<text x="30" y="57" font-family="Consolas,monospace" font-size="10.2" font-weight="bold" fill="#222">periodo_key PK</text>
+<text x="30" y="72" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">periodo_id</text>
+<text x="30" y="87" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">codigo_periodo</text>
+<text x="30" y="102" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">anio</text>
+<text x="30" y="117" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">ciclo_romano</text>
+<text x="30" y="132" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">fecha_inicio</text>
+<text x="30" y="147" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">fecha_fin</text>
+<text x="30" y="162" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">orden</text>
+<text x="30" y="177" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">costo_por_uv</text>
+<text x="30" y="192" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">moneda</text>
+<text x="30" y="207" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">fuente_costo</text>
 </g>
-<g><rect x="430" y="58" width="300" height="276" rx="6" fill="#ffffff" stroke="#555" stroke-width="1.2"/>
-<rect x="430" y="58" width="300" height="26" rx="6" fill="#555"/>
-<rect x="430" y="78" width="300" height="6" fill="#555"/>
-<text x="440" y="76" font-family="Arial" font-size="12.5" font-weight="bold" fill="#fff">dim_materia</text>
-<text x="440" y="95" font-family="Consolas,monospace" font-size="10.2" font-weight="bold" fill="#222">materia_key PK</text>
-<text x="440" y="110" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">materia_id</text>
-<text x="440" y="125" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">codigo_materia</text>
-<text x="440" y="140" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">nombre_materia</text>
-<text x="440" y="155" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">unidades_valorativas</text>
-<text x="440" y="170" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">ciclo_plan</text>
-<text x="440" y="185" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#1f4e79">carrera_key FK</text>
-<line x1="438" y1="195" x2="722" y2="195" stroke="#ccc"/>
-<text x="440" y="215" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">en_grafo</text>
-<text x="440" y="230" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">dependientes_directos</text>
-<text x="440" y="245" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">dependientes_indirectos</text>
-<text x="440" y="260" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">dependientes_totales</text>
-<text x="440" y="275" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">longitud_cascada</text>
-<text x="440" y="290" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">indice_bloqueo</text>
-<text x="440" y="305" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">es_cuello_botella</text>
-<text x="440" y="320" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">area</text>
+<g><rect x="430" y="20" width="300" height="276" rx="6" fill="#ffffff" stroke="#555" stroke-width="1.2"/>
+<rect x="430" y="20" width="300" height="26" rx="6" fill="#555"/>
+<rect x="430" y="40" width="300" height="6" fill="#555"/>
+<text x="440" y="38" font-family="Arial" font-size="12.5" font-weight="bold" fill="#fff">dim_materia</text>
+<text x="440" y="57" font-family="Consolas,monospace" font-size="10.2" font-weight="bold" fill="#222">materia_key PK</text>
+<text x="440" y="72" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">materia_id</text>
+<text x="440" y="87" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">codigo_materia</text>
+<text x="440" y="102" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">nombre_materia</text>
+<text x="440" y="117" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">unidades_valorativas</text>
+<text x="440" y="132" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">ciclo_plan</text>
+<text x="440" y="147" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#1f4e79">carrera_key FK</text>
+<line x1="438" y1="157" x2="722" y2="157" stroke="#ccc"/>
+<text x="440" y="177" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">en_grafo</text>
+<text x="440" y="192" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">dependientes_directos</text>
+<text x="440" y="207" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">dependientes_indirectos</text>
+<text x="440" y="222" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">dependientes_totales</text>
+<text x="440" y="237" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">longitud_cascada</text>
+<text x="440" y="252" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">indice_bloqueo</text>
+<text x="440" y="267" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">es_cuello_botella</text>
+<text x="440" y="282" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">area</text>
 </g>
-<g><rect x="840" y="58" width="300" height="141" rx="6" fill="#ffffff" stroke="#555" stroke-width="1.2"/>
-<rect x="840" y="58" width="300" height="26" rx="6" fill="#555"/>
-<rect x="840" y="78" width="300" height="6" fill="#555"/>
-<text x="850" y="76" font-family="Arial" font-size="12.5" font-weight="bold" fill="#fff">dim_estudiante</text>
-<text x="850" y="95" font-family="Consolas,monospace" font-size="10.2" font-weight="bold" fill="#222">estudiante_key PK</text>
-<text x="850" y="110" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">estudiante_id</text>
-<text x="850" y="125" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">carnet_hash</text>
-<text x="850" y="140" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">anio_ingreso</text>
-<text x="850" y="155" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#1f4e79">carrera_key FK</text>
-<text x="850" y="170" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">trabaja</text>
-<text x="850" y="185" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">condicion_academica</text>
+<g><rect x="840" y="20" width="300" height="141" rx="6" fill="#ffffff" stroke="#555" stroke-width="1.2"/>
+<rect x="840" y="20" width="300" height="26" rx="6" fill="#555"/>
+<rect x="840" y="40" width="300" height="6" fill="#555"/>
+<text x="850" y="38" font-family="Arial" font-size="12.5" font-weight="bold" fill="#fff">dim_estudiante</text>
+<text x="850" y="57" font-family="Consolas,monospace" font-size="10.2" font-weight="bold" fill="#222">estudiante_key PK</text>
+<text x="850" y="72" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">estudiante_id</text>
+<text x="850" y="87" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">carnet_hash</text>
+<text x="850" y="102" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">anio_ingreso</text>
+<text x="850" y="117" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#1f4e79">carrera_key FK</text>
+<text x="850" y="132" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">trabaja</text>
+<text x="850" y="147" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">condicion_academica</text>
 </g>
-<g><rect x="20" y="740" width="300" height="141" rx="6" fill="#ffffff" stroke="#555" stroke-width="1.2"/>
-<rect x="20" y="740" width="300" height="26" rx="6" fill="#555"/>
-<rect x="20" y="760" width="300" height="6" fill="#555"/>
-<text x="30" y="758" font-family="Arial" font-size="12.5" font-weight="bold" fill="#fff">dim_carrera</text>
-<text x="30" y="777" font-family="Consolas,monospace" font-size="10.2" font-weight="bold" fill="#222">carrera_key PK</text>
-<text x="30" y="792" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">carrera_id</text>
-<text x="30" y="807" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">codigo_carrera</text>
-<text x="30" y="822" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">nombre_carrera</text>
-<text x="30" y="837" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">departamento_id</text>
-<text x="30" y="852" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">codigo_departamento</text>
-<text x="30" y="867" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">nombre_departamento</text>
+<g><rect x="20" y="702" width="300" height="141" rx="6" fill="#ffffff" stroke="#555" stroke-width="1.2"/>
+<rect x="20" y="702" width="300" height="26" rx="6" fill="#555"/>
+<rect x="20" y="722" width="300" height="6" fill="#555"/>
+<text x="30" y="720" font-family="Arial" font-size="12.5" font-weight="bold" fill="#fff">dim_carrera</text>
+<text x="30" y="739" font-family="Consolas,monospace" font-size="10.2" font-weight="bold" fill="#222">carrera_key PK</text>
+<text x="30" y="754" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">carrera_id</text>
+<text x="30" y="769" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">codigo_carrera</text>
+<text x="30" y="784" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">nombre_carrera</text>
+<text x="30" y="799" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">departamento_id</text>
+<text x="30" y="814" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">codigo_departamento</text>
+<text x="30" y="829" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">nombre_departamento</text>
 </g>
-<g><rect x="430" y="740" width="300" height="141" rx="6" fill="#ffffff" stroke="#555" stroke-width="1.2"/>
-<rect x="430" y="740" width="300" height="26" rx="6" fill="#555"/>
-<rect x="430" y="760" width="300" height="6" fill="#555"/>
-<text x="440" y="758" font-family="Arial" font-size="12.5" font-weight="bold" fill="#fff">dim_docente</text>
-<text x="440" y="777" font-family="Consolas,monospace" font-size="10.2" font-weight="bold" fill="#222">docente_key PK</text>
-<text x="440" y="792" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">docente_id</text>
-<text x="440" y="807" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">escalafon</text>
-<text x="440" y="822" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">departamento_id</text>
-<text x="440" y="837" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">codigo_departamento</text>
-<text x="440" y="852" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">nombre_departamento</text>
-<text x="440" y="867" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">activo</text>
+<g><rect x="430" y="702" width="300" height="141" rx="6" fill="#ffffff" stroke="#555" stroke-width="1.2"/>
+<rect x="430" y="702" width="300" height="26" rx="6" fill="#555"/>
+<rect x="430" y="722" width="300" height="6" fill="#555"/>
+<text x="440" y="720" font-family="Arial" font-size="12.5" font-weight="bold" fill="#fff">dim_docente</text>
+<text x="440" y="739" font-family="Consolas,monospace" font-size="10.2" font-weight="bold" fill="#222">docente_key PK</text>
+<text x="440" y="754" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">docente_id</text>
+<text x="440" y="769" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">escalafon</text>
+<text x="440" y="784" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">departamento_id</text>
+<text x="440" y="799" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">codigo_departamento</text>
+<text x="440" y="814" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">nombre_departamento</text>
+<text x="440" y="829" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">activo</text>
 </g>
-<g><rect x="840" y="740" width="300" height="141" rx="6" fill="#ffffff" stroke="#555" stroke-width="1.2"/>
-<rect x="840" y="740" width="300" height="26" rx="6" fill="#555"/>
-<rect x="840" y="760" width="300" height="6" fill="#555"/>
-<text x="850" y="758" font-family="Arial" font-size="12.5" font-weight="bold" fill="#fff">dim_seccion</text>
-<text x="850" y="777" font-family="Consolas,monospace" font-size="10.2" font-weight="bold" fill="#222">seccion_key PK</text>
-<text x="850" y="792" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">seccion_id</text>
-<text x="850" y="807" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">numero_seccion</text>
-<text x="850" y="822" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">turno</text>
-<text x="850" y="837" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">cupo_maximo</text>
-<text x="850" y="852" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">codigo_materia</text>
-<text x="850" y="867" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">codigo_periodo</text>
+<g><rect x="840" y="702" width="300" height="141" rx="6" fill="#ffffff" stroke="#555" stroke-width="1.2"/>
+<rect x="840" y="702" width="300" height="26" rx="6" fill="#555"/>
+<rect x="840" y="722" width="300" height="6" fill="#555"/>
+<text x="850" y="720" font-family="Arial" font-size="12.5" font-weight="bold" fill="#fff">dim_seccion</text>
+<text x="850" y="739" font-family="Consolas,monospace" font-size="10.2" font-weight="bold" fill="#222">seccion_key PK</text>
+<text x="850" y="754" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">seccion_id</text>
+<text x="850" y="769" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">numero_seccion</text>
+<text x="850" y="784" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">turno</text>
+<text x="850" y="799" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">cupo_maximo</text>
+<text x="850" y="814" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">codigo_materia</text>
+<text x="850" y="829" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">codigo_periodo</text>
 </g>
-<g><rect x="395" y="330" width="370" height="366" rx="6" fill="#eaf1f8" stroke="#1f4e79" stroke-width="2"/>
-<rect x="395" y="330" width="370" height="26" rx="6" fill="#1f4e79"/>
-<rect x="395" y="350" width="370" height="6" fill="#1f4e79"/>
-<text x="405" y="348" font-family="Arial" font-size="12.5" font-weight="bold" fill="#fff">fact_inscripcion</text>
-<text x="405" y="367" font-family="Consolas,monospace" font-size="10.2" font-weight="bold" fill="#222">inscripcion_id PK</text>
-<line x1="403" y1="377" x2="757" y2="377" stroke="#ccc"/>
-<text x="405" y="397" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#1f4e79">periodo_key FK</text>
-<text x="405" y="412" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#1f4e79">materia_key FK</text>
-<text x="405" y="427" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#1f4e79">estudiante_key FK</text>
-<text x="405" y="442" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#1f4e79">carrera_key FK</text>
-<text x="405" y="457" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#1f4e79">seccion_key FK</text>
-<text x="405" y="472" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#1f4e79">docente_key FK</text>
-<line x1="403" y1="482" x2="757" y2="482" stroke="#ccc"/>
-<text x="405" y="502" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#444">· nota_final</text>
-<text x="405" y="517" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#444">· numero_intento</text>
-<text x="405" y="532" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#444">· unidades_valorativas</text>
-<text x="405" y="547" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#444">· sesiones  · presentes  · ausentes</text>
-<text x="405" y="562" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#444">· porcentaje_asistencia</text>
-<line x1="403" y1="572" x2="757" y2="572" stroke="#ccc"/>
-<text x="405" y="592" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#444">· costo_inscripcion</text>
-<text x="405" y="607" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#444">· costo_reprobacion</text>
-<text x="405" y="622" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#444">· costo_repeticion</text>
-<line x1="403" y1="632" x2="757" y2="632" stroke="#ccc"/>
-<text x="405" y="652" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">resultado  turno</text>
-<text x="405" y="667" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">cerrada  reprobado  retirado</text>
-<text x="405" y="682" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">es_repeticion  patron_riesgo</text>
+<g><rect x="395" y="292" width="370" height="366" rx="6" fill="#eaf1f8" stroke="#1f4e79" stroke-width="2"/>
+<rect x="395" y="292" width="370" height="26" rx="6" fill="#1f4e79"/>
+<rect x="395" y="312" width="370" height="6" fill="#1f4e79"/>
+<text x="405" y="310" font-family="Arial" font-size="12.5" font-weight="bold" fill="#fff">fact_inscripcion</text>
+<text x="405" y="329" font-family="Consolas,monospace" font-size="10.2" font-weight="bold" fill="#222">inscripcion_id PK</text>
+<line x1="403" y1="339" x2="757" y2="339" stroke="#ccc"/>
+<text x="405" y="359" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#1f4e79">periodo_key FK</text>
+<text x="405" y="374" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#1f4e79">materia_key FK</text>
+<text x="405" y="389" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#1f4e79">estudiante_key FK</text>
+<text x="405" y="404" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#1f4e79">carrera_key FK</text>
+<text x="405" y="419" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#1f4e79">seccion_key FK</text>
+<text x="405" y="434" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#1f4e79">docente_key FK</text>
+<line x1="403" y1="444" x2="757" y2="444" stroke="#ccc"/>
+<text x="405" y="464" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#444">· nota_final</text>
+<text x="405" y="479" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#444">· numero_intento</text>
+<text x="405" y="494" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#444">· unidades_valorativas</text>
+<text x="405" y="509" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#444">· sesiones  · presentes  · ausentes</text>
+<text x="405" y="524" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#444">· porcentaje_asistencia</text>
+<line x1="403" y1="534" x2="757" y2="534" stroke="#ccc"/>
+<text x="405" y="554" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#444">· costo_inscripcion</text>
+<text x="405" y="569" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#444">· costo_reprobacion</text>
+<text x="405" y="584" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#444">· costo_repeticion</text>
+<line x1="403" y1="594" x2="757" y2="594" stroke="#ccc"/>
+<text x="405" y="614" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">resultado  turno</text>
+<text x="405" y="629" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">cerrada  reprobado  retirado</text>
+<text x="405" y="644" font-family="Consolas,monospace" font-size="10.2" font-weight="normal" fill="#222">es_repeticion  patron_riesgo</text>
 </g>
-<path d="M170.0 259 L170.0 294.5 L395 294.5 L395 330" fill="none" stroke="#1f4e79" stroke-width="1.3"/>
-<circle cx="170.0" cy="259" r="3" fill="#1f4e79"/>
-<path d="M580.0 334 L580.0 332.0 L580.0 332.0 L580.0 330" fill="none" stroke="#1f4e79" stroke-width="1.3"/>
-<circle cx="580.0" cy="334" r="3" fill="#1f4e79"/>
-<path d="M990.0 199 L990.0 264.5 L765 264.5 L765 330" fill="none" stroke="#1f4e79" stroke-width="1.3"/>
-<circle cx="990.0" cy="199" r="3" fill="#1f4e79"/>
-<path d="M170.0 740 L170.0 718.0 L395 718.0 L395 696" fill="none" stroke="#1f4e79" stroke-width="1.3"/>
-<circle cx="170.0" cy="740" r="3" fill="#1f4e79"/>
-<path d="M580.0 740 L580.0 718.0 L580.0 718.0 L580.0 696" fill="none" stroke="#1f4e79" stroke-width="1.3"/>
-<circle cx="580.0" cy="740" r="3" fill="#1f4e79"/>
-<path d="M990.0 740 L990.0 718.0 L765 718.0 L765 696" fill="none" stroke="#1f4e79" stroke-width="1.3"/>
-<circle cx="990.0" cy="740" r="3" fill="#1f4e79"/>
-<text x="20" y="920" font-size="10" fill="#666">Generado desde el esquema real de PostgreSQL · 10 de octubre de 2026 · SCRUM-35</text>
+<path d="M170.0 221 L170.0 256.5 L395 256.5 L395 292" fill="none" stroke="#1f4e79" stroke-width="1.3"/>
+<circle cx="170.0" cy="221" r="3" fill="#1f4e79"/>
+<path d="M580.0 296 L580.0 294.0 L580.0 294.0 L580.0 292" fill="none" stroke="#1f4e79" stroke-width="1.3"/>
+<circle cx="580.0" cy="296" r="3" fill="#1f4e79"/>
+<path d="M990.0 161 L990.0 226.5 L765 226.5 L765 292" fill="none" stroke="#1f4e79" stroke-width="1.3"/>
+<circle cx="990.0" cy="161" r="3" fill="#1f4e79"/>
+<path d="M170.0 702 L170.0 680.0 L395 680.0 L395 658" fill="none" stroke="#1f4e79" stroke-width="1.3"/>
+<circle cx="170.0" cy="702" r="3" fill="#1f4e79"/>
+<path d="M580.0 702 L580.0 680.0 L580.0 680.0 L580.0 658" fill="none" stroke="#1f4e79" stroke-width="1.3"/>
+<circle cx="580.0" cy="702" r="3" fill="#1f4e79"/>
+<path d="M990.0 702 L990.0 680.0 L765 680.0 L765 658" fill="none" stroke="#1f4e79" stroke-width="1.3"/>
+<circle cx="990.0" cy="702" r="3" fill="#1f4e79"/>
 </svg>
