@@ -1,154 +1,208 @@
 {% extends "base.html" %}
 {% from "_macros.html" import badge %}
-{% block titulo %}Dashboard & Grafo{% endblock %}
+{% block titulo %}Dashboard estratégico{% endblock %}
 
 {% block contenido %}
-<h1 class="page-title mb-1">Dashboard Estratégico &amp; Grafo Curricular</h1>
-<p class="text-sm mb-4" style="color: var(--color-muted);">Ciclo I - 2025</p>
-
-<div class="preview-banner">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
-    <span><strong>Vista previa ilustrativa.</strong> El motor de grafo curricular en Neo4j (centralidad, rutas críticas) y la capa OLAP son las Fases 3–4 del roadmap de tesis — todavía no implementadas. Los números de esta pantalla son datos de ejemplo para mostrar la visión del sistema, no el resultado de una consulta real. La malla curricular con datos reales está en <a href="/red-curricular" style="text-decoration: underline;">Red curricular</a>.</span>
+<div class="flex items-start justify-between flex-wrap gap-3 mb-4">
+    <div>
+        <h1 class="page-title mb-1">Dashboard estratégico</h1>
+        <p class="text-sm text-muted">
+            Panorama institucional con datos reales del Data Warehouse — ¿cómo va el rendimiento, cuánto
+            cuesta y dónde se concentra?
+        </p>
+    </div>
+    <span class="telemetry-badge"><span class="dot"></span>Data Warehouse · dw_academico · rol_dashboard</span>
 </div>
 
-<div class="kpi-grid mb-4">
-    <div class="kpi-card kpi-card-wash">
-        <div class="kpi-label">Tasa de Retención</div>
-        <div class="kpi-value">87.4%</div>
-        <div class="kpi-trend kpi-trend-up">↑ 2.1 pts vs. ciclo anterior</div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">Bloqueo Curricular</div>
-        <div class="kpi-value kpi-value-alert">4</div>
-        <div class="text-xs" style="color: var(--color-muted);">asignaturas críticas identificadas</div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">Alertas de Deserción Temprana</div>
-        <div class="kpi-value kpi-value-alert">38</div>
-        <div class="text-xs" style="color: var(--color-muted);">casos priorizados</div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">Eficiencia Terminal de Cohorte</div>
-        <div class="kpi-value">46.8%</div>
-        <div class="kpi-trend kpi-trend-down">↓ 1.4 pts vs. cohorte 2019</div>
+{% if error %}
+<div class="alert alert-danger" role="alert"><span>{{ error }}</span></div>
+{% else %}
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" action="/dashboard" class="filter-bar">
+            <div>
+                <label for="periodo" class="field-label">Período</label>
+                <select id="periodo" name="periodo" class="select" onchange="this.form.submit()">
+                    {% for codigo in periodos|reverse %}
+                    <option value="{{ codigo }}" {% if codigo == periodo %}selected{% endif %}>{{ codigo }}</option>
+                    {% endfor %}
+                    <option value="todos" {% if periodo == "todos" %}selected{% endif %}>Todos los períodos</option>
+                </select>
+            </div>
+            <div>
+                <label for="departamento" class="field-label">Departamento</label>
+                <select id="departamento" name="departamento" class="select" onchange="this.form.submit()">
+                    <option value="">Todos</option>
+                    {% for d in departamentos %}
+                    <option value="{{ d.codigo_departamento }}" {% if d.codigo_departamento == departamento %}selected{% endif %}>{{ d.nombre_departamento }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="carrera" class="field-label">Carrera</label>
+                <select id="carrera" name="carrera" class="select" onchange="this.form.submit()">
+                    <option value="">Todas</option>
+                    {% for c in carreras %}
+                    <option value="{{ c.codigo_carrera }}" {% if c.codigo_carrera == carrera %}selected{% endif %}>{{ c.nombre_carrera }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
     </div>
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4">
+{% if supuesto %}
+<div class="alert alert-warning mb-4" role="note">
+    <span>
+        <strong>Costo por unidad valorativa: {{ supuesto.cifra }}, supuesto paramétrico.</strong>
+        No es una cifra presupuestaria oficial de la UES (fuente registrada: “{{ supuesto.fuente }}”).
+        Los montos muestran el orden de magnitud y se recalculan solos cuando se registre la cifra oficial.
+    </span>
+</div>
+{% endif %}
+
+<div class="flex items-baseline justify-between flex-wrap gap-2 mb-2">
+    <h2 class="page-subtitle">Indicadores · {{ etiqueta_periodo }}</h2>
+    {% if periodo_anterior %}
+    <span class="text-xs text-muted">Variación contra {{ periodo_anterior }} · en rojo cuando el indicador empeora</span>
+    {% endif %}
+</div>
+
+<div class="kpi-grid mb-6">
+    {% for t in tarjetas %}
+    <div class="kpi-card{% if loop.first %} kpi-card-wash{% endif %}">
+        <div class="kpi-label" title="{{ t.ayuda }}">{{ t.etiqueta }}</div>
+        <div class="kpi-value">{{ t.valor }}</div>
+        {% if t.variacion %}
+        <div class="kpi-trend {{ t.variacion.clase }}">{{ t.variacion.texto }} vs. {{ periodo_anterior }}</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+{% if sin_datos %}
+<div class="alert alert-warning mb-6" role="note">
+    <span>No hay inscripciones con nota final para los filtros elegidos; los indicadores quedan en cero o sin dato.</span>
+</div>
+{% endif %}
+
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-3 mb-6">
     <div class="card">
-        <div class="card-header flex flex-wrap items-center justify-between gap-2">
-            <span>Explorador Visual del Grafo Curricular</span>
-            <button type="button" class="btn-outline-neutral" id="btnExportCypher" style="font-size: 0.75rem; padding: 0.3125rem 0.625rem;">
-                Exportar red (.cypher)
-            </button>
-        </div>
-        <div class="card-body" style="overflow-x: auto;">
-            <svg id="grafoCurricular" viewBox="0 0 760 420" style="width: 100%; min-width: 640px; height: auto;" role="img" aria-label="Malla curricular por ciclos">
-                {% set ciclos = [
-                    ("Ciclo I", [("MAT115","Matemática I",6,8), ("PRG115","Programación I",6,12), ("ARC115","Arq. de Computadoras",4,5)]),
-                    ("Ciclo II", [("MAT215","Matemática II",6,10), ("PRG215","Programación II",6,14), ("ADS115","Análisis y Diseño I",4,9)]),
-                    ("Ciclo III", [("BAD115","Bases de Datos I",5,22), ("MAT315","Matemática III",6,18), ("ADS215","Análisis y Diseño II",4,11)]),
-                    ("Ciclo IV", [("BAD215","Bases de Datos II",5,27), ("PRG315","Programación III",6,15), ("DWB115","Diseño Web",4,7)]),
-                    ("Ciclo V", [("IAI115","Inteligencia Artificial I",5,6), ("BIN115","Inteligencia de Negocios",4,9), ("SIF115","Sistemas de Información",4,8)]),
-                ] %}
-                {% set col_w = 150 %}
-                {% for nombre_ciclo, materias in ciclos %}
-                {% set cx = 20 + loop.index0 * col_w %}
-                <text x="{{ cx + 60 }}" y="20" text-anchor="middle" font-size="12" font-weight="700" fill="var(--color-muted)">{{ nombre_ciclo }}</text>
-                {% for codigo, nombre, uv, reprobacion in materias %}
-                {% set cy = 55 + loop.index0 * 115 %}
-                {% set bloqueada = codigo == "IAI115" %}
-                {% set cuello_botella = codigo in ["BAD115", "BAD215"] %}
-                <g class="graph-node-group" data-codigo="{{ codigo }}" data-nombre="{{ nombre }}"
-                   data-uv="{{ uv }}" data-reprobacion="{{ reprobacion }}"
-                   data-bloqueada="{{ 'true' if bloqueada else 'false' }}"
-                   style="cursor: pointer;">
-                    <rect x="{{ cx }}" y="{{ cy }}" width="120" height="86" rx="12"
-                          class="graph-node{% if bloqueada %} is-blocked{% elif reprobacion >= 20 %} is-approved{% endif %}{% if cuello_botella %} is-bottleneck{% endif %}" />
-                    <text x="{{ cx + 10 }}" y="{{ cy + 22 }}" font-size="12" font-weight="700" fill="var(--color-text)">{{ codigo }}</text>
-                    <text x="{{ cx + 10 }}" y="{{ cy + 38 }}" font-size="9.5" fill="var(--color-muted)">{{ nombre[:20] }}</text>
-                    <text x="{{ cx + 10 }}" y="{{ cy + 56 }}" font-size="9" fill="var(--color-muted)">{{ uv }} UV</text>
-                    <text x="{{ cx + 10 }}" y="{{ cy + 72 }}" font-size="9" font-weight="700"
-                          fill="{% if bloqueada %}var(--color-danger-text){% elif reprobacion >= 20 %}var(--color-warning-text){% else %}var(--color-success-text){% endif %}">
-                        {% if bloqueada %}Bloqueada{% else %}{{ reprobacion }}% reprobación{% endif %}
-                    </text>
-                </g>
-                {% if not loop.first %}
-                <path class="graph-edge{% if cuello_botella %} is-critical{% endif %}"
-                      d="M{{ cx - col_w + 120 }},{{ cy + 43 }} C{{ cx - col_w/2 }},{{ cy + 43 }} {{ cx - col_w/2 }},{{ cy + 43 }} {{ cx }},{{ cy + 43 }}" />
-                {% endif %}
-                {% endfor %}
-                {% endfor %}
-            </svg>
-            <p class="text-xs mt-2" style="color: var(--color-muted);">
-                Nodo crítico resaltado: <strong>Bases de Datos I/II (BAD-115 / BAD-215)</strong> —
-                Betweenness Centrality ilustrativa: <code>0.842</code>. Click en un nodo para ver su subgrafo.
-            </p>
-        </div>
-    </div>
-
-    <div class="flex flex-col gap-4">
-        <div class="card">
-            <div class="card-header">Aprobación por ciclo académico</div>
-            <div class="card-body" style="display: flex; flex-direction: column; gap: 0.625rem;">
-                {% for ciclo, pct in [("Ciclo I", 92), ("Ciclo II", 85), ("Ciclo III", 71), ("Ciclo IV", 68), ("Ciclo V", 81)] %}
-                <div>
-                    <div class="flex items-center justify-between text-xs mb-1">
-                        <span style="color: var(--color-muted);">{{ ciclo }}</span>
-                        <span class="font-semibold">{{ pct }}%</span>
+        <div class="card-header">Aprobación por ciclo del plan</div>
+        <div class="card-body">
+            {% if ciclos %}
+            <div class="bar-list" role="list">
+                {% for c in ciclos %}
+                <div class="bar-row" role="listitem"
+                     title="Ciclo {{ c.ciclo }}: {{ c.reprobados }} reprobados de {{ c.cerradas }} con nota final ({{ c.aprobacion_texto }} de aprobación)">
+                    <div>
+                        <div class="font-semibold">Ciclo {{ c.ciclo }}</div>
+                        <div class="text-xs text-muted">{{ "{:,}".format(c.cerradas) }} con nota final · {{ "{:,}".format(c.reprobados) }} reprobados</div>
                     </div>
-                    <div class="weight-check-track"><div class="weight-check-fill{% if pct >= 85 %} is-complete{% elif pct < 75 %} is-over{% endif %}" style="--pct: {{ pct / 100 }};"></div></div>
+                    <div class="bar-track"><div class="bar-fill" style="--pct: {{ '%.4f'|format(c.pct) }};"></div></div>
+                    <div class="bar-value">{{ c.aprobacion_texto }}</div>
                 </div>
                 {% endfor %}
             </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header">Mayor impacto negativo en retención</div>
-            <div class="table-wrap">
-                <table class="table">
-                    <thead><tr><th>Materia</th><th class="text-center">Reprobación</th></tr></thead>
-                    <tbody>
-                        <tr><td>BAD-215 · Bases de Datos II</td><td class="text-center">{{ badge('danger', '27%') }}</td></tr>
-                        <tr><td>BAD-115 · Bases de Datos I</td><td class="text-center">{{ badge('danger', '22%') }}</td></tr>
-                        <tr><td>MAT-315 · Matemática III</td><td class="text-center">{{ badge('warning', '18%') }}</td></tr>
-                        <tr><td>PRG-315 · Programación III</td><td class="text-center">{{ badge('warning', '15%') }}</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header">Consola de telemetría</div>
-            <div class="card-body">
-                <div class="sql-banner" style="font-size: 0.6875rem;">MATCH (a:Asignatura)-[:REQUIERE]->(b)
-<span class="kw">RETURN</span> a.codigo, b.codigo, gds.betweenness(a)
-<span class="str">// consulta ilustrativa — motor GDS aún no desplegado</span></div>
-            </div>
+            {% endif %}
+            <p class="kpi-interpretacion">{{ lectura_ciclos }}</p>
         </div>
     </div>
-</div>
 
-<!-- Modal de detalle de grafo del estudiante -->
-<div class="modal-backdrop hidden" id="modalGrafo">
-    <div class="modal-panel">
-        <div class="card-header flex items-center justify-between">
-            <span id="modalGrafoTitulo">Subgrafo curricular</span>
-            <button type="button" class="alert-close" id="modalGrafoCerrar" aria-label="Cerrar" style="font-size: 1.5rem;">&times;</button>
-        </div>
+    <div class="card">
+        <div class="card-header">Tasa de reprobación por período</div>
         <div class="card-body">
-            <div class="telemetry-badge mb-3" style="width: 100%; justify-content: flex-start;">
-                <span class="dot"></span>
-                Query Time: 2.14 ms · Algoritmo: Dijkstra Shortest Path to Degree · DAG Verificado
+            {% if columnas %}
+            <div class="chart-scroll" style="--n: {{ columnas|length }};">
+                <div class="column-chart" role="list" aria-label="Tasa de reprobación por período">
+                    {% for c in columnas %}
+                    <div class="column{% if c.seleccionado %} is-selected{% endif %}" role="listitem" tabindex="0"
+                         title="{{ c.codigo }} — tasa de reprobación {{ c.tasa_texto }}">
+                        <span class="column-value">{{ c.tasa_texto }}</span>
+                        <div class="column-bar" style="--pct: {{ '%.4f'|format(c.pct) }};"></div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="column-labels" aria-hidden="true">
+                    {% for c in columnas %}<span>{{ c.codigo }}</span>{% endfor %}
+                </div>
             </div>
-            <p class="text-sm mb-3" id="modalGrafoDescripcion" style="color: var(--color-muted);"></p>
-            <div class="flex flex-wrap gap-2 mb-3" id="modalGrafoBadges"></div>
-            <div class="sql-banner mb-3" id="modalGrafoCypher" style="font-size: 0.75rem;"></div>
-            <div class="flex gap-2">
-                <button type="button" class="btn-outline-neutral" style="font-size: 0.8125rem;">Exportar .cypher</button>
-                <button type="button" class="btn-outline-neutral" style="font-size: 0.8125rem;">Exportar .json</button>
-            </div>
+            <p class="kpi-interpretacion">
+                Las columnas resaltadas son los períodos del filtro; el gráfico respeta el departamento y la
+                carrera, pero muestra siempre todos los períodos. La escala va de cero a la tasa más alta.
+            </p>
+            {% endif %}
         </div>
     </div>
 </div>
+
+<h2 class="page-subtitle mb-2">Materias que más frenan la malla</h2>
+<div class="card mb-6">
+    {% if sin_red %}
+    <div class="card-body"><div class="alert alert-warning" role="note"><span>{{ lectura_impacto }}</span></div></div>
+    {% else %}
+    <div class="table-wrap">
+        <table class="table table-sticky-first">
+            <thead>
+                <tr>
+                    <th>Materia</th>
+                    <th class="text-center">Dependientes</th>
+                    <th class="text-center">% del plan</th>
+                    <th class="text-center">Reprobados</th>
+                    <th class="text-center">Costo ({{ moneda }})</th>
+                    <th class="text-center">Bloqueos</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in materias %}
+                <tr>
+                    <td>
+                        <div class="font-semibold">{{ m.codigo }}</div>
+                        <div class="text-xs text-muted">{{ m.nombre }}</div>
+                    </td>
+                    <td class="text-center font-semibold">{{ m.dependientes }}</td>
+                    <td class="text-center">{{ m.pct_plan }}</td>
+                    <td class="text-center">{{ m.reprobados }}</td>
+                    <td class="text-center">{{ m.costo_texto }}</td>
+                    <td class="text-center">{{ m.bloqueos }}</td>
+                    <td>{% if m.cuello %}{{ badge('danger', 'Cuello de botella') }}{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="card-body border-t border-border">
+        <p class="kpi-interpretacion" style="margin-top: 0; padding-top: 0; border-top: none;">{{ lectura_impacto }}</p>
+        <a href="/red-curricular" class="btn-outline-neutral mt-3">Ver la red curricular</a>
+    </div>
+    {% endif %}
+</div>
+
+<h2 class="page-subtitle mb-2">Seguir explorando</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
+    <a href="/vista-ejecutiva?periodo={{ periodo }}" class="card"><div class="card-body">
+        <strong class="font-semibold">Vista ejecutiva</strong>
+        <p class="text-sm text-muted mt-1">Costo de reprobación, costo por estudiante y ranking de materias por costo.</p></div></a>
+    <a href="/analisis-diagnostico?periodo={{ periodo }}" class="card"><div class="card-body">
+        <strong class="font-semibold">Análisis diagnóstico</strong>
+        <p class="text-sm text-muted mt-1">Correlaciones, cohortes y los estudiantes que ya presentan el patrón de riesgo.</p></div></a>
+    <a href="/red-curricular?periodo={{ periodo }}" class="card"><div class="card-body">
+        <strong class="font-semibold">Red curricular</strong>
+        <p class="text-sm text-muted mt-1">La malla como red: {{ cuellos }} cuello{{ 's' if cuellos != 1 }} de botella y cómo se propaga su costo.</p></div></a>
+    <a href="/analitica-olap?periodo={{ periodo }}" class="card"><div class="card-body">
+        <strong class="font-semibold">Cubo OLAP</strong>
+        <p class="text-sm text-muted mt-1">Cruza el rendimiento por las dimensiones que elijas, con subtotales.</p></div></a>
+</div>
+
+{% if ultima_carga %}
+<p class="text-xs text-muted">
+    Última carga del Data Warehouse: {{ ultima_carga.ejecutada_en.strftime("%Y-%m-%d %H:%M") }} UTC
+    · fecha de corte {{ ultima_carga.fecha_corte }}. Esta pantalla no consulta el sistema transaccional
+    ni Neo4j: lee solo el Data Warehouse.
+</p>
+{% endif %}
+
+{% endif %}
 {% endblock %}

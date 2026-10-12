@@ -2,11 +2,11 @@
 
 Generado automáticamente por `python -m etl.validar_dw`. No editar a mano: se regenera en cada corrida, y el historial de corridas queda en git.
 
-- **Fecha:** 2026-10-12 11:33
-- **Commit:** `a019ec7`
-- **Última carga del DW:** 2026-10-12 17:33 UTC, fecha de corte 2026-10-12
+- **Fecha:** 2026-10-12 12:11
+- **Commit:** `d098d0c`
+- **Última carga del DW:** 2026-10-12 18:01 UTC, fecha de corte 2026-10-12
 - **Volumen:** 36,704 hechos de inscripción, 1,500 estudiantes
-- **Resultado:** 76 de 76 verificaciones correctas ✅
+- **Resultado:** 88 de 88 verificaciones correctas ✅
 
 ## Qué se verifica y contra qué
 
@@ -89,6 +89,18 @@ Generado automáticamente por `python -m etl.validar_dw`. No editar a mano: se r
 | Red curricular | Costo de reprobación del cruce por materia frente al total de los hechos | 802000.0 | 802000.0 | ✅ OK |
 | Red curricular | Materias del cruce frente a materias de la malla | 16 | 16 | ✅ OK |
 | Red curricular | rol_dashboard lee las relaciones de la malla (lo que ve la pantalla) | 16 | 16 | ✅ OK |
+| Cubo OLAP | ROLLUP periodo × ciclo: una sola fila de total general | 1 | 1 | ✅ OK |
+| Cubo OLAP | ROLLUP periodo × ciclo: inscripciones con nota final del total frente a los hechos | 32966 | 32966 | ✅ OK |
+| Cubo OLAP | ROLLUP periodo × ciclo: reprobados del total frente a los hechos | 8020 | 8020 | ✅ OK |
+| Cubo OLAP | ROLLUP periodo × ciclo: costo de reprobación del total frente a los hechos | 802000.0 | 802000.0 | ✅ OK |
+| Cubo OLAP | ROLLUP periodo × ciclo: la suma del detalle es el total (no se pierde ninguna fila) | 32966 | 32966 | ✅ OK |
+| Cubo OLAP | CUBE area × turno × cohorte: una sola fila de total general | 1 | 1 | ✅ OK |
+| Cubo OLAP | CUBE area × turno × cohorte: inscripciones con nota final del total frente a los hechos | 32966 | 32966 | ✅ OK |
+| Cubo OLAP | CUBE area × turno × cohorte: reprobados del total frente a los hechos | 8020 | 8020 | ✅ OK |
+| Cubo OLAP | CUBE area × turno × cohorte: costo de reprobación del total frente a los hechos | 802000.0 | 802000.0 | ✅ OK |
+| Cubo OLAP | CUBE area × turno × cohorte: la suma del detalle es el total (no se pierde ninguna fila) | 32966 | 32966 | ✅ OK |
+| Dashboard estratégico | Inscripciones con nota final sumadas por ciclo del plan frente a los hechos | 32966 | 32966 | ✅ OK |
+| Dashboard estratégico | Reprobados sumados por ciclo del plan frente a los hechos | 8020 | 8020 | ✅ OK |
 | Seguridad | rol_dashboard NO puede leer academico_oltp | permiso denegado | permiso denegado | ✅ OK |
 | Seguridad | rol_dashboard NO puede escribir en dw_academico | permiso denegado | permiso denegado | ✅ OK |
 | Anonimización | carnet_hash con formato distinto de SHA-256 en el DW | 0 | 0 | ✅ OK |
