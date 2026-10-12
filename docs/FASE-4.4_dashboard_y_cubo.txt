@@ -1,0 +1,91 @@
+===============================================================================
+ DASHBOARD ESTRATÉGICO Y CUBO OLAP — DE MAQUETAS A DATOS REALES
+===============================================================================
+
+El menú tenía dos pantallas ilustrativas: «Dashboard Estratégico & Grafo
+Curricular» y «Alertas de Deserción & Reportes OLAP». Mostraban cifras de ejemplo
+escritas en la plantilla (87,4 % de retención, 38 alertas, un cubo sobre una tabla
+fact_rendimiento_academico que no existe). Se reemplazaron por pantallas que leen el
+Data Warehouse.
+
+
+-------------------------------------------------------------------------------
+ 1. QUÉ SE CONSTRUYÓ Y QUÉ NO
+-------------------------------------------------------------------------------
+
+CONSTRUIDO (descriptivo y diagnóstico, con datos reales)
+
+  /dashboard      Dashboard estratégico
+    - Estudiantes evaluados, tasa de aprobación, costo de reprobación y costo por
+      estudiante que reprobó, con variación contra el período anterior.
+    - Aprobación por ciclo del plan (escala 0–100 %) y reprobación por período.
+    - Las materias que más frenan la malla, con costo y bloqueos (viene de la red
+      curricular de la Fase 4.3).
+  /analitica-olap  Cubo OLAP
+    - Hasta tres dimensiones a elegir: período, departamento, carrera, ciclo del plan,
+      área, materia, turno, cohorte de ingreso.
+    - ROLLUP (jerarquía con subtotales) o CUBE (todas las combinaciones), calculados
+      por PostgreSQL con GROUP BY ROLLUP / CUBE sobre fact_inscripcion.
+    - Medidas: inscripciones con nota final, reprobados, tasa de reprobación, nota
+      promedio y costo de reprobación. Descarga en CSV.
+
+NO CONSTRUIDO A PROPÓSITO
+
+  - «Alertas de deserción temprana»: es predictivo. El alcance del proyecto son los
+    niveles descriptivo y diagnóstico; el equivalente descriptivo (los estudiantes que
+    YA presentan el patrón de riesgo observado) está en Análisis diagnóstico.
+  - Tasa de retención y eficiencia terminal de cohorte: el DW guarda inscripciones y
+    notas, no egresos ni graduaciones. Calcularlas exigiría un dato que no existe;
+    la memoria debe declararlo como límite.
+
+
+-------------------------------------------------------------------------------
+ 2. SEGURIDAD
+-------------------------------------------------------------------------------
+
+  - Solo coordinador. Antes las maquetas las veía cualquier usuario autenticado.
+  - Leen únicamente dw_academico con rol_dashboard; no tocan el OLTP ni Neo4j.
+  - El cubo NO acepta SQL: las dimensiones y el modo se eligen de un catálogo fijo
+    (app/olap.py) y cualquier clave desconocida se descarta. Los filtros de período,
+    carrera y departamento van como parámetros ligados. Probado con valores
+    maliciosos en la URL: se ignoran.
+
+
+-------------------------------------------------------------------------------
+ 3. ARCHIVOS
+-------------------------------------------------------------------------------
+
+  backend/app/olap.py                          NUEVO. Catálogo, SQL, filas y lectura.
+  backend/app/dashboard_estrategico.py         NUEVO. Aprobación por ciclo, materias que
+                                               más frenan, lecturas.
+  backend/app/routers/cubo_olap.py             NUEVO. /analitica-olap y su CSV.
+  backend/app/routers/dashboard_estrategico.py NUEVO. /dashboard.
+  backend/app/dw.py                            + aprobacion_por_ciclo(), cubo().
+  backend/app/templates/{dashboard,analitica_olap}.html   Reescritas.
+  backend/app/main.py                          Sin las dos rutas de maqueta.
+  etl/validar_dw.py                            + 12 verificaciones (88 en total).
+  backend/tests/test_olap.py,
+  backend/tests/test_dashboard_estrategico.py  28 pruebas, sin base de datos.
+
+
+-------------------------------------------------------------------------------
+ 4. CÓMO PROBARLO
+-------------------------------------------------------------------------------
+
+PASO 1 — Pruebas unitarias
+    ( cd backend && python -m unittest discover -s tests -v )
+
+PASO 2 — Los totales del cubo y del dashboard son los de los hechos
+    python -m etl.validar_dw
+    Esperado, grupos «Cubo OLAP» y «Dashboard estratégico»: el total de cada cubo (ROLLUP
+    período × ciclo y CUBE área × turno × cohorte) coincide con los hechos del DW en
+    inscripciones, reprobados y costo, y la suma del detalle es el total.
+
+PASO 3 — Abrir las pantallas como coordinador
+    http://localhost:8000/dashboard
+    http://localhost:8000/analitica-olap
+    En el cubo: elige Período → Ciclo del plan con ROLLUP y verás el detalle, el subtotal
+    de cada período y el total general; cambia a CUBE y aparecen las demás combinaciones.
+
+PASO 4 — Un docente no entra
+    Con la sesión de un docente, ambas rutas responden 403.

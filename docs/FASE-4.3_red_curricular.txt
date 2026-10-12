@@ -121,7 +121,7 @@ Base ya existente (sin perder datos):
     docker exec -i academico_postgres psql -U postgres -d academico_db \
         -v ON_ERROR_STOP=1 < database/oltp/15_dw_red_curricular.sql
     python -m etl.carga                          # necesita Neo4j con la malla cargada
-    python -m etl.validar_dw                     # 76 verificaciones
+    python -m etl.validar_dw                     # 88 verificaciones
 
 Neo4j recién creado arranca VACÍO: antes de cargar el DW hay que correr
 python database/nosql/03_cargar_grafo_neo4j.py (ver Solución de problemas en el

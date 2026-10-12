@@ -358,6 +358,40 @@ def validar_red_curricular(s):
 
 
 # ---------------------------------------------------------------------------
+# 5c. Cubo OLAP y dashboard estratégico: sus totales contra los hechos del DW
+# ---------------------------------------------------------------------------
+
+def validar_cubo(s):
+    grupo = "Cubo OLAP"
+    hechos = s.execute(text(
+        "SELECT COUNT(*) FILTER (WHERE cerrada), COUNT(*) FILTER (WHERE reprobado), "
+        "COALESCE(SUM(costo_reprobacion), 0) FROM dw_academico.fact_inscripcion")).one()
+    cerradas, reprobados, costo = int(hechos[0]), int(hechos[1]), round(float(hechos[2]), 2)
+
+    # Lo que muestra la pantalla: lectura con rol_dashboard, no con el rol del validador.
+    for dims, modo in ((["periodo", "ciclo"], "rollup"), (["area", "turno", "cohorte"], "cube")):
+        etiqueta = f"{modo.upper()} {' × '.join(dims)}"
+        df = dw.cubo(dw.Filtros(), dims, modo)
+        total = df[(df[[f"g{i}" for i in range(1, len(dims) + 1)]] == 1).all(axis=1)]
+        registrar(grupo, f"{etiqueta}: una sola fila de total general", 1, len(total))
+        t = total.iloc[0]
+        registrar(grupo, f"{etiqueta}: inscripciones con nota final del total frente a los hechos", cerradas, int(t["cerradas"]))
+        registrar(grupo, f"{etiqueta}: reprobados del total frente a los hechos", reprobados, int(t["reprobados"]))
+        registrar(grupo, f"{etiqueta}: costo de reprobación del total frente a los hechos", costo,
+                  round(float(t["costo_reprobacion"]), 2))
+        detalle = df[(df[[f"g{i}" for i in range(1, len(dims) + 1)]] == 0).all(axis=1)]
+        registrar(grupo, f"{etiqueta}: la suma del detalle es el total (no se pierde ninguna fila)", cerradas,
+                  int(detalle["cerradas"].sum()))
+
+    # Dashboard estratégico: aprobación por ciclo del plan.
+    por_ciclo = dw.aprobacion_por_ciclo(dw.Filtros())
+    registrar("Dashboard estratégico", "Inscripciones con nota final sumadas por ciclo del plan frente a los hechos",
+              cerradas, int(por_ciclo["cerradas"].sum()))
+    registrar("Dashboard estratégico", "Reprobados sumados por ciclo del plan frente a los hechos",
+              reprobados, int(por_ciclo["reprobados"].sum()))
+
+
+# ---------------------------------------------------------------------------
 # 6. Seguridad y anonimización
 # ---------------------------------------------------------------------------
 
@@ -604,7 +638,7 @@ def main() -> int:
     # peor que pasa es que se vea "?", y el registro .md se escribe siempre en UTF-8.
     for flujo in (sys.stdout, sys.stderr):
         flujo.reconfigure(errors="replace")
-    print("Validación de datos y procesos del DW (Fases 3.3, 4.1, 4.2 y 4.3)\n")
+    print("Validación de datos y procesos del DW (Fases 3.3 y 4)\n")
     with sesion_oltp() as s:
         s.connection(execution_options={"isolation_level": "REPEATABLE READ"})
         validar_completitud(s)
@@ -616,6 +650,7 @@ def main() -> int:
         validar_particiones()
         validar_area(s)
         validar_red_curricular(s)
+        validar_cubo(s)
         validar_seguridad(s)
         observar_datos(s, correlaciones)
         carga = dw.ultima_carga()

@@ -380,7 +380,7 @@ limita a `SELECT` sobre `dw_academico`.
 
 ```bash
 python -m etl.carga                 # el DW necesita database/oltp/12_dw_diagnostico.sql
-python -m etl.validar_dw            # 76 verificaciones entre capas + registro para la memoria
+python -m etl.validar_dw            # 88 verificaciones entre capas + registro para la memoria
 ```
 
 Pantalla **Análisis diagnóstico** (mismo menú, solo coordinador): matriz de correlaciones,
@@ -408,6 +408,24 @@ origina en Neo4j pero la pantalla la lee del Data Warehouse, con `rol_dashboard`
 credenciales del grafo. Neo4j recién creado arranca vacío: carga primero la malla
 (`python database/nosql/03_cargar_grafo_neo4j.py`). Detalle, método y guía de pruebas en
 [`docs/FASE-4.3_red_curricular.txt`](docs/FASE-4.3_red_curricular.txt).
+
+### 14. Dashboard estratégico y cubo OLAP (datos reales)
+
+Dos pantallas del menú «Inteligencia institucional» (solo coordinador) que antes eran maquetas con cifras de
+ejemplo y ahora leen el Data Warehouse con `rol_dashboard`, sin consultar el sistema transaccional ni Neo4j:
+
+- **Dashboard estratégico** (`/dashboard`): estudiantes evaluados, tasa de aprobación y costo de reprobación con su
+  variación contra el período anterior, aprobación por ciclo del plan, reprobación por período y las materias que
+  más frenan la malla, con la lectura en texto de cada pieza.
+- **Cubo OLAP** (`/analitica-olap`): eliges hasta tres dimensiones (período, departamento, carrera, ciclo del plan,
+  área, materia, turno, cohorte) y PostgreSQL calcula con `GROUP BY ROLLUP` o `CUBE` las medidas de cada
+  combinación, los subtotales y el total. El usuario nunca escribe SQL: elige claves de un catálogo fijo. Se
+  descarga en CSV y `etl/validar_dw.py` concilia sus totales contra los hechos del DW.
+
+Quedaron fuera a propósito las «alertas de deserción» de la maqueta: son predictivas y el proyecto se limita a los
+niveles descriptivo y diagnóstico. Su equivalente descriptivo, los estudiantes que **ya presentan** el patrón de
+riesgo observado, está en Análisis diagnóstico. Detalle en
+[`docs/FASE-4.4_dashboard_y_cubo.txt`](docs/FASE-4.4_dashboard_y_cubo.txt).
 
 ---
 

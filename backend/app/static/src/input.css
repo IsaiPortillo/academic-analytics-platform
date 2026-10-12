@@ -1544,6 +1544,26 @@
     opacity: 0.55;
   }
 
+  /* Cubo OLAP: las filas de subtotal y el total se distinguen por fondo y peso, no
+     solo por color; la celda agrupada dice «Todos» con texto. */
+  .cubo-tabla .cubo-subtotal td {
+    background-color: var(--color-surface-sunken);
+    font-weight: 600;
+  }
+  .cubo-tabla .cubo-total td {
+    background-color: var(--color-surface-sunken);
+    font-weight: 800;
+    border-top: 2px solid var(--color-border);
+  }
+  .cubo-tabla .cubo-agrupada {
+    color: var(--color-muted);
+    font-style: italic;
+    font-weight: 500;
+  }
+  .cubo-tabla .cubo-total td.cubo-agrupada {
+    font-weight: 800;
+  }
+
   /* Modal */
   .modal-backdrop {
     position: fixed;

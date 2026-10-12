@@ -452,52 +452,6 @@ document.querySelectorAll("[data-skeleton-on-filter]").forEach((filtro) => {
 });
 
 // ---------------------------------------------------------------------------
-// Dashboard — modal de detalle de grafo del estudiante. Contenido ilustrativo
-// (ver preview-banner de la página): la telemetría de la consulta Cypher es
-// texto de ejemplo, nunca una medición real, porque el motor GDS de Neo4j
-// todavía no está desplegado (Fase 3 del roadmap).
-(() => {
-  const modal = document.getElementById("modalGrafo");
-  if (!modal) return;
-  const titulo = document.getElementById("modalGrafoTitulo");
-  const descripcion = document.getElementById("modalGrafoDescripcion");
-  const badges = document.getElementById("modalGrafoBadges");
-  const cypher = document.getElementById("modalGrafoCypher");
-
-  document.querySelectorAll(".graph-node-group").forEach((nodo) => {
-    nodo.addEventListener("click", () => {
-      const { codigo, nombre, uv, reprobacion, bloqueada } = nodo.dataset;
-      titulo.textContent = `${codigo} · ${nombre}`;
-      descripcion.textContent = bloqueada === "true"
-        ? `Bloqueada aguas abajo: reprobar el prerrequisito proyecta +2 ciclos de retraso hasta grado.`
-        : `${uv} unidades valorativas · ${reprobacion}% de reprobación histórica en este subgrafo.`;
-      badges.innerHTML = "";
-      [
-        bloqueada === "true" ? ["Bloqueada", "badge-danger"] : ["Habilitada", "badge-success"],
-        ["DAG verificado", "badge-neutral"],
-      ].forEach(([texto, clase]) => {
-        const span = document.createElement("span");
-        span.className = `badge ${clase}`;
-        span.textContent = texto;
-        badges.appendChild(span);
-      });
-      cypher.innerHTML = `MATCH (a:Asignatura {codigo: "${codigo}"})-[:REQUIERE*1..3]->(p)\n<span class="kw">RETURN</span> p.codigo, p.nombre, p.estado\n<span class="str">// subgrafo ilustrativo — motor GDS aún no desplegado</span>`;
-      modal.classList.remove("hidden");
-    });
-  });
-  document.getElementById("modalGrafoCerrar")?.addEventListener("click", () => {
-    modal.classList.add("hidden");
-  });
-  modal.addEventListener("click", (evento) => {
-    if (evento.target === modal) modal.classList.add("hidden");
-  });
-
-  document.getElementById("btnExportCypher")?.addEventListener("click", () => {
-    alert("Exportación .cypher disponible cuando el motor de grafo entre en producción (Fase 3 del roadmap).");
-  });
-})();
-
-// ---------------------------------------------------------------------------
 // Red curricular (Fase 4.3) — elegir una materia resalta lo que bloquea (sus
 // dependientes, en cascada) y lo que hay que aprobar antes (sus prerrequisitos).
 // Todo sale de #red-datos, que la plantilla arma con las relaciones del DW: no
@@ -613,16 +567,6 @@ document.querySelectorAll("[data-skeleton-on-filter]").forEach((filtro) => {
 
   seleccionar(datos.inicial);
 })();
-
-// Alertas/OLAP — "Notificar a Consejería" es una maqueta: confirma la
-// intención de la acción sin enviar nada, porque no existe todavía un canal
-// real de notificación a consejería en el backend.
-document.querySelectorAll(".js-notificar").forEach((boton) => {
-  boton.addEventListener("click", () => {
-    boton.textContent = "Notificado (simulado)";
-    boton.disabled = true;
-  });
-});
 
 // Candado de doble clic genérico — deshabilita cualquier submit marcado
 // data-lock-on-submit apenas se envía, para que una escritura no idempotente

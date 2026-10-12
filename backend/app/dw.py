@@ -369,3 +369,29 @@ def costo_por_materia(filtros: Filtros) -> pd.DataFrame:
         {where}
         GROUP BY m.codigo_materia
     """, params)
+
+
+# ---------------------------------------------------------------------------
+# Dashboard estratégico y cubo OLAP — datos reales que reemplazan las maquetas
+# ---------------------------------------------------------------------------
+
+def aprobacion_por_ciclo(filtros: Filtros) -> pd.DataFrame:
+    """Inscripciones con nota final y reprobadas de cada ciclo del plan."""
+    where, params = _condiciones(filtros)
+    return _leer(f"""
+        SELECT m.ciclo_plan,
+               COUNT(*) FILTER (WHERE f.cerrada)               AS cerradas,
+               COUNT(*) FILTER (WHERE f.reprobado)             AS reprobados,
+               COALESCE(SUM(f.costo_reprobacion), 0)           AS costo_reprobacion
+        {DESDE_HECHOS_DIAGNOSTICO} {where}
+        GROUP BY m.ciclo_plan ORDER BY m.ciclo_plan
+    """, params)
+
+
+def cubo(filtros: Filtros, dimensiones: list[str], modo: str) -> pd.DataFrame:
+    """Cubo OLAP: las dimensiones salen del catálogo de app/olap.py (nunca de texto
+    del usuario) y los filtros van como parámetros ligados. Devuelve una fila más
+    que el límite para que la pantalla sepa si el resultado se truncó."""
+    from . import olap  # diferido: olap importa indicadores, que no necesita la base
+    where, params = _condiciones(filtros)
+    return _leer(olap.construir_sql(dimensiones, modo, f"{DESDE_HECHOS_DIAGNOSTICO} {where}"), params)
