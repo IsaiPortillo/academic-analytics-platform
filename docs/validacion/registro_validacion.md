@@ -2,11 +2,11 @@
 
 Generado automáticamente por `python -m etl.validar_dw`. No editar a mano: se regenera en cada corrida, y el historial de corridas queda en git.
 
-- **Fecha:** 2026-10-10 18:20
-- **Commit:** `b05136c`
-- **Última carga del DW:** 2026-10-11 00:20 UTC, fecha de corte 2026-10-10
+- **Fecha:** 2026-10-12 11:33
+- **Commit:** `a019ec7`
+- **Última carga del DW:** 2026-10-12 17:33 UTC, fecha de corte 2026-10-12
 - **Volumen:** 36,704 hechos de inscripción, 1,500 estudiantes
-- **Resultado:** 66 de 66 verificaciones correctas ✅
+- **Resultado:** 76 de 76 verificaciones correctas ✅
 
 ## Qué se verifica y contra qué
 
@@ -79,6 +79,16 @@ Generado automáticamente por `python -m etl.validar_dw`. No editar a mano: se r
 | Particiones | Suma por condición laboral = total | 8020/32966 | 8020/32966 | ✅ OK |
 | Particiones | Condición laboral: grupos sin valor (nulos) | 0 | 0 | ✅ OK |
 | Cruce relacional-grafo | Materias del DW con el área que registra Neo4j | 16 | 16 | ✅ OK |
+| Red curricular | Relaciones de prerrequisito en el DW frente a las de Neo4j | 16 | 16 | ✅ OK |
+| Red curricular | Relaciones que están en un lado y no en el otro (diferencia simétrica) | 0 | 0 | ✅ OK |
+| Red curricular | La malla del DW es un grafo sin ciclos | True | True | ✅ OK |
+| Red curricular | Materias que se exigen a sí mismas | 0 | 0 | ✅ OK |
+| Red curricular | Métricas de dim_materia (Neo4j) distintas de las recalculadas desde bridge_prerrequisito | [] | [] | ✅ OK |
+| Red curricular | Umbral de cuello de botella: pantalla frente al ETL | 0.25 | 0.25 | ✅ OK |
+| Red curricular | Materias cuyo es_cuello_botella no corresponde a su índice de bloqueo | 0 | 0 | ✅ OK |
+| Red curricular | Costo de reprobación del cruce por materia frente al total de los hechos | 802000.0 | 802000.0 | ✅ OK |
+| Red curricular | Materias del cruce frente a materias de la malla | 16 | 16 | ✅ OK |
+| Red curricular | rol_dashboard lee las relaciones de la malla (lo que ve la pantalla) | 16 | 16 | ✅ OK |
 | Seguridad | rol_dashboard NO puede leer academico_oltp | permiso denegado | permiso denegado | ✅ OK |
 | Seguridad | rol_dashboard NO puede escribir en dw_academico | permiso denegado | permiso denegado | ✅ OK |
 | Anonimización | carnet_hash con formato distinto de SHA-256 en el DW | 0 | 0 | ✅ OK |

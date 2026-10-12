@@ -26,7 +26,7 @@ from .anonimizacion import ErrorAnonimizacion, verificar_anonimizacion
 from .conexiones import sesion_grafo, sesion_oltp
 from .config import RAIZ_PROYECTO
 from .extraccion import extraer_oltp
-from .grafo import extraer_metricas_grafo
+from .grafo import extraer_aristas_grafo, extraer_metricas_grafo
 from .transformacion import ErrorIntegridad, ResultadoTransformacion, transformar
 
 SALIDA_POR_DEFECTO = RAIZ_PROYECTO / "etl" / "staging"
@@ -44,10 +44,11 @@ def ejecutar_pipeline(fecha_corte: date | None = None) -> ResultadoTransformacio
     print("[2/4] Calculando métricas de grafo en Neo4j...")
     with sesion_grafo() as sesion:
         metricas = extraer_metricas_grafo(sesion)
-    print(f"      {len(metricas)} materias en la malla curricular")
+        aristas = extraer_aristas_grafo(sesion)
+    print(f"      {len(metricas)} materias y {len(aristas)} relaciones de prerrequisito en la malla")
 
     print("[3/4] Limpiando y enriqueciendo...")
-    resultado = transformar(datos, metricas, fecha_corte)
+    resultado = transformar(datos, metricas, fecha_corte, aristas)
 
     print("[4/4] Verificando anonimización de la salida...")
     verificar_anonimizacion(resultado.datasets)

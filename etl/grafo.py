@@ -61,6 +61,24 @@ COLUMNAS_METRICAS = [
 ]
 
 
+# Las relaciones mismas, no solo sus conteos: la Fase 4.3 dibuja la red y para
+# eso el DW necesita saber QUÉ materia exige a cuál. (A)-[:REQUIERE_APROBADA]->(B)
+# se guarda como la pareja (materia A, prerrequisito B).
+CONSULTA_ARISTAS = """
+MATCH (a:Materia)-[:REQUIERE_APROBADA]->(b:Materia)
+RETURN a.codigo AS codigo_materia, b.codigo AS codigo_prerrequisito
+ORDER BY codigo_materia, codigo_prerrequisito
+"""
+
+COLUMNAS_ARISTAS = ["codigo_materia", "codigo_prerrequisito"]
+
+
+def extraer_aristas_grafo(sesion: Session) -> pd.DataFrame:
+    """Relaciones de prerrequisito de la malla: una fila por (materia, prerrequisito)."""
+    registros = [dict(r) for r in sesion.run(CONSULTA_ARISTAS)]
+    return pd.DataFrame(registros, columns=COLUMNAS_ARISTAS)
+
+
 def extraer_metricas_grafo(sesion: Session) -> pd.DataFrame:
     """Métricas estructurales de cada materia de la malla.
 

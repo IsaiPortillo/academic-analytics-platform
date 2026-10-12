@@ -323,22 +323,79 @@ def _reporte_calidad(datos, hechos, estudiante_periodo, estudiantes, materias, m
     }
 
 
+def _tiene_ciclo(pares: list[tuple[int, int]]) -> bool:
+    """¿Las relaciones (materia, prerrequisito) forman un ciclo? (algoritmo de Kahn)."""
+    pendientes: dict[int, int] = {}
+    dependientes: dict[int, list[int]] = {}
+    for materia, requisito in pares:
+        pendientes.setdefault(materia, 0)
+        pendientes.setdefault(requisito, 0)
+        pendientes[materia] += 1
+        dependientes.setdefault(requisito, []).append(materia)
+    listos = [n for n, k in pendientes.items() if k == 0]
+    vistos = 0
+    while listos:
+        nodo = listos.pop()
+        vistos += 1
+        for siguiente in dependientes.get(nodo, []):
+            pendientes[siguiente] -= 1
+            if pendientes[siguiente] == 0:
+                listos.append(siguiente)
+    return vistos != len(pendientes)
+
+
+def construir_prerrequisitos(materias: pd.DataFrame,
+                             aristas: pd.DataFrame | None) -> tuple[pd.DataFrame, int]:
+    """Relaciones de prerrequisito de la malla, traducidas a los materia_id del OLTP.
+
+    Devuelve (relaciones, descartadas). Una relación se descarta, y se cuenta en
+    el reporte de calidad, si alguna de sus dos materias no existe en el OLTP:
+    el grafo puede traer materias que la institución todavía no ofrece. Una
+    materia que se exige a sí misma, o un ciclo, no son un dato sucio sino una
+    malla imposible de cursar: detienen la carga en vez de entrar al DW.
+    """
+    vacio = pd.DataFrame({"materia_id": pd.Series(dtype="int64"),
+                          "prerrequisito_id": pd.Series(dtype="int64")})
+    if aristas is None or aristas.empty:
+        return vacio, 0
+    ids = materias.set_index("codigo_materia")["materia_id"]
+    unidas = aristas.drop_duplicates().assign(
+        materia_id=lambda a: a["codigo_materia"].map(ids),
+        prerrequisito_id=lambda a: a["codigo_prerrequisito"].map(ids),
+    )
+    conocidas = unidas["materia_id"].notna() & unidas["prerrequisito_id"].notna()
+    descartadas = int((~conocidas).sum())
+    relaciones = (unidas[conocidas][["materia_id", "prerrequisito_id"]].astype("int64")
+                  .sort_values(["materia_id", "prerrequisito_id"], ignore_index=True))
+    if (relaciones["materia_id"] == relaciones["prerrequisito_id"]).any():
+        raise ErrorIntegridad("prerrequisitos: una materia se exige a sí misma")
+    if _tiene_ciclo(list(zip(relaciones["materia_id"], relaciones["prerrequisito_id"]))):
+        raise ErrorIntegridad("prerrequisitos: la malla curricular tiene un ciclo")
+    return relaciones, descartadas
+
+
 def transformar(datos: dict[str, pd.DataFrame], metricas_grafo: pd.DataFrame,
-                fecha_corte: date | None = None) -> ResultadoTransformacion:
+                fecha_corte: date | None = None,
+                aristas_grafo: pd.DataFrame | None = None) -> ResultadoTransformacion:
     """fecha_corte decide qué periodos siguen vigentes (EN_CURSO vs SIN_CIERRE).
-    Por defecto es hoy; se puede fijar para reproducir una corrida."""
+    Por defecto es hoy; se puede fijar para reproducir una corrida.
+
+    aristas_grafo son las relaciones de prerrequisito (extraer_aristas_grafo);
+    sin ellas el DW queda sin red y la Fase 4.3 lo avisa en pantalla."""
     fecha_corte = fecha_corte or date.today()
 
     hechos = construir_hechos_inscripcion(datos, fecha_corte)
     estudiante_periodo = construir_estudiante_periodo(hechos, datos["materias"])
     estudiantes = construir_estudiantes(datos["estudiantes"], estudiante_periodo, datos["periodos"])
     materias = construir_materias(datos["materias"], metricas_grafo, hechos)
+    prerrequisitos, aristas_descartadas = construir_prerrequisitos(materias, aristas_grafo)
 
     datasets = {
         "hechos_inscripcion": hechos,
         "estudiante_periodo": estudiante_periodo,
         "estudiantes": estudiantes,
         "materias": materias,
+        "prerrequisitos": prerrequisitos,
         "periodos": construir_periodos(datos["periodos"], datos["costos_periodo"]),
         "carreras": datos["carreras"].sort_values("carrera_id", ignore_index=True),
         "docentes": datos["docentes"].sort_values("docente_id", ignore_index=True),
@@ -347,4 +404,6 @@ def transformar(datos: dict[str, pd.DataFrame], metricas_grafo: pd.DataFrame,
     calidad = _reporte_calidad(datos, hechos, estudiante_periodo, estudiantes,
                                materias, metricas_grafo)
     calidad["fecha_corte"] = fecha_corte.isoformat()
+    calidad["prerrequisitos_en_malla"] = len(prerrequisitos)
+    calidad["prerrequisitos_descartados"] = aristas_descartadas
     return ResultadoTransformacion(datasets=datasets, calidad=calidad)
