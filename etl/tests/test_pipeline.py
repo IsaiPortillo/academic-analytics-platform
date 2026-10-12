@@ -347,6 +347,71 @@ class TestAnonimizacion(unittest.TestCase):
         self.assertEqual(escanear_contenido(self.datasets), [])
 
 
+def _aristas(*pares):
+    return pd.DataFrame(pares, columns=["codigo_materia", "codigo_prerrequisito"])
+
+
+# PRG215 exige PRG115, PRG315 exige PRG215 y DWB115 exige PRG315: la cadena de los datos base.
+CADENA = _aristas(("PRG215", "PRG115"), ("PRG315", "PRG215"), ("DWB115", "PRG315"))
+
+
+class TestPrerrequisitosDeLaMalla(unittest.TestCase):
+    """Las relaciones de la malla que la Fase 4.3 dibuja (SCRUM-46)."""
+
+    def setUp(self):
+        self.datos, self.metricas = _datos_base()
+
+    def _transformar(self, aristas):
+        return transformar(self.datos, self.metricas, FECHA_CORTE, aristas)
+
+    def test_se_traducen_a_los_materia_id_del_oltp(self):
+        r = self._transformar(CADENA)
+        pares = set(map(tuple, r.datasets["prerrequisitos"].to_numpy().tolist()))
+        # PRG115=10, PRG215=20; los códigos PRG315/DWB115 no existen en el OLTP de prueba.
+        self.assertEqual(pares, {(20, 10)})
+
+    def test_las_relaciones_con_materias_fuera_del_oltp_se_cuentan_no_se_pierden_en_silencio(self):
+        r = self._transformar(CADENA)
+        self.assertEqual(r.calidad["prerrequisitos_en_malla"], 1)
+        self.assertEqual(r.calidad["prerrequisitos_descartados"], 2)
+
+    def test_sin_aristas_el_dw_queda_sin_red_sin_fallar(self):
+        r = self._transformar(None)
+        self.assertTrue(r.datasets["prerrequisitos"].empty)
+        self.assertEqual(r.calidad["prerrequisitos_en_malla"], 0)
+
+    def test_relaciones_repetidas_se_unifican(self):
+        r = self._transformar(_aristas(("PRG215", "PRG115"), ("PRG215", "PRG115")))
+        self.assertEqual(len(r.datasets["prerrequisitos"]), 1)
+
+    def test_una_materia_que_se_exige_a_si_misma_detiene_la_carga(self):
+        with self.assertRaises(ErrorIntegridad):
+            self._transformar(_aristas(("PRG115", "PRG115")))
+
+    def test_un_ciclo_detiene_la_carga(self):
+        with self.assertRaises(ErrorIntegridad) as ctx:
+            self._transformar(_aristas(("PRG215", "PRG115"), ("PRG115", "PRG215")))
+        self.assertIn("ciclo", str(ctx.exception))
+
+    def test_el_conjunto_pasa_la_lista_blanca_de_anonimizacion(self):
+        r = self._transformar(CADENA)
+        self.assertEqual(validar_columnas({"prerrequisitos": r.datasets["prerrequisitos"]}), [])
+
+    def test_el_puente_del_dw_usa_llaves_sustitutas_de_dim_materia(self):
+        from etl.carga import preparar_tablas
+        tablas = preparar_tablas(self._transformar(CADENA))
+        llaves = set(tablas["dim_materia"]["materia_key"])
+        puente = tablas["bridge_prerrequisito"]
+        self.assertEqual(len(puente), 1)
+        self.assertTrue(set(puente["materia_key"]) <= llaves)
+        self.assertTrue(set(puente["prerrequisito_key"]) <= llaves)
+        self.assertFalse((puente["materia_key"] == puente["prerrequisito_key"]).any())
+
+    def test_el_puente_se_carga_despues_de_dim_materia_y_se_vacia_antes(self):
+        from etl.carga import TABLAS_DW
+        self.assertLess(TABLAS_DW.index("dim_materia"), TABLAS_DW.index("bridge_prerrequisito"))
+
+
 if __name__ == "__main__":
     unittest.main()
 

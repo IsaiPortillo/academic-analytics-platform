@@ -62,6 +62,8 @@ COLUMNAS_PERMITIDAS: dict[str, set[str]] = {
         "es_cuello_botella", "inscripciones", "retiros", "inscripciones_cerradas",
         "reprobados", "nota_promedio", "tasa_reprobacion", "tasa_retiro", "indice_impacto",
     },
+    # Estructura de la malla (qué materia exige a cuál): sin ningún dato de personas.
+    "prerrequisitos": {"materia_id", "prerrequisito_id"},
     "periodos": {
         "periodo_id", "codigo_periodo", "anio", "ciclo_romano", "fecha_inicio", "fecha_fin",
         "orden", "costo_por_uv", "moneda", "fuente_costo",

@@ -99,13 +99,13 @@ This is a full rebrand (October 2026), approved by the user as a replacement of 
 - A single type family (Plus Jakarta Sans, Inter fallback) carries the whole hierarchy through weight (800/700/600/500/400), not through a second face.
 - A monospace face (JetBrains Mono) is reserved for technical telemetry only — badges naming the active database role, SQL/Cypher illustrative banners — never for body copy.
 - Status is communicated through soft-tint badges (background + border + text + icon) — unchanged discipline from the prior system, just re-tinted.
-- Two screens (Dashboard & Grafo, Alertas & OLAP) are explicitly labeled illustrative previews — see Honesty Boundary below — because their backing engines (Neo4j graph analytics, the OLAP/BI layer) are Phases 3–4 of the project roadmap and do not exist yet.
+- Every analytics screen shows real data from the data warehouse. The two that used to be illustrative previews (Dashboard, OLAP) were rebuilt on real queries — see Honesty Boundary below — and no screen carries `.preview-banner` today.
 
-## Honesty Boundary (read before touching Dashboard/OLAP)
+## Honesty Boundary (read before adding an analytics screen)
 
-Two sidebar items — **Dashboard & Grafo** (`/dashboard`) and **Alertas & OLAP Tesis** (`/analitica-olap`) — visualize capabilities this system does not yet have: a live Neo4j curriculum graph with centrality/shortest-path analytics, and an OLAP cube over a star schema. Per PRODUCT.md, both are unbuilt roadmap phases.
+**Named Rule: The Preview Boundary.** A screen backed by an engine that does not exist yet must open with `.preview-banner` stating plainly that its numbers are illustrative, not a query result, and nothing on it may claim to be live: no fabricated "Query Time", no invented legal citations, no named fictional personas. Today no screen needs it: **Dashboard estratégico** (`/dashboard`) and **Cubo OLAP** (`/analitica-olap`) used to be mockups (invented retention, "dropout alerts", a made-up cube over a table that did not exist) and were rebuilt on real data from the warehouse. The component stays in the system for the next unbuilt engine.
 
-**Named Rule: The Preview Boundary.** Every screen backed by a not-yet-built engine opens with `.preview-banner` stating plainly that its numbers are illustrative, not a query result. Nothing on those two pages may claim to be live: no fabricated "Query Time" on a real console (the modal's telemetry is sample text, explicitly commented as such in the template), no invented legal citations, no named fictional personas. The one exception the user explicitly asked to keep real: the two CSV export links on `/analitica-olap` point at the actual `/reportes/*/csv` endpoints — real data, real download — because building that page is not an excuse to downgrade an existing real feature to a mockup.
+**Scope rule that decided what was rebuilt and what was dropped.** The project is limited to the descriptive and diagnostic levels. So the mockup's *predictive* pieces ("Alertas de Deserción Temprana", dropout forecasts) were not rebuilt: their descriptive equivalent, the students who already show the observed risk pattern, lives in Análisis diagnóstico. Indicators the data model cannot support (retention, terminal efficiency: the warehouse stores enrolments and grades, not graduations) were dropped, not invented.
 
 The login page's quick-demo buttons use the real seeded `coordinador` / `docente` accounts already in the database — never invented jurado personas with fabricated credentials, per explicit user decision during this rebrand.
 
@@ -114,6 +114,10 @@ The login page's quick-demo buttons use the real seeded `coordinador` / `docente
 **Vista ejecutiva** (`/vista-ejecutiva`, Fase 4.1) shows real query results from the data warehouse, so it does **not** carry `.preview-banner`. Its only caveat banner (`.alert-warning`) comes from the data itself — `dim_periodo.fuente_costo` — and disappears on its own once the official cost per UV is registered. Components added for it, all on existing tokens (dark mode included): `.kpi-interpretacion` (the text reading under each KPI number — indicator and interpretation are one piece), `.kpi-trend-neutral`, `.bar-list` / `.bar-row` / `.bar-track` / `.bar-fill` / `.bar-value` (horizontal magnitude bars: one series, brand color, zero baseline, value labelled at the end) and `.column-chart` / `.column` / `.column-bar` / `.column-labels` (per-period columns; selected periods at full opacity, the rest dimmed — distinguished without a second hue). On these four KPIs a rise is a deterioration, so `.kpi-trend-down` (red) marks an increase and the arrow always shows the real direction.
 
 **Análisis diagnóstico** (`/analisis-diagnostico`, Fase 4.2) is also real data and reuses the same pieces, plus a correlation heatmap: `.corr-table` / `.corr-cell` (intensity follows |r| over a neutral surface; `r` is always printed in the cell, so color never carries the value alone), `.is-negative`, `.is-construccion` (diagonal texture + `*` for pairs related by definition, e.g. cost vs grade), and `.corr-legend`. It introduces the diverging pair tokens `--color-div-pos` (blue) / `--color-div-neg` (red), with a neutral midpoint and separate dark-mode steps. Text in cells keeps the theme's text color: white on the mixed cell color failed contrast (~2.6:1). Copy rule specific to this screen: it describes patterns **observed** in history and never predicts (“ya presentan el patrón”, never “en riesgo de desertar”).
+
+**Dashboard estratégico** (`/dashboard`) reuses the KPI cards, `.bar-list` (approval by plan cycle, on a 0–100 % scale because an approval rate is read against the whole, not against the largest bar), `.column-chart` (reprobation rate per period) and `.table-sticky-first` (the subjects that block the curriculum most). **Cubo OLAP** (`/analitica-olap`) is a table with `.cubo-tabla`: `GROUP BY ROLLUP/CUBE` computed by PostgreSQL over `fact_inscripcion`, up to three dimensions picked from a fixed catalog (never free SQL). A grouped dimension reads «Todos» in italic muted text; subtotal rows (`.cubo-subtotal`) get a sunken background and weight, the grand total (`.cubo-total`) a heavier weight and a top rule — never colour alone.
+
+**Red curricular** (`/red-curricular`, Fase 4.3) is real data too: the 16 subjects and their prerequisite relations as an interactive SVG network, the bottleneck report, and the cost-vs-position cross. It reuses `.graph-node` / `.graph-edge` and adds only what is its own, all on existing tokens: `.red-lienzo` (scroll container), `.red-nodo` / `.red-caja` (a node; its fill is a tint of the brand proportional to `--calor`, the share of the plan it blocks), the selection states `.is-seleccion` (brand stroke), `.is-dependiente` (danger tint: *blocked if the chosen subject is failed*), `.is-prerrequisito` (neutral tint: *must be approved first*) and `.is-atenuado` (the rest, dimmed), `.red-detalle` (the sticky detail panel; capped and scrollable below 1024px so it never covers the network), `.red-leyenda`, and for the scatter `.cruce-svg` / `.cruce-punto.tipo-*` / `.cruce-guia`. State is never colour alone: the detail panel, the legend and the report table say the same in words, and the type of each subject ("Costo que se propaga", "Bloquea más de lo que cuesta", "Costo contenido") is a text badge. Layout is computed server-side (NetworkX, columns by plan cycle, barycentre ordering to cut crossings); the browser only toggles classes from `#red-datos`. Copy rule: *bloqueos* (failures × dependent subjects) is a count of what happened, never a forecast.
 
 ## Colors
 
@@ -159,7 +163,7 @@ Both load from Google Fonts (`base.html`, `display=swap`) and fully cover Spanis
 
 ## Layout
 
-App shell: a persistent left sidebar (`.sidebar`, fixed 15.5rem, two link groups — "Inteligencia institucional" for the preview pages, "Módulos operativos" for the four real transactional modules) plus a slim sticky top bar (`.topbar`) carrying the live `SET LOCAL ROLE` badge, theme toggle, user identity, and logout. Below 1024px the sidebar becomes an off-canvas drawer (`.sidebar.is-open`, slide-in + backdrop) triggered by a hamburger button in the top bar. The drawer carries the user's name and role (`.sidebar-user`), since the top bar no longer has room for them; the role-telemetry badge in the top bar appears from 640px up. See Responsive behavior below.
+App shell: a persistent left sidebar (`.sidebar`, fixed 15.5rem, two link groups — "Inteligencia institucional" for the analytics screens (coordinator only), "Módulos operativos" for the four transactional modules) plus a slim sticky top bar (`.topbar`) carrying the live `SET LOCAL ROLE` badge, theme toggle, user identity, and logout. Below 1024px the sidebar becomes an off-canvas drawer (`.sidebar.is-open`, slide-in + backdrop) triggered by a hamburger button in the top bar. The drawer carries the user's name and role (`.sidebar-user`), since the top bar no longer has room for them; the role-telemetry badge in the top bar appears from 640px up. See Responsive behavior below.
 
 ### Responsive behavior (phones and tablets)
 
@@ -231,7 +235,7 @@ Structurally unchanged from the prior system's October 2026 addition — see the
 ### Graph & Modal (new)
 - **`.graph-node`** / **`.graph-edge`**: SVG-drawn curricular graph nodes/edges — `.is-blocked` (danger tint), `.is-approved` (success tint), `.is-bottleneck` (thicker danger stroke). Never approximated with `clip-path` or a raster image — the mesh is real SVG geometry.
 - **`.modal-backdrop`** / **`.modal-panel`**: centered overlay with backdrop blur, used for the student graph-detail view. Its Cypher/telemetry content is illustrative (see Honesty Boundary) and says so via inline comment in `dashboard.html`.
-- **`.preview-banner`**: the required marker for any screen backed by an unbuilt engine — see Honesty Boundary.
+- **`.preview-banner`**: the required marker for any screen backed by an unbuilt engine — see Honesty Boundary. No screen uses it today.
 
 ## Do's and Don'ts
 
@@ -241,7 +245,7 @@ Structurally unchanged from the prior system's October 2026 addition — see the
 - **Do** keep `--color-brand` and `--color-danger-text` visually distinct reds — never let a primary action and a critical alert share the same hue weight.
 - **Do** cast a real `box-shadow` on cards — this system's elevation is real, not implied by gradient.
 - **Do** use Plus Jakarta Sans/Inter for everything except telemetry (JetBrains Mono).
-- **Do** open any screen backed by an unbuilt engine (Neo4j GDS, OLAP cube) with `.preview-banner`, and comment illustrative data as such in the template.
+- **Do** open any screen backed by an unbuilt engine with `.preview-banner`, and comment illustrative data as such in the template.
 - **Do** phrase any unverified advisory (schedule/prerequisite hints) as a suggestion, never a pass/fail claim.
 - **Do** animate a progress fill with `transform: scaleX()`, never `width`.
 
@@ -251,5 +255,5 @@ Structurally unchanged from the prior system's October 2026 addition — see the
 - **Don't** hardcode a hex color in a template — reference a theme token or a component class.
 - **Don't** use `border-radius: 999px` (pill shapes) anywhere.
 - **Don't** fabricate a named fictional persona, a specific legal/regulatory citation, or a live query measurement (e.g. "Query Time: 2.14ms") without disclosing it as illustrative — see Honesty Boundary.
-- **Don't** let a mockup page (Dashboard, OLAP) go without its `.preview-banner`, or let a real feature (the CSV exports) get demoted to decorative inside a mockup page.
+- **Don't** let a mockup page go without its `.preview-banner`, or let a real feature get demoted to decorative inside a mockup page. And don't put a forecast on a screen: the project is descriptive and diagnostic.
 - **Don't** reintroduce Bootstrap or a second CSS framework alongside Tailwind.

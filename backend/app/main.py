@@ -17,7 +17,10 @@ from .routers import (
     auth,
     calificaciones,
     costos,
+    cubo_olap,
+    dashboard_estrategico,
     matricula,
+    red_curricular,
     reportes,
     vista_ejecutiva,
 )
@@ -46,6 +49,9 @@ app.include_router(reportes.router)
 app.include_router(costos.router)
 app.include_router(vista_ejecutiva.router)
 app.include_router(analisis_diagnostico.router)
+app.include_router(red_curricular.router)
+app.include_router(dashboard_estrategico.router)
+app.include_router(cubo_olap.router)
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -65,29 +71,6 @@ async def manejar_excepcion_http(request: Request, exc: StarletteHTTPException):
         )
 
     return await http_exception_handler(request, exc)
-
-
-@app.get("/dashboard")
-def dashboard(
-    request: Request,
-    usuario: UsuarioSesion = Depends(usuario_actual),
-):
-    # Vista previa ilustrativa: el motor de grafo curricular en Neo4j (DAG de
-    # prerrequisitos, centralidad de intermediación) y la capa OLAP son Fases
-    # 3-4 del roadmap (ver PRODUCT.md) — todavía no implementadas. Esta
-    # pantalla muestra la visión del sistema con datos de ejemplo, marcados
-    # como tales, nunca como un resultado real de una consulta.
-    return templates.TemplateResponse(request, "dashboard.html", {"usuario": usuario})
-
-
-@app.get("/analitica-olap")
-def analitica_olap(
-    request: Request,
-    usuario: UsuarioSesion = Depends(usuario_actual),
-):
-    # Misma nota que /dashboard: maqueta ilustrativa de la capa OLAP/BI
-    # (Fase 4, pendiente), no una consulta real contra fact_rendimiento_academico.
-    return templates.TemplateResponse(request, "analitica_olap.html", {"usuario": usuario})
 
 
 @app.get("/")

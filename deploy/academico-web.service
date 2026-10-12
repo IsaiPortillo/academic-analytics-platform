@@ -1,0 +1,24 @@
+# La aplicación web (FastAPI) de Sistema Minerva.
+#
+#   cp deploy/academico-web.service /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now academico-web
+#
+# Escucha solo en 127.0.0.1:8000: la única puerta pública es nginx. Sin --reload en servidor.
+
+[Unit]
+Description=Sistema Minerva (FastAPI) - academic-analytics-platform
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/var/www/academic-analytics-platform
+ExecStart=/var/www/academic-analytics-platform/.venv/bin/python -m uvicorn --app-dir backend app.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

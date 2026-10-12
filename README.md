@@ -61,6 +61,7 @@ academic-analytics-platform/
 │   ├── app/dw.py               # Fase 4: consultas al DW con rol_dashboard (sin acceso al OLTP)
 │   ├── app/indicadores.py      # Fase 4: definición de los KPIs y su interpretación en texto
 │   ├── app/indicadores_diagnostico.py  # Fase 4.2: lecturas diagnósticas y pruebas estadísticas
+│   ├── app/red_curricular.py   # Fase 4.3: la malla como grafo (NetworkX), cruce costo × posición y su lectura
 │   ├── app/verificar_dw.py     # Demuestra que la vista ejecutiva no puede leer el OLTP
 │   ├── tests/                  # Pruebas de los KPIs (sin base de datos)
 │   └── scripts/                # Utilidades de administración (alta de usuarios)
@@ -123,7 +124,7 @@ academic-analytics-platform/
 ### Fase 4: Dashboard Analítico e Inteligencia de Negocios
 - [x] **4.1:** Vista ejecutiva con los KPIs de costo y rendimiento, filtrados por período, carrera y departamento.
 - [x] **4.2:** Matriz de correlaciones, análisis por cohorte e identificación de los estudiantes que presentan el patrón de riesgo observado.
-- [ ] **4.3:** Visualización interactiva de la red curricular (PyVis / NetworkX) y reporte de asignaturas críticas/cuellos de botella, cruzado con el costo.
+- [x] **4.3:** Visualización interactiva de la red curricular (NetworkX, desde el grafo de Neo4j vía el ETL) y reporte de asignaturas críticas/cuellos de botella, cruzado con el costo.
 
 > **Alcance analítico:** el proyecto se limita a los niveles **descriptivo** («¿qué ocurrió?») y
 > **diagnóstico** («¿por qué ocurrió?»). Predictivo y prescriptivo quedan fuera. Por eso el punto
@@ -196,7 +197,7 @@ En el **primer arranque sobre un volumen vacío**, PostgreSQL ejecuta automátic
 scripts de `database/oltp/` en orden alfabético (`01_init...` → `05_usuarios_auth` →
 `06_bootstrap_rol_app` → `07_bootstrap_rol_etl` → `08_costos_institucionales` → … →
 `10_dw_academico` → `11_bootstrap_rol_dashboard` → `12_dw_diagnostico` →
-`13_dw_cierre_scrum35` → `14_bootstrap_rol_dw_carga`): crea el esquema operacional, la tabla de
+`13_dw_cierre_scrum35` → `14_bootstrap_rol_dw_carga` → `15_dw_red_curricular`): crea el esquema operacional, la tabla de
 usuarios de la aplicación, el rol de servicio de la app, el rol de solo lectura del ETL, el
 catálogo de costos institucionales, el Data Warehouse, el rol de solo lectura del dashboard y
 el rol que escribe el DW.
@@ -369,15 +370,17 @@ Solo necesita `POSTGRES_*` y `DASHBOARD_DB_PASSWORD` en el `.env` (ver `.env.exa
 `APP_*` ni ninguna credencial del backend. Se conecta como `rol_dashboard`, que PostgreSQL
 limita a `SELECT` sobre `dw_academico`.
 
-> **Seguridad:** esta app **no tiene inicio de sesión** (la vista `/vista-ejecutiva` sí exige un
-> coordinador). Por eso `.streamlit/config.toml` la deja escuchando solo en `127.0.0.1`. No la
-> expongas a una red ni a internet sin poner antes un proxy con autenticación.
+> **Seguridad:** esta app **no tiene inicio de sesión propio** (la vista `/vista-ejecutiva` sí exige
+> un coordinador). Por eso `.streamlit/config.toml` la deja escuchando solo en `127.0.0.1`. Para
+> abrirla con un enlace sin túnel, publícala detrás de nginx con la sesión de la app web: ver
+> «Dashboard de Streamlit con enlace y login» en la sección de despliegue. No la expongas a una red ni
+> a internet de ninguna otra forma.
 
 ### 12. Análisis diagnóstico y validación de datos (Fase 4.2)
 
 ```bash
 python -m etl.carga                 # el DW necesita database/oltp/12_dw_diagnostico.sql
-python -m etl.validar_dw            # 66 verificaciones entre capas + registro para la memoria
+python -m etl.validar_dw            # 88 verificaciones entre capas + registro para la memoria
 ```
 
 Pantalla **Análisis diagnóstico** (mismo menú, solo coordinador): matriz de correlaciones,
@@ -389,6 +392,40 @@ reportes del coordinador caso por caso, y escribe
 [`docs/validacion/registro_validacion.md`](docs/validacion/registro_validacion.md). Detalle,
 hallazgos y guía de pruebas en
 [`docs/FASE-4.2_analisis_diagnostico.txt`](docs/FASE-4.2_analisis_diagnostico.txt).
+
+### 13. Red curricular y materias cuello de botella (Fase 4.3)
+
+```bash
+python -m etl.carga                 # lleva las relaciones de la malla de Neo4j al DW (database/oltp/15)
+( cd backend && python -m unittest discover -s tests -v )   # 34 pruebas de la red, sin base de datos
+```
+
+Pantalla **Red curricular** (`/red-curricular`, mismo menú, solo coordinador): las 16 materias y sus
+relaciones de prerrequisito como red interactiva (elegir una materia resalta lo que bloquea y lo que
+hay que aprobar antes), el reporte de materias cuello de botella y el cruce del costo de reprobación
+con la posición de cada materia en la malla, con la lectura en texto de cada pieza. La malla se
+origina en Neo4j pero la pantalla la lee del Data Warehouse, con `rol_dashboard`: no necesita
+credenciales del grafo. Neo4j recién creado arranca vacío: carga primero la malla
+(`python database/nosql/03_cargar_grafo_neo4j.py`). Detalle, método y guía de pruebas en
+[`docs/FASE-4.3_red_curricular.txt`](docs/FASE-4.3_red_curricular.txt).
+
+### 14. Dashboard estratégico y cubo OLAP (datos reales)
+
+Dos pantallas del menú «Inteligencia institucional» (solo coordinador) que antes eran maquetas con cifras de
+ejemplo y ahora leen el Data Warehouse con `rol_dashboard`, sin consultar el sistema transaccional ni Neo4j:
+
+- **Dashboard estratégico** (`/dashboard`): estudiantes evaluados, tasa de aprobación y costo de reprobación con su
+  variación contra el período anterior, aprobación por ciclo del plan, reprobación por período y las materias que
+  más frenan la malla, con la lectura en texto de cada pieza.
+- **Cubo OLAP** (`/analitica-olap`): eliges hasta tres dimensiones (período, departamento, carrera, ciclo del plan,
+  área, materia, turno, cohorte) y PostgreSQL calcula con `GROUP BY ROLLUP` o `CUBE` las medidas de cada
+  combinación, los subtotales y el total. El usuario nunca escribe SQL: elige claves de un catálogo fijo. Se
+  descarga en CSV y `etl/validar_dw.py` concilia sus totales contra los hechos del DW.
+
+Quedaron fuera a propósito las «alertas de deserción» de la maqueta: son predictivas y el proyecto se limita a los
+niveles descriptivo y diagnóstico. Su equivalente descriptivo, los estudiantes que **ya presentan** el patrón de
+riesgo observado, está en Análisis diagnóstico. Detalle en
+[`docs/FASE-4.4_dashboard_y_cubo.txt`](docs/FASE-4.4_dashboard_y_cubo.txt).
 
 ---
 
@@ -435,8 +472,30 @@ WantedBy=multi-user.target
 sudo systemctl daemon-reload && sudo systemctl enable --now academico-web
 ```
 
-**5. Streamlit** (`dashboard/`) no tiene login: déjalo en `127.0.0.1:8501` y entra por túnel SSH
-(`ssh -L 8501:127.0.0.1:8501 usuario@servidor`). No lo publiques por nginx sin autenticación.
+**5. Dashboard de Streamlit con enlace y login.** `dashboard/` no tiene login propio y escucha solo en
+`127.0.0.1:8501`. Para abrirlo con un enlace (sin túnel SSH) se publica en `/analitica/` y nginx
+**exige antes la sesión de la app web**: la misma cookie y los mismos usuarios, sin otra contraseña
+ni otra lista de usuarios. Solo entra el coordinador (igual que `/vista-ejecutiva`).
+
+```
+visitante ─> nginx ─ auth_request ─> app web  GET /auth/verificar   204 coordinador · 401 sin sesión · 403 otro rol
+                 └── si pasa ──────> Streamlit 127.0.0.1:8501 (bajo /analitica/)
+                 └── si no (401) ──> redirige a /login?siguiente=/analitica/   (vuelve al dashboard al entrar)
+```
+
+Pasos (todo en `deploy/`; comandos como root, los de Python como `ubuntu`):
+1. Servicio: `cp deploy/academico-streamlit.service /etc/systemd/system/ && systemctl daemon-reload &&
+   systemctl enable --now academico-streamlit` (usa el venv, el `.env` y `STREAMLIT_SERVER_BASE_URL_PATH=analitica`).
+2. nginx: incorpora a tu vhost los bloques `location = /_auth_coordinador`, `location /analitica/` y los
+   dos `@…` de `deploy/nginx-edumetrics.conf` (ese archivo es el vhost completo de referencia), y el `map`
+   `$esquema_publico` en `conf.d/`. Valida y recarga: `nginx -t && systemctl reload nginx`. Requiere
+   `ngx_http_auth_request_module`, que trae `nginx-light`, `nginx-core` y `nginx-full`
+   (`nginx -V 2>&1 | grep auth_request`).
+3. `.env`: `DASHBOARD_STREAMLIT_URL=/analitica/` (agrega «Dashboard interactivo» al menú) y reinicia `academico-web`.
+
+Comprobación: sin sesión, `/analitica/` redirige al login; con un docente responde 403; con un coordinador
+carga el dashboard. Cerrar sesión en la app corta el acceso a las páginas nuevas; una pestaña de Streamlit ya
+abierta sigue viva hasta que se cierre o recargue.
 
 **6. Lista de seguridad antes de abrirlo a internet**
 - `MODO_DEMO=false` en `.env` (es el valor por defecto).
@@ -538,6 +597,18 @@ docker exec -i academico_postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v 
 docker exec -i -e POSTGRES_USER -e POSTGRES_DB -e DASHBOARD_DB_USER -e DASHBOARD_DB_PASSWORD     academico_postgres bash -s < database/oltp/11_bootstrap_rol_dashboard.sh
 python -m etl.carga
 ```
+
+**`relation "dw_academico.bridge_prerrequisito" does not exist` al cargar el DW o al abrir la red curricular**
+Tu DW se creó antes de la Fase 4.3. Aplica la migración (idempotente), instala la dependencia nueva y recarga:
+```bash
+pip install -r backend/requirements.txt
+docker exec -i academico_postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1     < database/oltp/15_dw_red_curricular.sql
+python -m etl.carga
+```
+Si `etl.carga` falla con la malla vacía, Neo4j arrancó sin datos: `python database/nosql/03_cargar_grafo_neo4j.py`.
+
+**`ModuleNotFoundError: No module named 'networkx'`**
+Falta la dependencia de la Fase 4.3: `pip install -r backend/requirements.txt` (con el entorno virtual activo).
 
 **`password authentication failed for user "rol_dw_carga"`, `DW_CARGA_DB_PASSWORD` faltante o `column "seccion_key" does not exist` al cargar el DW**
 Tu DW se creó antes del cierre de SCRUM-35 (dimensiones de docente y sección, `costo_repeticion` y
@@ -648,7 +719,8 @@ Streamlit se había reservado para la **Fase 4 (dashboard analítico)**.
 > definiciones de los KPIs y las consultas, y cumplen lo que el requisito pedía de fondo: leen
 > **solo** `dw_academico`, con un rol de solo lectura propio (`rol_dashboard`) y credenciales
 > desde `.env`. La diferencia es de acceso: la vista web exige sesión de coordinador; la app
-> Streamlit no tiene login y solo escucha en `127.0.0.1`.
+> Streamlit no tiene login propio, escucha solo en `127.0.0.1` y, publicada, queda detrás de nginx con la
+> sesión de la app web (ver «Despliegue en un servidor»).
 
 > **Actualización (septiembre 2026):** la capa visual migró de Bootstrap 5.3 (CDN) a
 > **Tailwind CSS v4**, compilado con el binario standalone (`scripts/setup-tailwind.sh`, sin

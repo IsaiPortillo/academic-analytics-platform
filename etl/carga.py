@@ -44,7 +44,7 @@ ESQUEMA_DW = "dw_academico"
 
 # Orden de inserción: dimensiones antes que hechos, por las llaves foráneas.
 TABLAS_DW = [
-    "dim_periodo", "dim_carrera", "dim_materia", "dim_estudiante",
+    "dim_periodo", "dim_carrera", "dim_materia", "bridge_prerrequisito", "dim_estudiante",
     "dim_docente", "dim_seccion", "fact_inscripcion",
 ]
 
@@ -83,6 +83,14 @@ def preparar_tablas(resultado: ResultadoTransformacion) -> dict[str, pd.DataFram
         "dependientes_directos", "dependientes_indirectos", "dependientes_totales",
         "longitud_cascada", "indice_bloqueo", "es_cuello_botella",
     ]]
+
+    # Relaciones de la malla (SCRUM-46): puente de dim_materia consigo misma.
+    llave_materia = _mapa(dim_materia, "materia_id", "materia_key")
+    prerrequisitos = ds.get("prerrequisitos", pd.DataFrame(columns=["materia_id", "prerrequisito_id"]))
+    bridge_prerrequisito = pd.DataFrame({
+        "materia_key": prerrequisitos["materia_id"].map(llave_materia),
+        "prerrequisito_key": prerrequisitos["prerrequisito_id"].map(llave_materia),
+    }).astype("int64")
 
     dim_estudiante = _asignar_llave(ds["estudiantes"], "estudiante_id", "estudiante_key")
     dim_estudiante["carrera_key"] = dim_estudiante["carrera_id"].map(llave_carrera)
@@ -155,6 +163,7 @@ def preparar_tablas(resultado: ResultadoTransformacion) -> dict[str, pd.DataFram
         "dim_periodo": dim_periodo,
         "dim_carrera": dim_carrera,
         "dim_materia": dim_materia,
+        "bridge_prerrequisito": bridge_prerrequisito,
         "dim_estudiante": dim_estudiante,
         "dim_docente": dim_docente,
         "dim_seccion": dim_seccion,

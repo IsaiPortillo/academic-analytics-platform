@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge %}
+{% block titulo %}Red curricular{% endblock %}
+
+{% block contenido %}
+<div class="flex items-start justify-between flex-wrap gap-3 mb-4">
+    <div>
+        <h1 class="page-title mb-1">Red curricular: dónde se concentra el costo</h1>
+        <p class="text-sm text-muted">
+            Nivel diagnóstico — ¿por qué el costo de una materia se propaga al resto del plan? Describe lo que
+            ya ocurrió en la malla; no pronostica ni recomienda.
+        </p>
+    </div>
+    <span class="telemetry-badge"><span class="dot"></span>Data Warehouse · malla desde Neo4j (ETL) · rol_dashboard</span>
+</div>
+
+{% if error %}
+<div class="alert alert-danger" role="alert"><span>{{ error }}</span></div>
+{% else %}
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" action="/red-curricular" class="filter-bar">
+            <div>
+                <label for="periodo" class="field-label">Período</label>
+                <select id="periodo" name="periodo" class="select" onchange="this.form.submit()">
+                    <option value="todos" {% if periodo == "todos" %}selected{% endif %}>Todos los períodos</option>
+                    {% for codigo in periodos|reverse %}
+                    <option value="{{ codigo }}" {% if codigo == periodo %}selected{% endif %}>{{ codigo }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="departamento" class="field-label">Departamento</label>
+                <select id="departamento" name="departamento" class="select" onchange="this.form.submit()">
+                    <option value="">Todos</option>
+                    {% for d in departamentos %}
+                    <option value="{{ d.codigo_departamento }}" {% if d.codigo_departamento == departamento %}selected{% endif %}>{{ d.nombre_departamento }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="carrera" class="field-label">Carrera</label>
+                <select id="carrera" name="carrera" class="select" onchange="this.form.submit()">
+                    <option value="">Todas</option>
+                    {% for c in carreras %}
+                    <option value="{{ c.codigo_carrera }}" {% if c.codigo_carrera == carrera %}selected{% endif %}>{{ c.nombre_carrera }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+        <p class="text-xs text-muted mt-2">
+            Los filtros acotan el <strong>costo</strong> y las reprobaciones; la malla (materias y prerrequisitos)
+            es siempre la misma.
+        </p>
+    </div>
+</div>
+
+{% if supuesto %}
+<div class="alert alert-warning mb-4" role="note">
+    <span>
+        <strong>Costo por unidad valorativa: {{ supuesto.cifra }}, supuesto paramétrico.</strong>
+        No es una cifra presupuestaria oficial de la UES (fuente registrada: “{{ supuesto.fuente }}”).
+        Los montos muestran el orden de magnitud y se recalculan solos cuando se registre la cifra oficial.
+    </span>
+</div>
+{% endif %}
+
+{% if discrepancias %}
+<div class="alert alert-danger mb-4" role="alert">
+    <span>
+        <strong>La estructura de la malla y sus métricas no coinciden.</strong>
+        Las relaciones guardadas en el Data Warehouse dan otras cifras que las calculadas en Neo4j
+        ({{ discrepancias|length }} diferencia{{ 's' if discrepancias|length != 1 }}, p. ej. {{ discrepancias[0] }}).
+        Recarga con <code>python -m etl.carga</code>.
+    </span>
+</div>
+{% endif %}
+
+<div class="kpi-grid mb-6">
+    <div class="kpi-card kpi-card-wash">
+        <div class="kpi-label">Materias en la malla</div>
+        <div class="kpi-value">{{ resumen.materias }}</div>
+        <div class="text-xs text-muted">{{ resumen.relaciones }} relaciones de prerrequisito</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Cuellos de botella</div>
+        <div class="kpi-value{% if resumen.cuellos %} kpi-value-alert{% endif %}">{{ resumen.cuellos }}</div>
+        <div class="text-xs text-muted">bloquean al menos 25 % del resto del plan</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Cadena más larga</div>
+        <div class="kpi-value">{{ resumen.cadena }}</div>
+        <div class="text-xs text-muted">materias encadenadas por prerrequisitos</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Costo en cuellos de botella</div>
+        <div class="kpi-value">{{ resumen.pct_costo_cuellos_texto }}</div>
+        <div class="text-xs text-muted">del costo de reprobación · {{ etiqueta_periodo }}</div>
+    </div>
+</div>
+
+{# ------------------------------------------------------------------ #}
+<h2 class="page-subtitle mb-2">La malla como red</h2>
+<div class="card mb-6">
+    <div class="card-body">
+        <div id="red-detalle" class="red-detalle" aria-live="polite">
+            <p class="text-sm text-muted">Toca una materia de la red para ver qué bloquea y qué exige.</p>
+        </div>
+
+        <div class="red-lienzo" id="red-lienzo" tabindex="0" role="region" aria-label="Red curricular (se desplaza horizontalmente)">
+            <svg id="red-svg" viewBox="0 0 {{ disposicion.ancho }} {{ disposicion.alto }}"
+                 width="{{ disposicion.ancho }}" height="{{ disposicion.alto }}"
+                 role="group" aria-label="Malla curricular: {{ resumen.materias }} materias y {{ resumen.relaciones }} relaciones de prerrequisito">
+                {% for c in disposicion.columnas %}
+                <text class="red-rotulo" x="{{ c.x }}" y="22">{{ c.etiqueta }}</text>
+                {% endfor %}
+
+                {% for a in aristas %}
+                <g class="red-arista" data-origen="{{ a.origen }}" data-destino="{{ a.destino }}">
+                    <path class="graph-edge" d="{{ a.d }}" />
+                </g>
+                {% endfor %}
+
+                {% for n in nodos %}
+                <g class="red-nodo{% if n.cuello %} is-bottleneck{% endif %}" data-codigo="{{ n.codigo }}"
+                   transform="translate({{ n.x }},{{ n.y }})" tabindex="0" role="button" aria-pressed="false"
+                   aria-label="{{ n.codigo }}, {{ n.nombre }}: bloquea {{ n.totales }} materias{% if n.cuello %}, cuello de botella{% endif %}">
+                    <title>{{ n.nombre }} — ciclo {{ n.ciclo }}. Bloquea {{ n.totales }} materias ({{ n.pct_plan }} del plan). Costo de reprobación {{ n.costo }}.</title>
+                    <rect class="graph-node red-caja{% if n.cuello %} is-bottleneck{% endif %}" width="{{ ancho_nodo }}" height="{{ alto_nodo }}" rx="12"
+                          style="--calor: {{ '%.3f'|format(n.calor) }};" />
+                    <text class="red-cod" x="12" y="22">{{ n.codigo }}</text>
+                    <text class="red-nom" x="12" y="39">{{ n.nombre[:21] }}{% if n.nombre|length > 21 %}…{% endif %}</text>
+                    <text class="red-met" x="12" y="56">Bloquea {{ n.totales }} · {{ n.costo }}</text>
+                </g>
+                {% endfor %}
+            </svg>
+        </div>
+        <p class="text-xs text-muted mt-2">Desplaza la red hacia la derecha para recorrer todos los ciclos; el panel de arriba se queda a la vista.</p>
+
+        <div class="red-leyenda" aria-label="Leyenda">
+            <span><i class="red-muestra is-seleccion"></i>Materia elegida</span>
+            <span><i class="red-muestra is-dependiente"></i>Se bloquea si se reprueba la elegida</span>
+            <span><i class="red-muestra is-prerrequisito"></i>Hay que aprobarla antes</span>
+            <span><i class="red-muestra is-cuello"></i>Cuello de botella</span>
+            <span><i class="red-muestra is-calor"></i>Más dependientes = más oscura</span>
+        </div>
+        <p class="text-xs text-muted mt-2">
+            Las relaciones avanzan de izquierda a derecha: de la materia que hay que aprobar a la que la exige
+            (columnas {{ 'por ciclo del plan' if disposicion.criterio_columnas == 'ciclo' else 'por profundidad en la cadena de prerrequisitos' }}).
+        </p>
+        <button type="button" class="btn-outline-neutral mt-3" id="red-reiniciar">Ver toda la red</button>
+
+        <p class="kpi-interpretacion">{{ lectura_estructura }}</p>
+    </div>
+</div>
+
+{# ------------------------------------------------------------------ #}
+<h2 class="page-subtitle mb-2">Materias cuello de botella</h2>
+<div class="card mb-6">
+    <div class="card-header">Reporte: materias ordenadas por cuántas otras bloquean</div>
+    <div class="table-wrap">
+        <table class="table table-sticky-first">
+            <thead>
+                <tr>
+                    <th>Materia</th>
+                    <th class="text-center">Ciclo</th>
+                    <th class="text-center">Dependientes directos</th>
+                    <th class="text-center">Dependientes indirectos</th>
+                    <th class="text-center">Total</th>
+                    <th class="text-center">% del plan</th>
+                    <th class="text-center">Cascada (ciclos)</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in tabla %}
+                <tr>
+                    <td>
+                        <div class="font-semibold">{{ m.codigo_materia }}</div>
+                        <div class="text-xs text-muted">{{ m.nombre_materia }}</div>
+                    </td>
+                    <td class="text-center">{{ m.ciclo_plan }}</td>
+                    <td class="text-center">{{ m.dependientes_directos }}</td>
+                    <td class="text-center">{{ m.dependientes_indirectos }}</td>
+                    <td class="text-center font-semibold">{{ m.dependientes_totales }}</td>
+                    <td class="text-center">{{ m.pct_plan_texto }}</td>
+                    <td class="text-center">{{ m.longitud_cascada }}</td>
+                    <td>{% if m.es_cuello_botella %}{{ badge('danger', 'Cuello de botella') }}{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="card-body border-t border-border">
+        <p class="kpi-interpretacion" style="margin-top: 0; padding-top: 0; border-top: none;">{{ lectura_cuellos }}</p>
+    </div>
+</div>
+
+{# ------------------------------------------------------------------ #}
+<h2 class="page-subtitle mb-2">Costo según la posición en la malla · {{ etiqueta_periodo }}</h2>
+<div class="grid grid-cols-1 xl:grid-cols-[1.05fr_1fr] gap-3 mb-6">
+    <div class="card">
+        <div class="card-header">Costo de reprobación frente a materias dependientes</div>
+        <div class="card-body">
+            {% set g = dispersion %}
+            <div class="cruce-lienzo">
+            <svg class="cruce-svg" viewBox="0 0 {{ g.ancho }} {{ g.alto }}" role="img"
+                 aria-label="Dispersión: costo de reprobación (horizontal) contra materias dependientes (vertical), una materia por punto. El detalle está en la tabla de al lado.">
+                {% for m in g.marcas_y %}
+                <line class="cruce-rejilla" x1="{{ g.area.x1 }}" x2="{{ g.area.x2 }}" y1="{{ m.y }}" y2="{{ m.y }}" />
+                <text class="cruce-marca" x="{{ g.area.x1 - 8 }}" y="{{ m.y + 4 }}" text-anchor="end">{{ m.texto }}</text>
+                {% endfor %}
+                {% for m in g.marcas_x %}
+                <text class="cruce-marca" x="{{ m.x }}" y="{{ g.area.y2 + 18 }}" text-anchor="middle">{{ m.texto }}</text>
+                {% endfor %}
+                <line class="cruce-eje" x1="{{ g.area.x1 }}" x2="{{ g.area.x2 }}" y1="{{ g.area.y2 }}" y2="{{ g.area.y2 }}" />
+                <line class="cruce-eje" x1="{{ g.area.x1 }}" x2="{{ g.area.x1 }}" y1="{{ g.area.y1 }}" y2="{{ g.area.y2 }}" />
+
+                {% if g.x_mediana %}
+                <line class="cruce-guia" x1="{{ g.x_mediana }}" x2="{{ g.x_mediana }}" y1="{{ g.area.y1 }}" y2="{{ g.area.y2 }}" />
+                <text class="cruce-guia-texto" x="{{ g.x_mediana + 4 }}" y="{{ g.area.y2 - 6 }}">costo mediano</text>
+                {% endif %}
+                {% if g.y_cuello %}
+                <line class="cruce-guia" x1="{{ g.area.x1 }}" x2="{{ g.area.x2 }}" y1="{{ g.y_cuello }}" y2="{{ g.y_cuello }}" />
+                <text class="cruce-guia-texto" x="{{ g.area.x2 }}" y="{{ g.y_cuello - 4 }}" text-anchor="end">umbral de cuello de botella ({{ g.umbral_dependientes|round(1) }} dependientes)</text>
+                {% endif %}
+
+                {% for p in g.puntos %}
+                <g>
+                    <title>{{ p.titulo }}</title>
+                    <circle class="cruce-punto tipo-{{ p.tipo }}" cx="{{ p.cx }}" cy="{{ p.cy }}" r="5.5" />
+                    {% if p.con_rotulo %}<text class="cruce-rotulo" x="{{ p.cx + 8 }}" y="{{ p.ty + 3 }}">{{ p.codigo }}</text>{% endif %}
+                </g>
+                {% endfor %}
+
+                <text class="cruce-eje-texto" x="{{ (g.area.x1 + g.area.x2) / 2 }}" y="{{ g.alto - 4 }}" text-anchor="middle">Costo de reprobación ({{ moneda }})</text>
+                <text class="cruce-eje-texto" transform="translate(12,{{ (g.area.y1 + g.area.y2) / 2 }}) rotate(-90)" text-anchor="middle">Materias dependientes</text>
+            </svg>
+            </div>
+            {% if g.eje_x_recortado %}
+            <p class="text-xs text-muted mt-2">El eje horizontal no parte de cero: los costos son parecidos entre materias y así se distinguen. Las marcas muestran el valor real.</p>
+            {% endif %}
+            <div class="red-leyenda">
+                {% for clave, texto in tipos.items() %}
+                <span><i class="cruce-muestra tipo-{{ clave }}"></i>{{ texto }}</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Cómo se lee cada cuadrante</div>
+        <div class="card-body text-sm" style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <div><strong>Costo que se propaga.</strong> Cuello de botella con costo de reprobación entre la mitad más alta:
+                lo que cuesta se multiplica porque cada reprobación detiene a quienes dependen de ella.</div>
+            <div><strong>Bloquea más de lo que cuesta.</strong> Cuello de botella con poco costo directo: su importancia
+                no se ve en el costo, solo en la red.</div>
+            <div><strong>Costo contenido.</strong> Costo alto en una materia que no bloquea una parte grande del plan:
+                el costo se queda en ella.</div>
+            <div class="text-muted"><strong>Bloqueos</strong> = reprobados × materias dependientes: cuántos pares
+                «reprobación – materia que queda sin poder cursarse» hubo en el historial. Es un conteo de lo ocurrido,
+                no una proyección.</div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">Reporte: costo de reprobación cruzado con la posición en la malla</div>
+    <div class="table-wrap">
+        <table class="table table-sticky-first">
+            <thead>
+                <tr>
+                    <th>Materia</th>
+                    <th class="text-center">Dependientes</th>
+                    <th class="text-center">Reprobados</th>
+                    <th class="text-center">Tasa</th>
+                    <th class="text-center">Costo ({{ moneda }})</th>
+                    <th class="text-center">% del costo</th>
+                    <th class="text-center">Bloqueos</th>
+                    <th>Lectura</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in tabla|sort(attribute='costo_reprobacion', reverse=True) %}
+                <tr>
+                    <td>
+                        <div class="font-semibold">{{ m.codigo_materia }}</div>
+                        <div class="text-xs text-muted">{{ m.nombre_materia }}</div>
+                    </td>
+                    <td class="text-center">{{ m.dependientes_totales }}</td>
+                    <td class="text-center">{{ m.reprobados }}</td>
+                    <td class="text-center">{{ m.tasa_texto }}</td>
+                    <td class="text-center font-semibold">{{ m.costo_texto }}</td>
+                    <td class="text-center">{{ m.pct_costo_texto }}</td>
+                    <td class="text-center">{{ m.bloqueos }} <span class="text-xs text-muted">({{ m.pct_bloqueos_texto }})</span></td>
+                    <td>
+                        {% if m.tipo == 'propaga' %}{{ badge('danger', m.tipo_texto) }}
+                        {% elif m.tipo == 'estructural' %}{{ badge('warning', m.tipo_texto) }}
+                        {% elif m.tipo == 'contenido' %}{{ badge('neutral', m.tipo_texto) }}
+                        {% else %}<span class="text-muted">—</span>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="card-body border-t border-border">
+        <p class="kpi-interpretacion" style="margin-top: 0; padding-top: 0; border-top: none;">{{ lectura_cruce }}</p>
+    </div>
+</div>
+
+{% if ultima_carga %}
+<p class="text-xs text-muted">
+    Última carga del Data Warehouse: {{ ultima_carga.ejecutada_en.strftime("%Y-%m-%d %H:%M") }} UTC
+    · fecha de corte {{ ultima_carga.fecha_corte }}. La malla se cargó desde Neo4j por el ETL; esta vista no
+    consulta ni Neo4j ni el sistema transaccional: lee solo el Data Warehouse.
+</p>
+{% endif %}
+
+{# Datos de la red para la interacción (sin consultas adicionales): ver app.js. #}
+<script type="application/json" id="red-datos">{{ red_datos | tojson }}</script>
+
+{% endif %}
+{% endblock %}

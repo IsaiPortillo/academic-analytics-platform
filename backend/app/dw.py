@@ -322,3 +322,76 @@ def estudiantes_con_patron(filtros: Filtros, limite: int = 50) -> pd.DataFrame:
         ORDER BY COUNT(*) DESC, AVG(f.nota_final), e.estudiante_id
         LIMIT :limite
     """, params)
+
+
+# ---------------------------------------------------------------------------
+# Red curricular y materias cuello de botella — Fase 4.3 (SCRUM-46)
+#
+# La malla se dibuja con lo que el ETL trajo de Neo4j: las métricas viven en
+# dim_materia (SCRUM-35) y las relaciones en bridge_prerrequisito (script 15).
+# La pantalla no necesita ninguna credencial del grafo.
+# ---------------------------------------------------------------------------
+
+def malla() -> pd.DataFrame:
+    """Nodos de la malla con las métricas de grafo calculadas en Neo4j."""
+    return _leer("""
+        SELECT codigo_materia, nombre_materia, ciclo_plan, unidades_valorativas, area,
+               en_grafo, dependientes_directos, dependientes_indirectos,
+               dependientes_totales, longitud_cascada, indice_bloqueo, es_cuello_botella
+        FROM dw_academico.dim_materia
+        ORDER BY ciclo_plan, codigo_materia
+    """)
+
+
+def prerrequisitos() -> pd.DataFrame:
+    """Relaciones de la malla: para cursar `codigo_materia` hay que aprobar `codigo_prerrequisito`."""
+    return _leer("""
+        SELECT m.codigo_materia, p.codigo_materia AS codigo_prerrequisito
+        FROM dw_academico.bridge_prerrequisito b
+        JOIN dw_academico.dim_materia m ON m.materia_key = b.materia_key
+        JOIN dw_academico.dim_materia p ON p.materia_key = b.prerrequisito_key
+        ORDER BY m.codigo_materia, p.codigo_materia
+    """)
+
+
+def costo_por_materia(filtros: Filtros) -> pd.DataFrame:
+    """Costo y reprobación de cada materia con los filtros elegidos. Solo las
+    materias con inscripciones aparecen: el resto de la malla se une en Python."""
+    where, params = _condiciones(filtros)
+    return _leer(f"""
+        SELECT m.codigo_materia,
+               COUNT(*) FILTER (WHERE f.reprobado)                          AS reprobados,
+               COUNT(*) FILTER (WHERE f.cerrada)                            AS cerradas,
+               COUNT(DISTINCT f.estudiante_key) FILTER (WHERE f.reprobado)  AS estudiantes_reprobados,
+               COALESCE(SUM(f.costo_reprobacion), 0)                        AS costo_reprobacion
+        {DESDE_HECHOS}
+        JOIN dw_academico.dim_materia m ON m.materia_key = f.materia_key
+        {where}
+        GROUP BY m.codigo_materia
+    """, params)
+
+
+# ---------------------------------------------------------------------------
+# Dashboard estratégico y cubo OLAP — datos reales que reemplazan las maquetas
+# ---------------------------------------------------------------------------
+
+def aprobacion_por_ciclo(filtros: Filtros) -> pd.DataFrame:
+    """Inscripciones con nota final y reprobadas de cada ciclo del plan."""
+    where, params = _condiciones(filtros)
+    return _leer(f"""
+        SELECT m.ciclo_plan,
+               COUNT(*) FILTER (WHERE f.cerrada)               AS cerradas,
+               COUNT(*) FILTER (WHERE f.reprobado)             AS reprobados,
+               COALESCE(SUM(f.costo_reprobacion), 0)           AS costo_reprobacion
+        {DESDE_HECHOS_DIAGNOSTICO} {where}
+        GROUP BY m.ciclo_plan ORDER BY m.ciclo_plan
+    """, params)
+
+
+def cubo(filtros: Filtros, dimensiones: list[str], modo: str) -> pd.DataFrame:
+    """Cubo OLAP: las dimensiones salen del catálogo de app/olap.py (nunca de texto
+    del usuario) y los filtros van como parámetros ligados. Devuelve una fila más
+    que el límite para que la pantalla sepa si el resultado se truncó."""
+    from . import olap  # diferido: olap importa indicadores, que no necesita la base
+    where, params = _condiciones(filtros)
+    return _leer(olap.construir_sql(dimensiones, modo, f"{DESDE_HECHOS_DIAGNOSTICO} {where}"), params)
