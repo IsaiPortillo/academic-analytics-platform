@@ -19,7 +19,7 @@ import pandas as pd
 from .anonimizacion import ErrorAnonimizacion, verificar_anonimizacion
 from .conexiones import _backend_en_path, sesion_grafo, sesion_oltp
 from .extraccion import extraer_oltp
-from .grafo import extraer_metricas_grafo
+from .grafo import extraer_aristas_grafo, extraer_metricas_grafo
 from .transformacion import transformar
 
 
@@ -28,7 +28,8 @@ def _ejecutar_transformacion():
         datos = extraer_oltp(sesion)
     with sesion_grafo() as sesion:
         metricas = extraer_metricas_grafo(sesion)
-    return transformar(datos, metricas)
+        aristas = extraer_aristas_grafo(sesion)
+    return transformar(datos, metricas, aristas_grafo=aristas)
 
 
 def verificar_nota_igual_a_scrum_10(resultado) -> int:

@@ -34,12 +34,13 @@ from sqlalchemy.exc import DBAPIError
 
 from .conexiones import _backend_en_path, engine_carga, sesion_grafo, sesion_oltp
 from .config import RAIZ_PROYECTO, ErrorConfiguracion
+from .grafo import UMBRAL_CUELLO_BOTELLA
 
 REGISTRO = RAIZ_PROYECTO / "docs" / "validacion" / "registro_validacion.md"
 TOLERANCIA = 1e-9
 
 _backend_en_path()
-from app import calculos, dw  # noqa: E402
+from app import calculos, dw, red_curricular  # noqa: E402
 from app.routers import reportes  # noqa: E402
 from app.verificar_dw import verificar_sin_acceso_oltp, verificar_solo_lectura_dw  # noqa: E402
 
@@ -301,6 +302,62 @@ def validar_area(s):
 
 
 # ---------------------------------------------------------------------------
+# 5b. Red curricular (SCRUM-46): la estructura del DW contra Neo4j y contra sí misma
+# ---------------------------------------------------------------------------
+
+def validar_red_curricular(s):
+    grupo = "Red curricular"
+    with sesion_grafo() as g:
+        en_neo4j = {(r["materia"], r["requisito"]) for r in g.run(
+            "MATCH (a:Materia)-[:REQUIERE_APROBADA]->(b:Materia) "
+            "RETURN a.codigo AS materia, b.codigo AS requisito")}
+    relaciones = pd.DataFrame(s.execute(text(
+        "SELECT m.codigo_materia, p.codigo_materia AS codigo_prerrequisito "
+        "FROM dw_academico.bridge_prerrequisito b "
+        "JOIN dw_academico.dim_materia m ON m.materia_key = b.materia_key "
+        "JOIN dw_academico.dim_materia p ON p.materia_key = b.prerrequisito_key")).all(),
+        columns=["codigo_materia", "codigo_prerrequisito"])
+    en_dw = set(zip(relaciones["codigo_materia"], relaciones["codigo_prerrequisito"]))
+
+    registrar(grupo, "Relaciones de prerrequisito en el DW frente a las de Neo4j", len(en_neo4j), len(en_dw))
+    registrar(grupo, "Relaciones que están en un lado y no en el otro (diferencia simétrica)", 0,
+              len(en_neo4j ^ en_dw))
+
+    materias = pd.DataFrame(s.execute(text(
+        "SELECT codigo_materia, nombre_materia, ciclo_plan, area, en_grafo, dependientes_directos, "
+        "dependientes_indirectos, dependientes_totales, longitud_cascada, indice_bloqueo, "
+        "es_cuello_botella FROM dw_academico.dim_materia")).mappings().all())
+    red = red_curricular.construir_red(materias, relaciones)
+    registrar(grupo, "La malla del DW es un grafo sin ciclos", True, bool(red_curricular.nx.is_directed_acyclic_graph(red)))
+    registrar(grupo, "Materias que se exigen a sí mismas", 0, sum(1 for a, b in red.edges if a == b))
+
+    # La verificación de fondo: las métricas que Neo4j calculó (guardadas en dim_materia)
+    # contra las que salen de recorrer las relaciones que el DW guarda. Si la carga
+    # trajera una cosa desactualizada respecto de la otra, aquí se vería.
+    diferencias = red_curricular.discrepancias(red)
+    registrar(grupo, "Métricas de dim_materia (Neo4j) distintas de las recalculadas desde bridge_prerrequisito",
+              "[]", str(diferencias[:5]))
+
+    registrar(grupo, "Umbral de cuello de botella: pantalla frente al ETL", UMBRAL_CUELLO_BOTELLA,
+              red_curricular.UMBRAL_CUELLO_BOTELLA)
+    desalineadas = materias[(materias["indice_bloqueo"].astype(float) >= UMBRAL_CUELLO_BOTELLA)
+                            != materias["es_cuello_botella"].astype(bool)]
+    registrar(grupo, "Materias cuyo es_cuello_botella no corresponde a su índice de bloqueo", 0, len(desalineadas))
+
+    # El cruce de la pantalla: sale de otra consulta, así que se concilia con el total del DW.
+    por_materia = dw.costo_por_materia(dw.Filtros())
+    total = _escalar(s, "SELECT COALESCE(SUM(costo_reprobacion), 0) FROM dw_academico.fact_inscripcion")
+    registrar(grupo, "Costo de reprobación del cruce por materia frente al total de los hechos",
+              round(float(total), 2), round(float(por_materia["costo_reprobacion"].sum()), 2))
+    cruce = red_curricular.cruce_costo_posicion(materias, por_materia)
+    registrar(grupo, "Materias del cruce frente a materias de la malla", len(materias), len(cruce))
+
+    # La pantalla lee con rol_dashboard, no con el rol de este validador.
+    registrar(grupo, "rol_dashboard lee las relaciones de la malla (lo que ve la pantalla)",
+              len(en_dw), len(dw.prerrequisitos()))
+
+
+# ---------------------------------------------------------------------------
 # 6. Seguridad y anonimización
 # ---------------------------------------------------------------------------
 
@@ -547,7 +604,7 @@ def main() -> int:
     # peor que pasa es que se vea "?", y el registro .md se escribe siempre en UTF-8.
     for flujo in (sys.stdout, sys.stderr):
         flujo.reconfigure(errors="replace")
-    print("Validación de datos y procesos del DW (Fases 3.3, 4.1 y 4.2)\n")
+    print("Validación de datos y procesos del DW (Fases 3.3, 4.1, 4.2 y 4.3)\n")
     with sesion_oltp() as s:
         s.connection(execution_options={"isolation_level": "REPEATABLE READ"})
         validar_completitud(s)
@@ -558,6 +615,7 @@ def main() -> int:
         correlaciones = validar_correlaciones(s)
         validar_particiones()
         validar_area(s)
+        validar_red_curricular(s)
         validar_seguridad(s)
         observar_datos(s, correlaciones)
         carga = dw.ultima_carga()
