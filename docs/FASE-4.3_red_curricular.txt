@@ -1,0 +1,171 @@
+===============================================================================
+ FASE 4.3 — RED CURRICULAR Y MATERIAS CUELLO DE BOTELLA   (SCRUM-46)
+===============================================================================
+
+Como coordinador académico, quiero ver la malla curricular como red y dónde se
+concentra el costo, para saber qué materias frenan el avance de más estudiantes.
+Nivel analítico: diagnóstico (¿por qué ocurrió?). Es la historia que justifica
+haber elegido una base de grafos.
+
+
+-------------------------------------------------------------------------------
+ 1. QUÉ SE ENTREGA
+-------------------------------------------------------------------------------
+
+Pantalla "Red curricular" (/red-curricular, menú "Inteligencia institucional",
+solo coordinador), con cuatro piezas:
+
+  1. LA RED INTERACTIVA. Las 16 materias y sus 16 relaciones REQUIERE_APROBADA,
+     en columnas por ciclo. Elegir una materia resalta lo que bloquea (sus
+     dependientes, en cascada) y lo que hay que aprobar antes (sus
+     prerrequisitos). Funciona con toque, ratón y teclado (Enter o espacio).
+  2. EL REPORTE DE CUELLOS DE BOTELLA. Las materias ordenadas por cuántas otras
+     bloquean, directa e indirectamente, y qué porcentaje del plan es eso.
+  3. EL CRUCE COSTO × POSICIÓN. Costo de reprobación de cada materia (con los
+     mismos filtros de período, departamento y carrera que las otras vistas)
+     frente a cuántas materias dependen de ella: un gráfico de dispersión y una
+     tabla. Esta es la pregunta diagnóstica central del proyecto.
+  4. LA LECTURA EN TEXTO de cada pieza: qué forma tiene la malla, quiénes son los
+     cuellos de botella y por qué el costo de unas materias se propaga y el de
+     otras no.
+
+
+-------------------------------------------------------------------------------
+ 2. DE DÓNDE SALE LA RED (Y POR QUÉ NO SE LEE NEO4J EN LA PANTALLA)
+-------------------------------------------------------------------------------
+
+    Neo4j ──(rol del ETL)──> etl.grafo ──> etl.carga ──> dw_academico
+                                                           ├ dim_materia (métricas)
+                                                           └ bridge_prerrequisito (relaciones)
+                                                                  │
+                                       pantalla <──(rol_dashboard, solo lectura)
+
+La malla se origina en Neo4j, pero la pantalla la lee del Data Warehouse:
+
+  - El dashboard solo puede leer dw_academico (rol_dashboard). Neo4j Community no
+    tiene roles de solo lectura, así que consultarlo desde la web obligaría a
+    darle a la aplicación la contraseña del administrador del grafo.
+  - La pantalla sigue funcionando con Neo4j apagado; solo la CARGA lo necesita.
+  - Las métricas de dim_materia (SCRUM-35) ya venían de Neo4j; faltaban las
+    relaciones mismas. Eso agrega la migración 15.
+
+NetworkX arma el grafo (construir_red), calcula la disposición en columnas
+(disponer), recalcula los dependientes de cada materia para comprobarlos contra
+los de Neo4j (metricas_recalculadas) y encuentra la cadena más larga. Se eligió
+NetworkX y no PyVis porque PyVis genera una página aparte con scripts de CDN que no
+sigue el modo oscuro ni el sistema de diseño, ni es accesible por teclado; la red
+se dibuja en SVG con las coordenadas que calcula NetworkX.
+
+
+-------------------------------------------------------------------------------
+ 3. CÓMO SE MIDE EL "COSTO QUE SE PROPAGA"
+-------------------------------------------------------------------------------
+
+El costo de reprobación por sí solo dice qué materia es más cara. Para explicar
+por qué ese costo se propaga se cruza con la posición en la red:
+
+  bloqueos = reprobados × materias dependientes
+
+Cada reprobación deja sin poder cursar a todas las materias que dependen de la
+suya, hasta que se apruebe. Es un CONTEO de lo ocurrido en el historial (pares
+«reprobación – materia bloqueada»), no una proyección: el proyecto es descriptivo
+y diagnóstico.
+
+Cada materia cae en uno de cuatro grupos, según dos preguntas:
+  ¿es cuello de botella?  (bloquea al menos el 25 % del resto del plan, SCRUM-34)
+  ¿su costo está en la mitad más alta de las materias con costo?
+
+    cuello + costo alto   → "Costo que se propaga"
+    cuello + costo bajo   → "Bloquea más de lo que cuesta"
+    no cuello + costo alto→ "Costo contenido"
+    el resto              → "Sin hallazgo"
+
+El 25 % es el mismo valor que usa el ETL (etl/grafo.py); etl/validar_dw.py
+comprueba que no se desalineen.
+
+
+-------------------------------------------------------------------------------
+ 4. ARCHIVOS
+-------------------------------------------------------------------------------
+
+  database/oltp/15_dw_red_curricular.sql   NUEVO. bridge_prerrequisito + permisos.
+  etl/grafo.py                             + extraer_aristas_grafo (Cypher).
+  etl/transformacion.py                    + construir_prerrequisitos: traduce a
+                                           materia_id, descarta relaciones con
+                                           materias fuera del OLTP (y las cuenta) y
+                                           DETIENE la carga ante un ciclo o una
+                                           materia que se exige a sí misma.
+  etl/anonimizacion.py                     Lista blanca del conjunto nuevo.
+  etl/carga.py, etl/pipeline.py            Cargan y pasan las relaciones.
+  etl/validar_dw.py                        + 10 verificaciones "Red curricular".
+  backend/app/dw.py                        + malla(), prerrequisitos(),
+                                           costo_por_materia().
+  backend/app/red_curricular.py            NUEVO. Grafo, disposición, cruce, lectura.
+  backend/app/routers/red_curricular.py    NUEVO. Ruta /red-curricular.
+  backend/app/templates/modulos/red_curricular.html   NUEVO. La pantalla.
+  backend/app/static/{src/input.css,app.css,app.js}   Componentes de la red y del
+                                           gráfico (documentados en DESIGN.md).
+  backend/tests/test_red_curricular.py     34 pruebas, sin base de datos.
+  etl/tests/test_pipeline.py               + 9 pruebas de los prerrequisitos.
+
+
+-------------------------------------------------------------------------------
+ 5. PUESTA EN MARCHA
+-------------------------------------------------------------------------------
+
+Base nueva: nada extra, el script 15 corre solo al crear el contenedor.
+
+Base ya existente (sin perder datos):
+
+    pip install -r backend/requirements.txt      # agrega networkx
+    docker exec -i academico_postgres psql -U postgres -d academico_db \
+        -v ON_ERROR_STOP=1 < database/oltp/15_dw_red_curricular.sql
+    python -m etl.carga                          # necesita Neo4j con la malla cargada
+    python -m etl.validar_dw                     # 76 verificaciones
+
+Neo4j recién creado arranca VACÍO: antes de cargar el DW hay que correr
+python database/nosql/03_cargar_grafo_neo4j.py (ver Solución de problemas en el
+README). Sin la malla, la pantalla lo dice y explica cómo cargarla.
+
+
+-------------------------------------------------------------------------------
+ 6. CÓMO PROBARLO (para el jurado)
+-------------------------------------------------------------------------------
+
+PASO 1 — Pruebas unitarias (sin base de datos)
+    ( cd backend && python -m unittest discover -s tests -v )
+    python -m unittest discover -s etl/tests -v
+
+PASO 2 — La malla del DW es la de Neo4j, y las métricas la cuentan igual
+    python -m etl.validar_dw
+    Esperado, grupo "Red curricular": relaciones 16 = 16, diferencia simétrica 0,
+    sin ciclos, métricas guardadas = recalculadas desde bridge_prerrequisito.
+
+PASO 3 — Abrir la pantalla como coordinador: http://localhost:8000/red-curricular
+    - La materia elegida al abrir es la que más bloquea (Programación I: 10 de
+      las otras 15). Elegir otra cambia el panel y los resaltados.
+    - "Ver toda la red" quita el resaltado.
+    - Cambiar el período cambia el costo; la red no cambia.
+
+PASO 4 — La prueba que demuestra que el control funciona (opcional, en un
+         entorno desechable): quitar UNA relación del DW y volver a validar.
+    DELETE FROM dw_academico.bridge_prerrequisito
+     WHERE materia_key = (SELECT materia_key FROM dw_academico.dim_materia WHERE codigo_materia='PRG215')
+       AND prerrequisito_key = (SELECT materia_key FROM dw_academico.dim_materia WHERE codigo_materia='PRG115');
+    python -m etl.validar_dw     → 3 verificaciones en FALLO (conteo, diferencia
+                                   y métricas distintas de las recalculadas).
+    python -m etl.carga          → restaura el DW.
+
+
+-------------------------------------------------------------------------------
+ 7. LÍMITES QUE LA PANTALLA DECLARA
+-------------------------------------------------------------------------------
+
+  - El costo por unidad valorativa es un SUPUESTO paramétrico mientras no haya
+    cifra presupuestaria oficial: la pantalla lo avisa, sale del dato y desaparece
+    sola cuando se registre la cifra oficial.
+  - Los filtros de período, departamento y carrera acotan el costo y las
+    reprobaciones; la malla es siempre la misma.
+  - Es diagnóstico, no predicción: «bloqueos» cuenta lo ocurrido, no pronostica.
+  - Con datos sintéticos uniformes, los costos de las materias se parecen entre sí;
+    el cruce se vuelve más revelador con datos reales.

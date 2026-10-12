@@ -1290,6 +1290,260 @@
     stroke-width: 2;
   }
 
+  /* ------------------------------------------------------------------
+     Red curricular (Fase 4.3). La malla real, dibujada en SVG con las
+     coordenadas que calcula backend/app/red_curricular.py. Se apoya en
+     .graph-node / .graph-edge y agrega solo lo propio de esta pantalla:
+     el calor por dependientes, los estados de la materia elegida y el
+     gráfico de costo contra posición. Ningún estado depende solo del color:
+     el panel de detalle y la tabla dicen lo mismo con texto. */
+  .red-lienzo {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-bg);
+  }
+  .red-lienzo svg {
+    display: block;
+    max-width: none;
+  }
+  .red-rotulo {
+    font-size: 12px;
+    font-weight: 700;
+    fill: var(--color-muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .red-nodo {
+    cursor: pointer;
+    outline: none;
+    transition: opacity 0.15s ease-in-out;
+  }
+  .red-caja {
+    /* Más dependientes = más tinte de la marca; es la lectura rápida de "quién frena más". */
+    fill: color-mix(in srgb, var(--color-brand) calc(var(--calor, 0) * 24%), var(--color-surface));
+    transition: stroke 0.15s ease-in-out, stroke-width 0.15s ease-in-out, fill 0.15s ease-in-out;
+  }
+  .red-cod {
+    font-size: 13px;
+    font-weight: 800;
+    fill: var(--color-text);
+  }
+  .red-nom {
+    font-size: 10.5px;
+    fill: var(--color-muted);
+  }
+  .red-met {
+    font-size: 10px;
+    font-weight: 600;
+    fill: var(--color-text);
+    font-variant-numeric: tabular-nums;
+  }
+  .red-nodo:hover .red-caja {
+    stroke: var(--color-brand);
+  }
+  .red-nodo:focus-visible .red-caja {
+    stroke: var(--color-brand);
+    stroke-width: 3;
+  }
+  .red-nodo.is-dependiente .red-caja {
+    fill: var(--color-danger-bg);
+    stroke: var(--color-danger-text);
+  }
+  .red-nodo.is-prerrequisito .red-caja {
+    fill: var(--color-neutral-bg);
+    stroke: var(--color-neutral-text);
+  }
+  .red-nodo.is-seleccion .red-caja {
+    stroke: var(--color-brand);
+    stroke-width: 3.5;
+  }
+  .red-nodo.is-atenuado {
+    opacity: 0.38;
+  }
+  .red-arista .graph-edge {
+    transition: stroke 0.15s ease-in-out, stroke-width 0.15s ease-in-out, opacity 0.15s ease-in-out;
+  }
+  .red-arista.is-dependiente .graph-edge {
+    stroke: var(--color-danger-text);
+    stroke-width: 2.5;
+  }
+  .red-arista.is-prerrequisito .graph-edge {
+    stroke: var(--color-neutral-text);
+    stroke-width: 2.5;
+  }
+  .red-arista.is-atenuado .graph-edge {
+    opacity: 0.25;
+  }
+  .red-detalle {
+    position: sticky;
+    top: var(--topbar-h, 0);
+    z-index: 5;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+  .red-detalle-titulo {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-weight: 800;
+    font-size: 1rem;
+  }
+  .red-detalle p {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+  .red-detalle .red-detalle-dato {
+    color: var(--color-muted);
+  }
+  /* En pantallas angostas el panel se queda fijo sobre la red: si fuera tan alto
+     como su texto taparía la red entera, así que se acota y desplaza por dentro. */
+  @media (max-width: 1023px) {
+    .red-detalle {
+      max-height: 9.5rem;
+      overflow-y: auto;
+      padding: 0.625rem 0.75rem;
+      gap: 0.25rem;
+    }
+    .red-detalle-titulo {
+      font-size: 0.9375rem;
+    }
+    .red-detalle p {
+      font-size: 0.75rem;
+      line-height: 1.45;
+    }
+  }
+  .red-leyenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem 1.125rem;
+    margin-top: 0.75rem;
+    font-size: 0.75rem;
+    color: var(--color-muted);
+  }
+  .red-leyenda > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+  .red-muestra {
+    display: inline-block;
+    width: 1.125rem;
+    height: 0.8125rem;
+    border-radius: 4px;
+    border: 1.5px solid var(--color-border);
+    background-color: var(--color-surface);
+  }
+  .red-muestra.is-seleccion {
+    border-color: var(--color-brand);
+    border-width: 3px;
+  }
+  .red-muestra.is-dependiente {
+    background-color: var(--color-danger-bg);
+    border-color: var(--color-danger-text);
+  }
+  .red-muestra.is-prerrequisito {
+    background-color: var(--color-neutral-bg);
+    border-color: var(--color-neutral-text);
+  }
+  .red-muestra.is-cuello {
+    border-color: var(--color-danger-text);
+    border-width: 2.5px;
+  }
+  .red-muestra.is-calor {
+    background-color: color-mix(in srgb, var(--color-brand) 24%, var(--color-surface));
+  }
+
+  /* Costo (X) contra materias dependientes (Y). */
+  /* En teléfono el gráfico conserva un ancho legible y desliza dentro de su tarjeta. */
+  .cruce-lienzo {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .cruce-svg {
+    display: block;
+    width: 100%;
+    min-width: 32rem;
+    height: auto;
+  }
+  .cruce-rejilla {
+    stroke: var(--color-border);
+    stroke-width: 1;
+  }
+  .cruce-eje {
+    stroke: var(--color-muted);
+    stroke-width: 1;
+  }
+  .cruce-marca {
+    font-size: 10px;
+    fill: var(--color-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .cruce-eje-texto {
+    font-size: 11px;
+    font-weight: 600;
+    fill: var(--color-muted);
+  }
+  .cruce-guia {
+    stroke: var(--color-muted);
+    stroke-width: 1;
+    stroke-dasharray: 4 4;
+  }
+  .cruce-guia-texto {
+    font-size: 10px;
+    fill: var(--color-muted);
+  }
+  .cruce-rotulo {
+    font-size: 10.5px;
+    font-weight: 700;
+    fill: var(--color-text);
+  }
+  .cruce-punto {
+    stroke: var(--color-surface);
+    stroke-width: 1.5;
+  }
+  .cruce-punto.tipo-propaga {
+    fill: var(--color-danger-text);
+  }
+  .cruce-punto.tipo-estructural {
+    fill: var(--color-warning-text);
+  }
+  .cruce-punto.tipo-contenido {
+    fill: var(--color-neutral-text);
+  }
+  .cruce-punto.tipo-sin_hallazgo {
+    fill: var(--color-muted);
+    opacity: 0.55;
+  }
+  .cruce-muestra {
+    display: inline-block;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+  }
+  .cruce-muestra.tipo-propaga {
+    background-color: var(--color-danger-text);
+  }
+  .cruce-muestra.tipo-estructural {
+    background-color: var(--color-warning-text);
+  }
+  .cruce-muestra.tipo-contenido {
+    background-color: var(--color-neutral-text);
+  }
+  .cruce-muestra.tipo-sin_hallazgo {
+    background-color: var(--color-muted);
+    opacity: 0.55;
+  }
+
   /* Modal */
   .modal-backdrop {
     position: fixed;

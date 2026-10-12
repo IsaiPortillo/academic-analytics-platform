@@ -17,6 +17,7 @@ from .routers import (
     auth,
     calificaciones,
     matricula,
+    red_curricular,
     reportes,
     vista_ejecutiva,
 )
@@ -44,6 +45,7 @@ app.include_router(asistencia.router)
 app.include_router(reportes.router)
 app.include_router(vista_ejecutiva.router)
 app.include_router(analisis_diagnostico.router)
+app.include_router(red_curricular.router)
 
 
 @app.exception_handler(StarletteHTTPException)

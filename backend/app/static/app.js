@@ -497,6 +497,123 @@ document.querySelectorAll("[data-skeleton-on-filter]").forEach((filtro) => {
   });
 })();
 
+// ---------------------------------------------------------------------------
+// Red curricular (Fase 4.3) — elegir una materia resalta lo que bloquea (sus
+// dependientes, en cascada) y lo que hay que aprobar antes (sus prerrequisitos).
+// Todo sale de #red-datos, que la plantilla arma con las relaciones del DW: no
+// hay consultas ni cálculo de grafo en el navegador, solo pintar clases.
+(() => {
+  const fuente = document.getElementById("red-datos");
+  if (!fuente) return;
+  const datos = JSON.parse(fuente.textContent);
+  const panel = document.getElementById("red-detalle");
+  const nodosEl = new Map();
+  document.querySelectorAll(".red-nodo").forEach((el) => nodosEl.set(el.dataset.codigo, el));
+  const aristasEl = Array.from(document.querySelectorAll(".red-arista"));
+
+  const lista = (codigos) => (codigos.length ? codigos.join(", ") : "ninguna");
+  const linea = (texto, clase) => {
+    const p = document.createElement("p");
+    if (clase) p.className = clase;
+    p.textContent = texto;
+    return p;
+  };
+
+  function pintarPanel(n) {
+    panel.replaceChildren();
+    const titulo = document.createElement("div");
+    titulo.className = "red-detalle-titulo";
+    const nombre = document.createElement("span");
+    nombre.textContent = `${n.codigo} · ${n.nombre}`;
+    titulo.appendChild(nombre);
+    const etiqueta = document.createElement("span");
+    etiqueta.className = `badge ${n.cuello ? "badge-danger" : "badge-neutral"}`;
+    etiqueta.textContent = n.cuello ? "Cuello de botella" : `Ciclo ${n.ciclo}`;
+    titulo.appendChild(etiqueta);
+    panel.appendChild(titulo);
+
+    panel.appendChild(linea(
+      n.totales === 0
+        ? "No es prerrequisito de ninguna materia: reprobarla no deja bloqueada a otra."
+        : `Reprobarla deja sin poder cursar a ${n.totales} materia${n.totales === 1 ? "" : "s"} ` +
+          `(${n.directos} directa${n.directos === 1 ? "" : "s"} y ${n.indirectos} en cascada, ` +
+          `${n.pct_plan} del plan): ${lista(n.dependientes)}.`
+    ));
+    panel.appendChild(linea(
+      n.requisitos.length === 0
+        ? "No exige ninguna materia previa."
+        : `Exige aprobar antes: ${lista(n.requisitos_directos)}` +
+          (n.requisitos.length > n.requisitos_directos.length
+            ? ` (${n.requisitos.length} en toda la cadena).` : ".")
+    ));
+    panel.appendChild(linea(
+      `Costo de reprobación ${n.costo} (${n.pct_costo} del total) · ${n.reprobados} reprobados` +
+      `${n.tasa !== "—" ? ` (tasa ${n.tasa})` : ""} · ${n.bloqueos.toLocaleString("es-SV")} bloqueos generados. ` +
+      `${n.tipo_texto}.`, "red-detalle-dato"
+    ));
+  }
+
+  function limpiar() {
+    nodosEl.forEach((el) => {
+      el.classList.remove("is-seleccion", "is-dependiente", "is-prerrequisito", "is-atenuado");
+      el.setAttribute("aria-pressed", "false");
+    });
+    aristasEl.forEach((el) => el.classList.remove("is-dependiente", "is-prerrequisito", "is-atenuado"));
+  }
+
+  function seleccionar(codigo) {
+    const n = datos.nodos[codigo];
+    if (!n) return;
+    const dependientes = new Set(n.dependientes);
+    const requisitos = new Set(n.requisitos);
+    nodosEl.forEach((el, c) => {
+      el.classList.toggle("is-seleccion", c === codigo);
+      el.classList.toggle("is-dependiente", dependientes.has(c));
+      el.classList.toggle("is-prerrequisito", requisitos.has(c));
+      el.classList.toggle("is-atenuado", c !== codigo && !dependientes.has(c) && !requisitos.has(c));
+      el.setAttribute("aria-pressed", c === codigo ? "true" : "false");
+    });
+    aristasEl.forEach((el) => {
+      const { origen, destino } = el.dataset;
+      const baja = (origen === codigo || dependientes.has(origen)) && dependientes.has(destino);
+      const sube = (destino === codigo || requisitos.has(destino)) && requisitos.has(origen);
+      el.classList.toggle("is-dependiente", baja);
+      el.classList.toggle("is-prerrequisito", sube);
+      el.classList.toggle("is-atenuado", !baja && !sube);
+    });
+    pintarPanel(n);
+  }
+
+  nodosEl.forEach((el, codigo) => {
+    el.addEventListener("click", () => {
+      seleccionar(codigo);
+      // En pantallas angostas la materia elegida puede quedar en el borde: se centra
+      // dentro del lienzo (solo en horizontal, sin mover la página).
+      const lienzo = document.getElementById("red-lienzo");
+      if (lienzo) {
+        const caja = el.getBoundingClientRect();
+        const marco = lienzo.getBoundingClientRect();
+        lienzo.scrollBy({
+          left: caja.left - marco.left - (marco.width - caja.width) / 2,
+          behavior: "smooth",
+        });
+      }
+    });
+    el.addEventListener("keydown", (evento) => {
+      if (evento.key === "Enter" || evento.key === " ") {
+        evento.preventDefault();
+        seleccionar(codigo);
+      }
+    });
+  });
+  document.getElementById("red-reiniciar")?.addEventListener("click", () => {
+    limpiar();
+    panel.replaceChildren(linea("Toca una materia de la red para ver qué bloquea y qué exige.", "text-sm text-muted"));
+  });
+
+  seleccionar(datos.inicial);
+})();
+
 // Alertas/OLAP — "Notificar a Consejería" es una maqueta: confirma la
 // intención de la acción sin enviar nada, porque no existe todavía un canal
 // real de notificación a consejería en el backend.
