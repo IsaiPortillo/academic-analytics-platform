@@ -44,6 +44,12 @@
                 <strong class="font-semibold">Análisis diagnóstico</strong>
                 <span class="text-muted"> — correlaciones, cohortes, segmentos y patrón de riesgo observado</span>
             </a>
+            {% if url_dashboard_streamlit() %}
+            <a href="{{ url_dashboard_streamlit() }}" class="-mx-4 block px-4 py-3 transition-colors hover:bg-subtle">
+                <strong class="font-semibold">Dashboard interactivo</strong>
+                <span class="text-muted"> — los mismos indicadores de la vista ejecutiva, en Streamlit (Data Warehouse)</span>
+            </a>
+            {% endif %}
             <a href="/red-curricular" class="-mx-4 block px-4 py-3 transition-colors hover:bg-subtle">
                 <strong class="font-semibold">Red curricular</strong>
                 <span class="text-muted"> — la malla como red, materias cuello de botella y dónde se propaga el costo</span>

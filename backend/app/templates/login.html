@@ -39,6 +39,7 @@
 COMMIT;</div>
 
             <form method="post" action="/login">
+                <input type="hidden" name="siguiente" value="{{ siguiente|default('/') }}">
                 <div class="mb-3">
                     <label for="username" class="field-label">Usuario</label>
                     <input type="text" class="input" id="username" name="username"

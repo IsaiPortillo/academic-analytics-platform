@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     # el navegador descartaría la cookie y nadie podría iniciar sesión.
     cookie_secure: bool = False
 
+    # Ruta pública del dashboard de Streamlit cuando está publicado detrás de nginx
+    # con inicio de sesión (p. ej. /analitica/, ver deploy/). Sin definir no hay
+    # enlace en el menú: en local no existe y sería un enlace roto.
+    dashboard_streamlit_url: Optional[str] = None
+
     @property
     def dw_url(self) -> Optional[str]:
         if not self.dashboard_db_password:
