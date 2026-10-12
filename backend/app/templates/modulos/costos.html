@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block titulo %}Costos institucionales{% endblock %}
+
+{% block contenido %}
+<h1 class="page-title mb-1">Costos institucionales</h1>
+<p class="text-sm text-muted mb-4">
+    Costo por unidad valorativa en cada período académico. De aquí sale el costo de cada materia
+    (<span class="text-sm">unidades valorativas × costo por UV</span>) y, con él, todas las medidas
+    monetarias del Data Warehouse.
+</p>
+
+{% if ok %}
+<div class="alert alert-success mb-3" role="alert">
+    <span>{{ ok }}</span>
+    <button type="button" class="alert-close" data-alert-close aria-label="Cerrar">&times;</button>
+</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-danger mb-3" role="alert">
+    <span>{{ error }}</span>
+    <button type="button" class="alert-close" data-alert-close aria-label="Cerrar">&times;</button>
+</div>
+{% endif %}
+
+{% if con_supuesto or sin_costo %}
+<div class="alert alert-warning mb-3" role="alert">
+    <span>
+        {% if con_supuesto %}
+        {{ con_supuesto }} período{{ 's' if con_supuesto != 1 }} con un <strong>supuesto
+        paramétrico</strong>, no con una cifra oficial.
+        {% endif %}
+        {% if sin_costo %}
+        {{ sin_costo }} período{{ 's' if sin_costo != 1 }} sin costo registrado: sus inscripciones
+        no suman al análisis de costo.
+        {% endif %}
+        Mientras sea un supuesto hay que declararlo como tal en la memoria.
+    </span>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">Período académico</div>
+    <div class="card-body">
+        <div class="table-wrap">
+            <table class="table table-stack">
+                <thead>
+                    <tr>
+                        <th>Período</th>
+                        <th>Costo por UV</th>
+                        <th>Moneda</th>
+                        <th>Fuente de la cifra</th>
+                        <th class="text-right">Guardar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for fila in filas %}
+                    {% set p = fila.periodo %}
+                    {% set c = fila.costo %}
+                    <tr>
+                        <form method="post" action="/costos/{{ p.periodo_id }}">
+                            <td class="cell-title" data-label="Período">
+                                {{ p.codigo_periodo }}
+                                {% if p.activo %}<span class="badge-success">activo</span>{% endif %}
+                            </td>
+                            <td data-label="Costo por UV">
+                                <label class="sr-only" for="costo-{{ p.periodo_id }}">
+                                    Costo por unidad valorativa en {{ p.codigo_periodo }}
+                                </label>
+                                <input class="input" type="number" step="0.01" min="0.01"
+                                       id="costo-{{ p.periodo_id }}" name="costo_por_uv" required
+                                       value="{{ '%.2f'|format(c.costo_por_uv) if c else '' }}"
+                                       placeholder="0.00">
+                            </td>
+                            <td data-label="Moneda">
+                                <label class="sr-only" for="moneda-{{ p.periodo_id }}">Moneda</label>
+                                <select class="select" id="moneda-{{ p.periodo_id }}" name="moneda">
+                                    {% for m in monedas %}
+                                    <option value="{{ m }}" {% if c and c.moneda == m %}selected{% endif %}>{{ m }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td data-label="Fuente">
+                                <label class="sr-only" for="fuente-{{ p.periodo_id }}">
+                                    Fuente de la cifra para {{ p.codigo_periodo }}
+                                </label>
+                                <input class="input" type="text" id="fuente-{{ p.periodo_id }}"
+                                       name="fuente" required maxlength="200"
+                                       value="{{ c.fuente if c else '' }}"
+                                       placeholder="Acuerdo presupuestario, documento y año">
+                                {% if fila.es_supuesto %}
+                                <span class="badge-warning">supuesto</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-right cell-actions" data-label="">
+                                <button type="submit" class="btn-save">
+                                    {{ 'Actualizar' if c else 'Registrar' }}
+                                </button>
+                            </td>
+                        </form>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-3">
+    <div class="card-header">Qué pasa después de guardar</div>
+    <div class="card-body">
+        <p class="text-sm text-muted mb-2">
+            El costo se escribe en el esquema operacional, pero el tablero no lo lee de ahí: lo lee
+            del Data Warehouse, donde llega como un atributo de la dimensión de período y como las
+            medidas del hecho. Para que el cambio se refleje hay que recargar:
+        </p>
+        <p class="text-sm"><code>python -m etl.carga</code></p>
+        <p class="text-sm text-muted mt-2">
+            Esa separación es deliberada: el tablero nunca consulta las tablas transaccionales, de
+            modo que una edición aquí no altera cifras que alguien pueda estar analizando en ese
+            momento.
+        </p>
+    </div>
+</div>
+{% endblock %}

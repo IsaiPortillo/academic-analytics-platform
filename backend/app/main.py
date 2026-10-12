@@ -16,6 +16,7 @@ from .routers import (
     asistencia,
     auth,
     calificaciones,
+    costos,
     matricula,
     reportes,
     vista_ejecutiva,
@@ -42,6 +43,7 @@ app.include_router(matricula.router)
 app.include_router(calificaciones.router)
 app.include_router(asistencia.router)
 app.include_router(reportes.router)
+app.include_router(costos.router)
 app.include_router(vista_ejecutiva.router)
 app.include_router(analisis_diagnostico.router)
 
