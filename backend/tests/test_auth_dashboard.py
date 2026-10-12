@@ -37,6 +37,19 @@ class TestVerificacionParaNginx(unittest.TestCase):
         r = verificar_acceso_coordinador(_peticion("rol_coordinador"))
         self.assertEqual(r.headers["cache-control"], "no-store")
 
+    def test_el_coordinador_pasa_su_nombre_y_rol_codificados(self):
+        r = verificar_acceso_coordinador(_peticion("rol_coordinador"))
+        self.assertEqual((r.headers["x-minerva-usuario"], r.headers["x-minerva-rol"]), ("U", "Coordinador"))
+
+    def test_un_nombre_con_tildes_viaja_codificado(self):
+        peticion = _peticion("rol_coordinador")
+        peticion.session["usuario"]["nombre_completo"] = "José Ñandú"
+        self.assertEqual(verificar_acceso_coordinador(peticion).headers["x-minerva-usuario"], "Jos%C3%A9%20%C3%91and%C3%BA")
+
+    def test_sin_acceso_no_revela_quien_es(self):
+        self.assertNotIn("x-minerva-usuario", verificar_acceso_coordinador(_peticion("rol_docente")).headers)
+        self.assertNotIn("x-minerva-usuario", verificar_acceso_coordinador(_peticion()).headers)
+
     def test_no_devuelve_cuerpo(self):
         self.assertEqual(verificar_acceso_coordinador(_peticion("rol_coordinador")).body, b"")
 

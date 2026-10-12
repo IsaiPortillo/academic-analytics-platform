@@ -20,18 +20,9 @@ from .models import Asistencia, Calificacion, Evaluacion, Inscripcion, Seccion
 
 ESTADO_RETIRADO = "RETIRADO"
 
-# Nota mínima para aprobar un curso (escala 0-10), la misma que usa el
-# generador de datos sintéticos (scripts/generator/02_generador_datos_sinteticos.py)
-# como media de aprobación.
-UMBRAL_NOTA_APROBACION = Decimal("6.00")
-
-# Umbral de faltas a partir del cual se marca al estudiante en riesgo (SCRUM-25).
-# Coincide con el HAVING del benchmark de la Fase 1.4 y con el badge rojo que ya
-# usa el resumen por sección de asistencia.html. Vive aquí, junto al umbral de
-# aprobación, porque el análisis diagnóstico (Fase 4.2) define el patrón de
-# riesgo con estos dos números: el reporte del coordinador y el dashboard deben
-# medir lo mismo con los mismos umbrales, no con dos copias que se separen.
-UMBRAL_FALTAS_RIESGO = 3
+# Los umbrales viven en umbrales.py (sin dependencias, para el dashboard de Streamlit) y se
+# re-exportan aquí con los mismos nombres de siempre.
+from .umbrales import UMBRAL_FALTAS_RIESGO, UMBRAL_NOTA_APROBACION  # noqa: E402, F401
 
 
 class ExpresionesNotaFinal(NamedTuple):

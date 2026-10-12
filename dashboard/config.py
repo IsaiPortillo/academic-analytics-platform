@@ -37,6 +37,11 @@ class SettingsDashboard(BaseSettings):
     dashboard_db_user: str = "rol_dashboard"
     dashboard_db_password: str | None = None
 
+    # Ruta base de la app web cuando el dashboard se publica junto a ella detrás de nginx
+    # (p. ej. "/"). Sin definir no se dibujan los enlaces «Volver al sistema» ni «Salir»:
+    # en local el dashboard corre solo y esos enlaces estarían rotos.
+    dashboard_app_url: str = ""
+
     @property
     def database_url(self) -> str:
         if not self.dashboard_db_password:
