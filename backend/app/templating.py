@@ -32,3 +32,13 @@ def static_v(ruta: str) -> str:
 
 
 templates.env.globals["static_v"] = static_v
+
+
+def url_dashboard_streamlit() -> str | None:
+    """Enlace del menú al dashboard de Streamlit; None si no está publicado.
+    Import diferido para no exigir el .env completo al importar este módulo."""
+    from .config import settings
+    return settings.dashboard_streamlit_url or None
+
+
+templates.env.globals["url_dashboard_streamlit"] = url_dashboard_streamlit

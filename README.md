@@ -370,9 +370,11 @@ Solo necesita `POSTGRES_*` y `DASHBOARD_DB_PASSWORD` en el `.env` (ver `.env.exa
 `APP_*` ni ninguna credencial del backend. Se conecta como `rol_dashboard`, que PostgreSQL
 limita a `SELECT` sobre `dw_academico`.
 
-> **Seguridad:** esta app **no tiene inicio de sesión** (la vista `/vista-ejecutiva` sí exige un
-> coordinador). Por eso `.streamlit/config.toml` la deja escuchando solo en `127.0.0.1`. No la
-> expongas a una red ni a internet sin poner antes un proxy con autenticación.
+> **Seguridad:** esta app **no tiene inicio de sesión propio** (la vista `/vista-ejecutiva` sí exige
+> un coordinador). Por eso `.streamlit/config.toml` la deja escuchando solo en `127.0.0.1`. Para
+> abrirla con un enlace sin túnel, publícala detrás de nginx con la sesión de la app web: ver
+> «Dashboard de Streamlit con enlace y login» en la sección de despliegue. No la expongas a una red ni
+> a internet de ninguna otra forma.
 
 ### 12. Análisis diagnóstico y validación de datos (Fase 4.2)
 
@@ -452,8 +454,30 @@ WantedBy=multi-user.target
 sudo systemctl daemon-reload && sudo systemctl enable --now academico-web
 ```
 
-**5. Streamlit** (`dashboard/`) no tiene login: déjalo en `127.0.0.1:8501` y entra por túnel SSH
-(`ssh -L 8501:127.0.0.1:8501 usuario@servidor`). No lo publiques por nginx sin autenticación.
+**5. Dashboard de Streamlit con enlace y login.** `dashboard/` no tiene login propio y escucha solo en
+`127.0.0.1:8501`. Para abrirlo con un enlace (sin túnel SSH) se publica en `/analitica/` y nginx
+**exige antes la sesión de la app web**: la misma cookie y los mismos usuarios, sin otra contraseña
+ni otra lista de usuarios. Solo entra el coordinador (igual que `/vista-ejecutiva`).
+
+```
+visitante ─> nginx ─ auth_request ─> app web  GET /auth/verificar   204 coordinador · 401 sin sesión · 403 otro rol
+                 └── si pasa ──────> Streamlit 127.0.0.1:8501 (bajo /analitica/)
+                 └── si no (401) ──> redirige a /login?siguiente=/analitica/   (vuelve al dashboard al entrar)
+```
+
+Pasos (todo en `deploy/`; comandos como root, los de Python como `ubuntu`):
+1. Servicio: `cp deploy/academico-streamlit.service /etc/systemd/system/ && systemctl daemon-reload &&
+   systemctl enable --now academico-streamlit` (usa el venv, el `.env` y `STREAMLIT_SERVER_BASE_URL_PATH=analitica`).
+2. nginx: incorpora a tu vhost los bloques `location = /_auth_coordinador`, `location /analitica/` y los
+   dos `@…` de `deploy/nginx-edumetrics.conf` (ese archivo es el vhost completo de referencia), y el `map`
+   `$esquema_publico` en `conf.d/`. Valida y recarga: `nginx -t && systemctl reload nginx`. Requiere
+   `ngx_http_auth_request_module`, que trae `nginx-light`, `nginx-core` y `nginx-full`
+   (`nginx -V 2>&1 | grep auth_request`).
+3. `.env`: `DASHBOARD_STREAMLIT_URL=/analitica/` (agrega «Dashboard interactivo» al menú) y reinicia `academico-web`.
+
+Comprobación: sin sesión, `/analitica/` redirige al login; con un docente responde 403; con un coordinador
+carga el dashboard. Cerrar sesión en la app corta el acceso a las páginas nuevas; una pestaña de Streamlit ya
+abierta sigue viva hasta que se cierre o recargue.
 
 **6. Lista de seguridad antes de abrirlo a internet**
 - `MODO_DEMO=false` en `.env` (es el valor por defecto).
@@ -677,7 +701,8 @@ Streamlit se había reservado para la **Fase 4 (dashboard analítico)**.
 > definiciones de los KPIs y las consultas, y cumplen lo que el requisito pedía de fondo: leen
 > **solo** `dw_academico`, con un rol de solo lectura propio (`rol_dashboard`) y credenciales
 > desde `.env`. La diferencia es de acceso: la vista web exige sesión de coordinador; la app
-> Streamlit no tiene login y solo escucha en `127.0.0.1`.
+> Streamlit no tiene login propio, escucha solo en `127.0.0.1` y, publicada, queda detrás de nginx con la
+> sesión de la app web (ver «Despliegue en un servidor»).
 
 > **Actualización (septiembre 2026):** la capa visual migró de Bootstrap 5.3 (CDN) a
 > **Tailwind CSS v4**, compilado con el binario standalone (`scripts/setup-tailwind.sh`, sin
