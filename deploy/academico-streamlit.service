@@ -18,6 +18,8 @@ User=ubuntu
 Group=ubuntu
 WorkingDirectory=/var/www/academic-analytics-platform
 Environment=STREAMLIT_SERVER_BASE_URL_PATH=analitica
+# Dónde está la app web (enlaces «Volver al sistema» y «Salir»); mismo dominio, por eso relativo.
+Environment=DASHBOARD_APP_URL=/
 Environment=STREAMLIT_SERVER_ADDRESS=127.0.0.1
 Environment=STREAMLIT_SERVER_PORT=8501
 Environment=STREAMLIT_SERVER_HEADLESS=true

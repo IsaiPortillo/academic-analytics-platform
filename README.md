@@ -355,10 +355,15 @@ app, no usa la sesión con `SET LOCAL ROLE`: lee el DW con su propia conexión c
 `academico_oltp`. Detalle y guía de pruebas en
 [`docs/FASE-4.1_vista_ejecutiva.txt`](docs/FASE-4.1_vista_ejecutiva.txt).
 
-**Versión Streamlit (SCRUM-44).** Los mismos cuatro KPIs, filtros, ranking e interpretaciones
-existen también como app independiente en `dashboard/`. Comparte con la vista web las
-definiciones de `backend/app/indicadores.py` y las consultas de `backend/app/dw.py`, así que
-ambas muestran las mismas cifras.
+**Dashboard interactivo en Streamlit (SCRUM-44).** App independiente en `dashboard/` con la misma identidad
+de Sistema Minerva (marca, paleta, tipografía, modo claro y oscuro, barra lateral y barra superior), para que se
+vea como parte de la app. Tiene la versión interactiva de las pantallas de inteligencia, con sus mismas
+secciones: **Vista ejecutiva**, **Dashboard estratégico**, **Red curricular** (la red dibujada, eligiendo una
+materia se resalta lo que bloquea), **Cubo OLAP** (ROLLUP/CUBE con subtotales y CSV) y **Patrón de riesgo
+observado** (el equivalente descriptivo de las antiguas «alertas»). Comparte con la app web las consultas de
+`backend/app/dw.py` y las definiciones y lecturas en texto de `backend/app/`, así que ambas muestran las mismas
+cifras. El marco visual está en `dashboard/tema.py` y `dashboard/shell.py`: si cambia un token de `DESIGN.md`,
+cámbialo ahí también.
 
 ```bash
 pip install -r dashboard/requirements.txt      # una sola vez (dentro del .venv)
@@ -492,6 +497,10 @@ Pasos (todo en `deploy/`; comandos como root, los de Python como `ubuntu`):
    `ngx_http_auth_request_module`, que trae `nginx-light`, `nginx-core` y `nginx-full`
    (`nginx -V 2>&1 | grep auth_request`).
 3. `.env`: `DASHBOARD_STREAMLIT_URL=/analitica/` (agrega «Dashboard interactivo» al menú) y reinicia `academico-web`.
+   El servicio ya define `DASHBOARD_APP_URL=/` para los enlaces «Volver al sistema» y «Salir» del dashboard. Con las
+   líneas `auth_request_set` / `proxy_set_header X-Minerva-Usuario` de `deploy/nginx-edumetrics.conf`, la barra
+   superior del dashboard muestra quién inició sesión (solo informativo: nginx reemplaza lo que mande el navegador
+   y nada se autoriza por esa cabecera).
 
 Comprobación: sin sesión, `/analitica/` redirige al login; con un docente responde 403; con un coordinador
 carga el dashboard. Cerrar sesión en la app corta el acceso a las páginas nuevas; una pestaña de Streamlit ya

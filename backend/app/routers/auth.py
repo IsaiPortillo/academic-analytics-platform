@@ -1,4 +1,5 @@
 from dataclasses import asdict
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse, Response
@@ -48,13 +49,19 @@ def verificar_acceso_coordinador(request: Request):
     403 = sesión de un rol sin acceso. Nunca devuelve datos.
     """
     usuario = usuario_opcional(request)
+    cabeceras = {"Cache-Control": "no-store"}
     if usuario is None:
         estado = 401
     elif not usuario.es_coordinador:
         estado = 403
     else:
         estado = 204
-    return Response(status_code=estado, headers={"Cache-Control": "no-store"})
+        # Quién es, para que el dashboard lo muestre en su barra superior (nginx lo
+        # reenvía). Solo informativo: no autoriza nada. Codificado: un nombre con tildes
+        # no es un valor de cabecera HTTP válido tal cual.
+        cabeceras["X-Minerva-Usuario"] = quote(usuario.nombre_completo)
+        cabeceras["X-Minerva-Rol"] = quote(usuario.rol_legible)
+    return Response(status_code=estado, headers=cabeceras)
 
 
 @router.post("/login")

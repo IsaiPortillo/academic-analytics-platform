@@ -1,5 +1,6 @@
 """Huella de los archivos estáticos en las URLs (evita CSS viejo tras desplegar)."""
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,6 +18,10 @@ class TestStaticV(unittest.TestCase):
             with mock.patch.object(templating, "DIRECTORIO_APP", Path(tmp)):
                 v1 = templating.static_v("a.css")
                 archivo.write_text("dos distinto")
+                # La caché se indexa por fecha de modificación: dos escrituras seguidas pueden
+                # caer en el mismo tick del reloj del sistema, así que se separa a mano.
+                sello = archivo.stat().st_mtime_ns + 5_000_000_000
+                os.utime(archivo, ns=(sello, sello))
                 v2 = templating.static_v("/a.css")
         self.assertTrue(v1.startswith("/static/a.css?v="))
         self.assertNotEqual(v1, v2)

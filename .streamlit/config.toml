@@ -3,26 +3,36 @@
 # en la raíz del proyecto:   streamlit run dashboard/app.py
 
 [server]
-# Solo accesible desde esta máquina. La app NO tiene inicio de sesión (a diferencia
-# de /vista-ejecutiva, que exige un coordinador autenticado): si se publica en una
-# red o en internet, hay que ponerle delante autenticación. Ver README.
+# Solo accesible desde esta máquina. La app NO tiene inicio de sesión propio: publicada,
+# queda detrás de nginx con la sesión de la app web (deploy/, README). Nunca se expone sola.
 address = "127.0.0.1"
 port = 8501
 headless = true
 
 [client]
-# Sin el botón "Deploy" ni opciones de publicación: es una app local de consulta.
+# Sin el botón "Deploy" ni opciones de publicación: es una app de consulta.
 toolbarMode = "minimal"
 
 [browser]
 # Sin telemetría de uso hacia Streamlit.
 gatherUsageStats = false
 
-# Misma paleta que el sistema (DESIGN.md): carmesí institucional sobre
-# superficies frías.
+# Misma identidad que la app web (DESIGN.md): carmesí institucional sobre superficies
+# frías, en claro y en oscuro. La tipografía y el resto del marco los pone dashboard/tema.py.
 [theme]
-base = "light"
-primaryColor = "#8b0105"
+baseRadius = "12px"
+borderColor = "#e2e8f0"
+
+[theme.light]
+primaryColor = "#8b0000"
 backgroundColor = "#f7f9fb"
 secondaryBackgroundColor = "#eef2f6"
 textColor = "#0f172a"
+borderColor = "#e2e8f0"
+
+[theme.dark]
+primaryColor = "#c73838"
+backgroundColor = "#0b1220"
+secondaryBackgroundColor = "#0f1626"
+textColor = "#e7ebf3"
+borderColor = "#253046"
