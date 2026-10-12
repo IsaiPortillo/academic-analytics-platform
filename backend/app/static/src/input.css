@@ -1323,7 +1323,7 @@
   .red-caja {
     /* Más dependientes = más tinte de la marca; es la lectura rápida de "quién frena más". */
     fill: color-mix(in srgb, var(--color-brand) calc(var(--calor, 0) * 24%), var(--color-surface));
-    transition: stroke 0.15s ease-in-out, stroke-width 0.15s ease-in-out, fill 0.15s ease-in-out;
+    transition: stroke 0.15s ease-in-out, fill 0.15s ease-in-out;
   }
   .red-cod {
     font-size: 13px;
@@ -1363,7 +1363,7 @@
     opacity: 0.38;
   }
   .red-arista .graph-edge {
-    transition: stroke 0.15s ease-in-out, stroke-width 0.15s ease-in-out, opacity 0.15s ease-in-out;
+    transition: stroke 0.15s ease-in-out, opacity 0.15s ease-in-out;
   }
   .red-arista.is-dependiente .graph-edge {
     stroke: var(--color-danger-text);
