@@ -32,3 +32,12 @@ etl/staging/
 graphify-out/
 .claude/
 .impeccable/
+# Material de trabajo personal en docs/: guias de redaccion, dossier y volcados de
+# codigo. Son apoyo para estudiar y redactar, no entregables del proyecto. Se
+# listan uno por uno a proposito: un patron como docs/**/*.pdf tambien ignoraria
+# la memoria final, que si debe versionarse.
+docs/dossier_del_proyecto.md
+docs/codigo_etl.md
+docs/guia_de_estudio.pdf
+docs/memoria/guia_entrega1_5oct.pdf
+docs/memoria/guia_entrega3_19oct.pdf
