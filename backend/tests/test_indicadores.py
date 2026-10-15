@@ -102,7 +102,7 @@ if __name__ == "__main__":
 
 
 class TestTarjetasCompartidas(unittest.TestCase):
-    """SCRUM-44: la web (FastAPI) y la app Streamlit muestran los mismos cuatro
+    """SCRUM-44: la web (FastAPI) y la app Streamlit muestran los mismos cinco
     indicadores a partir de estas tarjetas, así que sus definiciones se fijan aquí."""
 
     def setUp(self):
@@ -110,11 +110,11 @@ class TestTarjetasCompartidas(unittest.TestCase):
         self.previo = ind.calcular(_totales(costo_reprobacion=8_000.0, costo_repeticion=2_000.0))
         self.tarjetas = ind.tarjetas(self.actual, self.previo, "2024-I")
 
-    def test_son_los_cuatro_kpis_del_ticket_y_en_este_orden(self):
+    def test_son_los_cinco_kpis_y_en_este_orden(self):
         self.assertEqual(
             [t.etiqueta for t in self.tarjetas],
             ["Costo de reprobación", "Costo por estudiante que reprobó",
-             "Tasa de reprobación", "Costo atribuible a repetición"],
+             "Tasa de reprobación", "Tasa de retiro", "Costo atribuible a repetición"],
         )
 
     def test_cada_indicador_trae_definicion_e_interpretacion(self):
@@ -123,11 +123,13 @@ class TestTarjetasCompartidas(unittest.TestCase):
             self.assertTrue(t.texto, f"{t.etiqueta} sin interpretación")
 
     def test_valores_formateados(self):
-        self.assertEqual([t.valor for t in self.tarjetas], ["$10,000", "$125", "25.0 %", "30.0 %"])
+        self.assertEqual([t.valor for t in self.tarjetas],
+                         ["$10,000", "$125", "25.0 %", "5.9 %", "30.0 %"])
 
     def test_la_interpretacion_es_la_misma_que_las_funciones_individuales(self):
         self.assertEqual(self.tarjetas[0].texto, ind.interpretar_costo(self.actual, self.previo, "2024-I"))
         self.assertEqual(self.tarjetas[2].texto, ind.interpretar_tasa(self.actual, self.previo, "2024-I"))
+        self.assertEqual(self.tarjetas[3].texto, ind.interpretar_retiro(self.actual, self.previo, "2024-I"))
 
     def test_cifra_actual_y_previa_para_la_variacion(self):
         costo = self.tarjetas[0]
@@ -144,10 +146,25 @@ class TestTarjetasCompartidas(unittest.TestCase):
     def test_sin_datos_las_tarjetas_no_fallan(self):
         vacio = ind.calcular(_totales(costo_reprobacion=0, costo_cerradas=0, costo_repeticion=0,
                                       cerradas=0, reprobadas=0, cerradas_repeticion=0,
-                                      estudiantes_reprobados=0, estudiantes_evaluados=0))
+                                      retiradas=0, estudiantes_reprobados=0,
+                                      estudiantes_evaluados=0))
         tarjetas = ind.tarjetas(vacio, None, None)
-        self.assertEqual([t.valor for t in tarjetas], ["$0.00", "—", "—", "—"])
-        self.assertTrue(all(t.texto == ind.SIN_DATOS for t in tarjetas))
+        self.assertEqual([t.valor for t in tarjetas], ["$0.00", "—", "—", "—", "—"])
+        self.assertTrue(all(t.texto for t in tarjetas), "toda tarjeta explica por qué no hay cifra")
+        # Los cuatro que dependen de la nota final comparten el mismo aviso; el retiro
+        # tiene el suyo porque su denominador es otro (incluye las retiradas).
+        self.assertTrue(all(t.texto == ind.SIN_DATOS for i, t in enumerate(tarjetas) if i != 3))
+
+    def test_hay_retiros_pero_ninguna_cerrada(self):
+        """Caso real al filtrar un período en curso: nadie tiene nota final todavía,
+        pero algunos ya se retiraron. El retiro es el único indicador que puede
+        calcularse, y debe hacerlo en vez de decir que no hay datos."""
+        solo_retiros = ind.calcular(_totales(costo_reprobacion=0, costo_cerradas=0,
+                                             costo_repeticion=0, cerradas=0, reprobadas=0,
+                                             cerradas_repeticion=0, retiradas=25,
+                                             estudiantes_reprobados=0, estudiantes_evaluados=0))
+        self.assertEqual(solo_retiros.tasa_retiro, 1.0)
+        self.assertEqual(ind.tarjetas(solo_retiros, None, None)[3].valor, "100.0 %")
 
 
 class TestInterpretarEvolucion(unittest.TestCase):
