@@ -51,6 +51,7 @@ class Indicadores:
     costo_reprobacion: float
     costo_por_estudiante: float | None
     tasa_reprobacion: float | None
+    tasa_retiro: float | None
     proporcion_repeticion: float | None
     # Insumos, para las interpretaciones.
     costo_cerradas: float
@@ -66,6 +67,11 @@ class Indicadores:
     def hay_datos(self) -> bool:
         return self.cerradas > 0
 
+    @property
+    def desenlaces(self) -> int:
+        """Inscripciones que ya terminaron, de una forma o de otra."""
+        return self.cerradas + self.retiradas
+
 
 def calcular(totales: dict) -> Indicadores:
     t = {k: (v if v is not None else 0) for k, v in totales.items()}
@@ -73,6 +79,9 @@ def calcular(totales: dict) -> Indicadores:
         costo_reprobacion=float(t["costo_reprobacion"]),
         costo_por_estudiante=_division(t["costo_reprobacion"], t["estudiantes_reprobados"]),
         tasa_reprobacion=_division(t["reprobadas"], t["cerradas"]),
+        # Denominador: inscripciones con desenlace definitivo. Una que sigue en
+        # curso todavia puede terminar de cualquier forma, asi que no entra.
+        tasa_retiro=_division(t["retiradas"], t["cerradas"] + t["retiradas"]),
         proporcion_repeticion=_division(t["costo_repeticion"], t["costo_reprobacion"]),
         costo_cerradas=float(t["costo_cerradas"]),
         costo_repeticion=float(t["costo_repeticion"]),
@@ -160,6 +169,33 @@ def interpretar_tasa(ind: Indicadores, anterior: Indicadores | None = None,
     )
     return texto + _frase_variacion(
         ind.tasa_reprobacion, anterior.tasa_reprobacion if anterior else None,
+        periodo_anterior, en_puntos=True,
+    )
+
+
+def interpretar_retiro(ind: Indicadores, anterior: Indicadores | None = None,
+                       periodo_anterior: str | None = None) -> str:
+    """Lectura del retiro.
+
+    El retiro es la otra forma de no avanzar, y la que los demás indicadores no
+    ven: quien se retira no reprueba, así que no entra en la tasa de reprobación
+    ni suma costo de reprobación. Medirlo aparte evita que el abandono quede
+    invisible detrás de una tasa de reprobación que se ve bien.
+    """
+    if not ind.desenlaces:
+        return ("No hay inscripciones con desenlace definitivo para los filtros elegidos, "
+                "así que este indicador no se puede calcular.")
+    if not ind.retiradas:
+        return (f"Ninguna de las {ind.desenlaces:,} inscripciones con desenlace definitivo "
+                f"terminó en retiro.")
+    texto = (
+        f"{porcentaje(ind.tasa_retiro)} de las {ind.desenlaces:,} inscripciones que ya "
+        f"terminaron lo hicieron por retiro ({ind.retiradas:,}), no por nota. Son estudiantes "
+        f"que no reprobaron y que, por lo mismo, no aparecen en la tasa de reprobación ni en "
+        f"el costo de reprobación: abandonaron la materia antes de llegar a una nota final."
+    )
+    return texto + _frase_variacion(
+        ind.tasa_retiro, anterior.tasa_retiro if anterior else None,
         periodo_anterior, en_puntos=True,
     )
 
@@ -277,6 +313,12 @@ def tarjetas(ind: Indicadores, previos: Indicadores | None, periodo_anterior: st
             "Reprobadas ÷ inscripciones con nota final. Los retiros no cuentan.",
             interpretar_tasa(ind, previos, periodo_anterior),
             ind.tasa_reprobacion, previo("tasa_reprobacion"), "puntos",
+        ),
+        Tarjeta(
+            "Tasa de retiro", porcentaje(ind.tasa_retiro),
+            "Retiros ÷ inscripciones con desenlace definitivo (cerradas + retiradas).",
+            interpretar_retiro(ind, previos, periodo_anterior),
+            ind.tasa_retiro, previo("tasa_retiro"), "puntos",
         ),
         Tarjeta(
             "Costo atribuible a repetición", porcentaje(ind.proporcion_repeticion),
