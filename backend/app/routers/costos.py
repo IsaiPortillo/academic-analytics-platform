@@ -31,6 +31,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
+from .. import dw, recarga
 from ..database import get_db
 from ..dependencies import UsuarioSesion, requiere_rol
 from ..models import CostoUV, PeriodoAcademico
@@ -72,12 +73,20 @@ def listar(
     db: Session = Depends(get_db),
 ):
     filas = _periodos_con_costo(db)
+    # Si el DW no está disponible la página debe seguir sirviendo: editar costos
+    # no depende de él, solo el aviso de cuándo se cargó por última vez.
+    try:
+        ultima_carga = dw.ultima_carga()
+    except Exception:  # noqa: BLE001 - el detalle ya queda en el log del servidor
+        ultima_carga = None
     return templates.TemplateResponse(
         request,
         "modulos/costos.html",
         {
             "usuario": usuario,
             "filas": filas,
+            "ultima_carga": ultima_carga,
+            "carga_en_curso": recarga.hay_carga_en_curso(),
             "monedas": MONEDAS,
             "sin_costo": sum(1 for f in filas if f["costo"] is None),
             "con_supuesto": sum(1 for f in filas if f["es_supuesto"]),
@@ -87,6 +96,30 @@ def listar(
     )
 
 
+@router.post("/recargar")
+def recargar(
+    usuario: UsuarioSesion = Depends(requiere_rol("rol_coordinador")),
+):
+    """Recarga el Data Warehouse para que el tablero vea los costos editados.
+
+    No recibe `db`: la carga la hace un proceso aparte con su propio rol de
+    escritura (ver app/recarga.py). Esta ruta solo la dispara.
+    """
+    resultado = recarga.ejecutar_carga()
+    if resultado.ok:
+        return RedirectResponse(f"/costos?ok={resultado.mensaje}", status_code=303)
+
+    mensaje = resultado.mensaje
+    if resultado.detalle:
+        # Una sola línea: la interfaz no es el lugar para una traza entera, pero
+        # sin ninguna pista el coordinador no sabe ni a quién avisar.
+        mensaje += f" Detalle: {resultado.detalle.splitlines()[-1][:160]}"
+    return RedirectResponse(f"/costos?error={mensaje}", status_code=303)
+
+
+# Declarada ANTES de "/{periodo_id}": FastAPI resuelve las rutas en orden, y
+# "/{periodo_id}" tambien casa con "/costos/recargar", intentando convertir
+# "recargar" a entero y devolviendo 422.
 @router.post("/{periodo_id}")
 def guardar(
     periodo_id: int,

@@ -106,18 +106,44 @@
 </div>
 
 <div class="card mt-3">
-    <div class="card-header">Qué pasa después de guardar</div>
+    <div class="card-header">Llevar los costos al tablero</div>
     <div class="card-body">
-        <p class="text-sm text-muted mb-2">
+        <p class="text-sm text-muted mb-3">
             El costo se escribe en el esquema operacional, pero el tablero no lo lee de ahí: lo lee
             del Data Warehouse, donde llega como un atributo de la dimensión de período y como las
-            medidas del hecho. Para que el cambio se refleje hay que recargar:
+            medidas del hecho. Hasta que no se recargue, el tablero sigue mostrando las cifras
+            anteriores.
         </p>
-        <p class="text-sm"><code>python -m etl.carga</code></p>
+
+        <div class="filter-bar mb-3">
+            <form method="post" action="/costos/recargar"
+                  onsubmit="return confirm('La recarga reconstruye el Data Warehouse completo y tarda unos segundos. ¿Continuar?');">
+                <button type="submit" class="btn-save" {% if carga_en_curso %}disabled{% endif %}>
+                    {{ 'Recarga en curso…' if carga_en_curso else 'Recargar el Data Warehouse' }}
+                </button>
+            </form>
+            <div>
+                {% if ultima_carga %}
+                <span class="field-label">Última recarga</span>
+                <p class="text-sm">
+                    {{ ultima_carga.ejecutada_en.strftime('%d/%m/%Y %H:%M') }} ·
+                    {{ '{:,}'.format(ultima_carga.filas_hechos) }} hechos ·
+                    corte {{ ultima_carga.fecha_corte }}
+                </p>
+                {% else %}
+                <p class="text-sm text-muted">El Data Warehouse todavía no se ha cargado.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <p class="text-sm text-muted">
+            La recarga no corre dentro de esta aplicación: lanza el proceso del ETL, que se conecta
+            con su propio rol de escritura. Esta aplicación no puede escribir en el Data Warehouse,
+            y esa separación se mantiene también al pulsar el botón. Si algo falla a mitad, la carga
+            va en una sola transacción y el Data Warehouse queda como estaba.
+        </p>
         <p class="text-sm text-muted mt-2">
-            Esa separación es deliberada: el tablero nunca consulta las tablas transaccionales, de
-            modo que una edición aquí no altera cifras que alguien pueda estar analizando en ese
-            momento.
+            El equivalente por línea de comandos es <code>python -m etl.carga</code>.
         </p>
     </div>
 </div>
