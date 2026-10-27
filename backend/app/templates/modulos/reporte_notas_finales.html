@@ -1,17 +1,12 @@
 {% extends "base.html" %}
-{% from "_macros.html" import badge %}
+{% from "_macros.html" import badge, descargas %}
 {% block titulo %}Reporte de notas finales{% endblock %}
 
 {% block contenido %}
 <div class="page-head mb-4">
     <h1 class="page-title">Notas finales por sección</h1>
     <div class="page-head-actions">
-        {# Arrastra los filtros activos: el CSV entrega el periodo completo, sin el
-           corte de filas de la pantalla, pero acotado a lo que se está viendo. #}
-        <a class="btn-outline-neutral"
-           href="/reportes/notas-finales/csv?periodo_id={{ periodo_id }}{% if materia_id %}&amp;materia_id={{ materia_id }}{% endif %}{% if solo_reprobados %}&amp;solo_reprobados=true{% endif %}">
-            Exportar CSV
-        </a>
+        {{ descargas("/reportes/notas-finales/exportar", "periodo_id=" ~ periodo_id ~ ("&materia_id=" ~ materia_id if materia_id else "") ~ ("&solo_reprobados=true" if solo_reprobados else "")) }}
         <a class="btn-outline-neutral" href="/reportes">Volver a reportes</a>
     </div>
 </div>
@@ -158,9 +153,4 @@
     </div>
 </div>
 
-<p class="text-xs text-muted mt-3">
-    Se excluyen las inscripciones en estado RETIRADO. "Resultado" solo se calcula cuando
-    todas las evaluaciones de la sección tienen nota registrada; mientras falten notas se
-    muestra la nota parcial acumulada.
-</p>
 {% endblock %}

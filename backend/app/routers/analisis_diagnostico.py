@@ -18,6 +18,7 @@ from sqlalchemy.exc import DBAPIError
 from .. import dw, indicadores_diagnostico as diag
 from ..calculos import UMBRAL_FALTAS_RIESGO, UMBRAL_NOTA_APROBACION
 from ..dependencies import UsuarioSesion, requiere_rol
+from ..exportar import Columna, Reporte, responder
 from ..templating import templates
 
 router = APIRouter(prefix="/analisis-diagnostico", tags=["analitica"])
@@ -61,6 +62,59 @@ def _barras_tasa(filas: list[dict]) -> list[dict]:
     return filas
 
 
+def _resolver_filtros(periodos, carreras, periodo, departamento, carrera):
+    """Valida los filtros contra el catálogo (llegan por URL) y arma dw.Filtros."""
+    # El diagnóstico mira el historial: por defecto, todos los períodos.
+    codigos = periodos["codigo_periodo"].tolist()
+    sel_periodos = (periodo,) if periodo in codigos else ()
+    departamentos = (carreras[["codigo_departamento", "nombre_departamento"]]
+                     .drop_duplicates().to_dict("records"))
+    if departamento not in {d["codigo_departamento"] for d in departamentos}:
+        departamento = None
+    carreras_visibles = carreras if not departamento else carreras[
+        carreras["codigo_departamento"] == departamento
+    ]
+    if carrera not in set(carreras_visibles["codigo_carrera"]):
+        carrera = None
+    filtros = dw.Filtros(sel_periodos, (carrera,) if carrera else (),
+                         (departamento,) if departamento else ())
+    return codigos, sel_periodos, departamentos, departamento, carreras_visibles, carrera, filtros
+
+
+@router.get("/estudiantes/exportar")
+def exportar_estudiantes_con_patron(
+    formato: str = Query("csv", pattern="^(csv|xlsx|pdf)$"),
+    periodo: Optional[str] = Query(None),
+    departamento: Optional[str] = Query(None),
+    carrera: Optional[str] = Query(None),
+    usuario: UsuarioSesion = Depends(requiere_rol("rol_coordinador")),
+):
+    """La lista completa de estudiantes con el patrón, sin el corte de la pantalla."""
+    *_, filtros = _resolver_filtros(dw.catalogo_periodos(), dw.catalogo_carreras(),
+                                    periodo, departamento, carrera)
+    datos = dw.estudiantes_con_patron(filtros, limite=1_000_000)
+    reporte = Reporte(
+        "Estudiantes con el patrón de riesgo observado", "estudiantes_patron_riesgo",
+        [
+            Columna("estudiante_id", "ID estudiante", "id", 0.9),
+            Columna("carnet_hash", "Carnet (SHA-256)", "texto", 1.3),
+            Columna("cohorte", "Cohorte", "id", 0.7),
+            Columna("trabaja", "Trabaja", "texto", 0.6),
+            Columna("materias_con_patron", "Materias con el patrón", "entero", 1.1),
+            Columna("materias", "Materias", "texto", 1.8),
+            Columna("periodos", "Períodos", "texto", 1.4),
+            Columna("max_ausencias", "Máx. ausencias", "entero", 0.9),
+            Columna("nota_promedio", "Nota promedio", "decimal", 0.9),
+        ],
+        [(e["estudiante_id"], e["carnet_hash"], e["anio_ingreso"], "Sí" if e["trabaja"] else "No",
+          e["inscripciones"], e["materias"], e["periodos"], e["max_ausencias"], e["nota_promedio"])
+         for e in datos.to_dict("records")],
+        [("Criterio", f"Nota final menor a {UMBRAL_NOTA_APROBACION} y {UMBRAL_FALTAS_RIESGO} o más ausencias"),
+         ("Período", filtros.periodos[0] if filtros.periodos else "Todos")],
+    )
+    return responder(reporte, formato)
+
+
 @router.get("")
 def analisis_diagnostico(
     request: Request,
@@ -82,20 +136,8 @@ def analisis_diagnostico(
                      "y que esté cargado: python -m etl.carga",
         })
 
-    # El diagnóstico mira el historial: por defecto, todos los períodos.
-    codigos = periodos["codigo_periodo"].tolist()
-    sel_periodos = (periodo,) if periodo in codigos else ()
-    departamentos = (carreras[["codigo_departamento", "nombre_departamento"]]
-                     .drop_duplicates().to_dict("records"))
-    if departamento not in {d["codigo_departamento"] for d in departamentos}:
-        departamento = None
-    carreras_visibles = carreras if not departamento else carreras[
-        carreras["codigo_departamento"] == departamento
-    ]
-    if carrera not in set(carreras_visibles["codigo_carrera"]):
-        carrera = None
-    filtros = dw.Filtros(sel_periodos, (carrera,) if carrera else (),
-                         (departamento,) if departamento else ())
+    codigos, sel_periodos, departamentos, departamento, carreras_visibles, carrera, filtros = \
+        _resolver_filtros(periodos, carreras, periodo, departamento, carrera)
 
     pares = dw.correlaciones(filtros).to_dict("records")
 

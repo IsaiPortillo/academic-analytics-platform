@@ -6,12 +6,7 @@
 <div class="flex items-start justify-between flex-wrap gap-3 mb-4">
     <div>
         <h1 class="page-title mb-1">Red curricular: dónde se concentra el costo</h1>
-        <p class="text-sm text-muted">
-            Nivel diagnóstico — ¿por qué el costo de una materia se propaga al resto del plan? Describe lo que
-            ya ocurrió en la malla; no pronostica ni recomienda.
-        </p>
     </div>
-    <span class="telemetry-badge"><span class="dot"></span>Data Warehouse · malla desde Neo4j (ETL) · rol_dashboard</span>
 </div>
 
 {% if error %}
@@ -49,20 +44,12 @@
                 </select>
             </div>
         </form>
-        <p class="text-xs text-muted mt-2">
-            Los filtros acotan el <strong>costo</strong> y las reprobaciones; la malla (materias y prerrequisitos)
-            es siempre la misma.
-        </p>
     </div>
 </div>
 
 {% if supuesto %}
 <div class="alert alert-warning mb-4" role="note">
-    <span>
-        <strong>Costo por unidad valorativa: {{ supuesto.cifra }}, supuesto paramétrico.</strong>
-        No es una cifra presupuestaria oficial de la UES (fuente registrada: “{{ supuesto.fuente }}”).
-        Los montos muestran el orden de magnitud y se recalculan solos cuando se registre la cifra oficial.
-    </span>
+    <span><strong>Costo por UV: {{ supuesto.cifra }}</strong> — supuesto paramétrico, no es una cifra oficial.</span>
 </div>
 {% endif %}
 
@@ -136,7 +123,6 @@
                 {% endfor %}
             </svg>
         </div>
-        <p class="text-xs text-muted mt-2">Desplaza la red hacia la derecha para recorrer todos los ciclos; el panel de arriba se queda a la vista.</p>
 
         <div class="red-leyenda" aria-label="Leyenda">
             <span><i class="red-muestra is-seleccion"></i>Materia elegida</span>
@@ -145,10 +131,6 @@
             <span><i class="red-muestra is-cuello"></i>Cuello de botella</span>
             <span><i class="red-muestra is-calor"></i>Más dependientes = más oscura</span>
         </div>
-        <p class="text-xs text-muted mt-2">
-            Las relaciones avanzan de izquierda a derecha: de la materia que hay que aprobar a la que la exige
-            (columnas {{ 'por ciclo del plan' if disposicion.criterio_columnas == 'ciclo' else 'por profundidad en la cadena de prerrequisitos' }}).
-        </p>
         <button type="button" class="btn-outline-neutral mt-3" id="red-reiniciar">Ver toda la red</button>
 
         <p class="kpi-interpretacion">{{ lectura_estructura }}</p>
@@ -312,9 +294,7 @@
 
 {% if ultima_carga %}
 <p class="text-xs text-muted">
-    Última carga del Data Warehouse: {{ ultima_carga.ejecutada_en.strftime("%Y-%m-%d %H:%M") }} UTC
-    · fecha de corte {{ ultima_carga.fecha_corte }}. La malla se cargó desde Neo4j por el ETL; esta vista no
-    consulta ni Neo4j ni el sistema transaccional: lee solo el Data Warehouse.
+    Datos al {{ ultima_carga.fecha_corte }}.
 </p>
 {% endif %}
 

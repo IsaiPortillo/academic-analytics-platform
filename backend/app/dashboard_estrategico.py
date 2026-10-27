@@ -40,24 +40,15 @@ def aprobacion_por_ciclo(df: pd.DataFrame, moneda: str = "USD") -> list[dict]:
 
 
 def leer_aprobacion(filas: list[dict]) -> str:
-    """Dónde se aprueba menos y dónde más, entre ciclos con base suficiente."""
     validas = [f for f in filas if f["aprobacion"] is not None and f["cerradas"] >= MINIMO_CERRADAS_CICLO]
     if len(validas) < 2:
-        return ("No hay suficientes inscripciones con nota final por ciclo del plan para comparar "
-                "la aprobación entre ciclos con los filtros elegidos.")
+        return "No hay datos suficientes por ciclo para comparar."
     baja = min(validas, key=lambda f: f["aprobacion"])
     alta = max(validas, key=lambda f: f["aprobacion"])
-    brecha = alta["aprobacion"] - baja["aprobacion"]
-    if brecha < 0.02:
-        return (f"La aprobación es prácticamente la misma en todos los ciclos del plan (de "
-                f"{baja['aprobacion_texto']} a {alta['aprobacion_texto']}): la reprobación no se "
-                f"concentra en una etapa de la carrera.")
-    return (
-        f"El ciclo {baja['ciclo']} es donde menos se aprueba ({baja['aprobacion_texto']}, con "
-        f"{baja['reprobados']:,} reprobados) y el ciclo {alta['ciclo']} donde más ({alta['aprobacion_texto']}): "
-        f"una diferencia de {brecha * 100:.1f} puntos porcentuales entre ciclos con al menos "
-        f"{MINIMO_CERRADAS_CICLO} inscripciones con nota final."
-    )
+    if alta["aprobacion"] - baja["aprobacion"] < 0.02:
+        return f"Aprobación similar en todos los ciclos ({baja['aprobacion_texto']} a {alta['aprobacion_texto']})."
+    return (f"Menor aprobación en el ciclo {baja['ciclo']} ({baja['aprobacion_texto']}); "
+            f"mayor en el ciclo {alta['ciclo']} ({alta['aprobacion_texto']}).")
 
 
 def materias_que_mas_bloquean(cruce: pd.DataFrame, moneda: str = "USD", n: int = 5) -> list[dict]:
@@ -81,14 +72,13 @@ def materias_que_mas_bloquean(cruce: pd.DataFrame, moneda: str = "USD", n: int =
 
 
 def leer_impacto(materias: list[dict], total_bloqueos: int) -> str:
-    """Cuánto de los bloqueos concentran las materias de la lista."""
     if not materias or total_bloqueos <= 0:
-        return ("No hubo reprobaciones en materias que otras materias requieran con los filtros "
-                "elegidos, así que no hay bloqueos que atribuir a la malla.")
+        return "No hubo bloqueos con estos filtros."
     parte = sum(m["bloqueos"] for m in materias) / total_bloqueos
     cuellos = [m["codigo"] for m in materias if m["cuello"]]
-    texto = (f"Las {len(materias)} materias de la lista, las que más bloquean la malla, generan el "
-             f"{porcentaje(parte)} de los bloqueos (reprobaciones × materias que dependen de ellas).")
+    texto = f"Estas {len(materias)} materias generan el {porcentaje(parte)} de los bloqueos."
     if cuellos:
         texto += f" {', '.join(cuellos)} {'es' if len(cuellos) == 1 else 'son'} cuello de botella."
-    return texto + " El detalle y el dibujo de la red están en Red curricular."
+    return texto
+
+

@@ -1,30 +1,32 @@
 {% extends "base.html" %}
+{% from "_macros.html" import descargas %}
 {% block titulo %}Reportes operacionales{% endblock %}
 
 {% block contenido %}
-<h1 class="page-title mb-1">Reportes operacionales</h1>
-<p class="text-sm text-muted mb-4">Vista de coordinador: cruza todas las secciones de un periodo.</p>
+<h1 class="page-title mb-4">Reportes operacionales</h1>
+
+{% set reportes = [
+    ("/reportes/asistencia", "/reportes/asistencia/exportar", "Asistencia acumulada",
+     "Asistencia por estudiante y sección, ordenada por faltas."),
+    ("/reportes/notas-finales", "/reportes/notas-finales/exportar", "Notas finales por sección",
+     "Nota final ponderada por estudiante según el porcentaje de cada evaluación."),
+] %}
+{% for slug, r in adicionales.items() %}
+{% set _ = reportes.append(("/reportes/" ~ slug, "/reportes/" ~ slug ~ "/exportar", r.titulo, r.descripcion)) %}
+{% endfor %}
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+    {% for ver, exportar, titulo, descripcion in reportes %}
     <div class="card">
-        <div class="card-header">Asistencia acumulada</div>
+        <div class="card-header">{{ titulo }}</div>
         <div class="card-body">
-            <p class="text-sm text-muted mb-3">
-                Asistencia por estudiante y sección a lo largo de un periodo, ordenada por
-                faltas para identificar rápidamente a quienes están en riesgo.
-            </p>
-            <a class="btn-view" href="/reportes/asistencia">Abrir reporte</a>
+            <p class="text-sm text-muted mb-3">{{ descripcion }}</p>
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <a class="btn-view" href="{{ ver }}">Abrir reporte</a>
+                {{ descargas(exportar) }}
+            </div>
         </div>
     </div>
-
-    <div class="card">
-        <div class="card-header">Notas finales por sección</div>
-        <div class="card-body">
-            <p class="text-sm text-muted mb-3">
-                Nota final ponderada por estudiante según el porcentaje de cada evaluación.
-            </p>
-            <a class="btn-view" href="/reportes/notas-finales">Abrir reporte</a>
-        </div>
-    </div>
+    {% endfor %}
 </div>
 {% endblock %}

@@ -125,20 +125,14 @@ def main() -> None:
     if any("SUPUESTO" in f.upper() for f in fuentes):
         cifra = ", ".join(ind.dinero(c, moneda) for c in seleccion["costo_por_uv"].dropna().unique())
         st.warning(secciones.md(
-            f"**Costo por unidad valorativa: {cifra}, supuesto paramétrico.** No es una cifra "
-            f"presupuestaria oficial de la UES (fuente registrada: “{fuentes[0]}”). Los montos "
-            "muestran el orden de magnitud y se recalculan solos cuando se registre la cifra oficial."
+            f"**Costo por UV: {cifra}** — supuesto paramétrico, no es una cifra oficial."
         ))
 
     SECCIONES[seccion](ctx)
 
     carga = datos.ultima_carga()
     if carga:
-        st.caption(
-            f"Última carga del Data Warehouse: {carga['ejecutada_en']:%Y-%m-%d %H:%M} UTC · fecha de "
-            f"corte {carga['fecha_corte']} · {int(carga['filas_hechos']):,} inscripciones. Esta vista "
-            "no consulta el sistema transaccional ni Neo4j: lee solo el Data Warehouse."
-        )
+        st.caption(f"Datos al {carga['fecha_corte']}.")
 
 
 main()

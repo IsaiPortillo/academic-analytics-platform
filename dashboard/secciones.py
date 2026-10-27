@@ -80,7 +80,6 @@ def _delta(tarjeta: ind.Tarjeta, periodo_anterior: str | None, moneda: str) -> s
 
 def vista_ejecutiva(ctx: Contexto) -> None:
     st.title("Vista ejecutiva: costo y rendimiento")
-    st.caption("Nivel analítico descriptivo — ¿qué ocurrió en el ciclo y cuánto costó?")
 
     actual = ind.calcular(datos.totales(*ctx.filtros))
     periodo_anterior = None
@@ -90,7 +89,7 @@ def vista_ejecutiva(ctx: Contexto) -> None:
 
     st.header(f"Indicadores clave · {ctx.etiqueta_periodo}")
     if periodo_anterior:
-        st.caption(f"Variación contra {periodo_anterior} · en rojo cuando el indicador empeora")
+        st.caption(f"Comparado con {periodo_anterior}")
     tarjetas = ind.tarjetas(actual, previos, periodo_anterior, ctx.moneda)
     for fila in (tarjetas[:2], tarjetas[2:]):
         for columna, t in zip(st.columns(2), fila):
@@ -147,7 +146,6 @@ def vista_ejecutiva(ctx: Contexto) -> None:
 
 def panorama(ctx: Contexto) -> None:
     st.title("Dashboard estratégico")
-    st.caption("Panorama institucional — ¿cómo va el rendimiento y dónde se concentra?")
 
     st.header(f"Aprobación por ciclo del plan · {ctx.etiqueta_periodo}")
     ciclos = panel.aprobacion_por_ciclo(datos.aprobacion_por_ciclo(*ctx.filtros), ctx.moneda)
@@ -176,8 +174,6 @@ def panorama(ctx: Contexto) -> None:
                 tooltip=[alt.Tooltip("codigo_periodo:N", title="Período"),
                          alt.Tooltip("tasa_reprobacion:Q", title="Tasa", format=".1%")],
             ).properties(height=240), width="stretch")
-        lectura("Las columnas resaltadas son los períodos del filtro; el gráfico respeta el departamento y la "
-                "carrera, pero muestra siempre todos los períodos.")
 
     st.header("Materias que más frenan la malla")
     cruce = datos.cruce(*ctx.filtros)
@@ -197,8 +193,6 @@ def panorama(ctx: Contexto) -> None:
 
 def red_curricular(ctx: Contexto) -> None:
     st.title("Red curricular: dónde se concentra el costo")
-    st.caption("Nivel diagnóstico — ¿por qué el costo de una materia se propaga al resto del plan? "
-               "Describe lo ocurrido; no pronostica.")
 
     nodos_df, relaciones = datos.malla()
     grafo = rc.construir_red(nodos_df, relaciones)
@@ -243,9 +237,8 @@ def red_curricular(ctx: Contexto) -> None:
     # st.markdown y no st.html: este último elimina los <svg>. Una sola línea, sin sangría ni líneas en blanco.
     st.markdown(f'<div style="overflow-x:auto;border:1px solid {ctx.p["border"]};border-radius:12px;'
                 f'background:{ctx.p["bg"]}">{svg}</div>', unsafe_allow_html=True)
-    st.caption("Las relaciones avanzan de izquierda a derecha: de la materia que hay que aprobar a la que la exige. "
-               "Rojo: se bloquea si se reprueba la elegida · gris: hay que aprobarla antes · borde rojo: cuello de "
-               "botella · más oscura: más dependientes. Desplaza la red para ver todos los ciclos.")
+    st.caption("Rojo: se bloquea si se reprueba la elegida · gris: hay que aprobarla antes · "
+               "borde rojo: cuello de botella.")
     lectura(rc.leer_estructura(grafo))
 
     st.header("Materias cuello de botella")
@@ -283,9 +276,8 @@ def red_curricular(ctx: Contexto) -> None:
     guias.append(alt.Chart(pd.DataFrame({"y": [g["umbral_dependientes"]]})).mark_rule(
         strokeDash=[4, 4], color=ctx.p["muted"]).encode(y="y:Q"))
     st.altair_chart(alt.layer(puntos, etiquetas, *guias).properties(height=340), width="stretch")
-    st.caption("Línea vertical: costo mediano de las materias con costo. Línea horizontal: umbral de cuello de botella "
-               f"({g['umbral_dependientes']:.1f} dependientes). Bloqueos = reprobados × materias dependientes: un conteo "
-               "de lo ocurrido en el historial, no una proyección.")
+    st.caption("Línea vertical: costo mediano. Línea horizontal: umbral de cuello de botella "
+               f"({g['umbral_dependientes']:.1f} dependientes).")
     lectura(rc.leer_cruce(cruce, grafo, ctx.moneda))
 
 
@@ -295,8 +287,7 @@ def red_curricular(ctx: Contexto) -> None:
 
 def cubo_olap(ctx: Contexto) -> None:
     st.title("Cubo OLAP: resultados por dimensiones")
-    st.caption("Elige hasta tres dimensiones y PostgreSQL calcula con ROLLUP o CUBE las medidas de cada "
-               "combinación, los subtotales y el total sobre fact_inscripcion. Descriptivo.")
+    st.caption("Elige hasta tres dimensiones para cruzar el rendimiento.")
 
     claves = list(olap.DIMENSIONES)
     etiqueta = lambda c: olap.DIMENSIONES[c][0]  # noqa: E731
@@ -340,9 +331,7 @@ def cubo_olap(ctx: Contexto) -> None:
         "Nota promedio": st.column_config.NumberColumn(format="%.2f")})
     st.download_button("Descargar CSV", tabla.to_csv(index=False).encode("utf-8-sig"),
                        file_name="cubo_olap.csv", mime="text/csv")
-    st.caption("«Todos» marca una dimensión agrupada: la fila es un subtotal (fondo tenue) o el total general "
-               "(negrita). ROLLUP arma la jerarquía en el orden elegido; CUBE calcula además todas las demás "
-               "combinaciones. Solo cuentan las inscripciones con nota final.")
+    st.caption("«Todos» indica un subtotal; la fila en negrita es el total general.")
     lectura(olap.leer_cubo(filas, dims, modo, ctx.moneda))
 
 
@@ -352,9 +341,8 @@ def cubo_olap(ctx: Contexto) -> None:
 
 def patron_riesgo(ctx: Contexto) -> None:
     st.title("Estudiantes con patrón de riesgo observado")
-    st.caption(f"Nivel diagnóstico. Describe lo ya observado (nota final menor a {UMBRAL_NOTA_APROBACION} y "
-               f"{UMBRAL_FALTAS_RIESGO} o más ausencias en una misma materia): no pronostica quién desertará "
-               "ni recomienda acciones.")
+    st.caption(f"Nota final menor a {UMBRAL_NOTA_APROBACION} y {UMBRAL_FALTAS_RIESGO} o más "
+               "ausencias en una misma materia.")
 
     r = datos.resumen_patron(*ctx.filtros)
     c1, c2 = st.columns(2)
@@ -374,5 +362,4 @@ def patron_riesgo(ctx: Contexto) -> None:
         "periodos": "Períodos", "max_ausencias": "Máx. ausencias", "nota_promedio": "Nota promedio"})
     tabla["Trabaja"] = tabla["Trabaja"].map({True: "Sí", False: "No"})
     st.dataframe(tabla, hide_index=True, width="stretch")
-    st.caption(f"Se muestran como máximo {datos.LIMITE_ESTUDIANTES} estudiantes, con más materias en el patrón primero. "
-               "Cada uno se identifica por el mismo ID que muestran los reportes del sistema; el carnet va anonimizado.")
+    st.caption(f"Se muestran como máximo {datos.LIMITE_ESTUDIANTES} estudiantes.")

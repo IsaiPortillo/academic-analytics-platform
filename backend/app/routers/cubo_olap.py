@@ -9,15 +9,13 @@ alertas de deserción ni proyecciones; el análisis de los estudiantes que ya
 presentan el patrón de riesgo observado vive en /analisis-diagnostico.
 """
 
-import csv
-import io
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import Response
 from sqlalchemy.exc import DBAPIError
 
 from .. import dw, indicadores as ind, olap
+from ..exportar import Columna, Reporte, responder
 from ..dependencies import UsuarioSesion, requiere_rol
 from ..templating import templates
 
@@ -112,6 +110,43 @@ def cubo_olap(
     })
 
 
+@router.get("/exportar")
+def cubo_exportar(
+    formato: str = Query("csv", pattern="^(csv|xlsx|pdf)$"),
+    d1: Optional[str] = Query(None),
+    d2: Optional[str] = Query(None),
+    d3: Optional[str] = Query(None),
+    modo: Optional[str] = Query(None),
+    periodo: Optional[str] = Query(None),
+    departamento: Optional[str] = Query(None),
+    carrera: Optional[str] = Query(None),
+    usuario: UsuarioSesion = Depends(requiere_rol("rol_coordinador")),
+):
+    """El mismo cubo que muestra la pantalla, completo, en CSV, Excel o PDF."""
+    ctx = _contexto_filtros(periodo, departamento, carrera)
+    dims = _dimensiones(d1, d2, d3)
+    modo = olap.validar_modo(modo)
+    filas = olap.preparar_filas(dw.cubo(ctx["filtros"], dims, modo).head(olap.LIMITE_FILAS), dims, ctx["moneda"])
+    columnas = [Columna(clave, etiqueta, "texto", 1.2) for clave, etiqueta in zip(dims, olap.etiquetas(dims))]
+    columnas += [
+        Columna("nivel", "Nivel", "entero", 0.6),
+        Columna("con_nota_final", "Con nota final", "entero", 1.0),
+        Columna("reprobados", "Reprobados", "entero", 0.9),
+        Columna("tasa_reprobacion", "Tasa de reprobación", "porcentaje", 1.1),
+        Columna("nota_promedio", "Nota promedio", "decimal", 0.9),
+        Columna("costo_reprobacion", f"Costo de reprobación ({ctx['moneda']})", "dinero", 1.2),
+    ]
+    reporte = Reporte(
+        "Cubo OLAP", "cubo_olap", columnas,
+        [f["celdas"] + [f["nivel"], f["cerradas"], f["reprobados"], f["tasa"],
+                        None if f["nota_texto"] == "—" else float(f["nota_texto"]), f["costo"]]
+         for f in filas],
+        [("Dimensiones", " → ".join(olap.etiquetas(dims))), ("Modo", modo.upper()),
+         ("Período", ctx["periodo"] if ctx["periodo"] != TODOS else "Todos")],
+    )
+    return responder(reporte, formato)
+
+
 @router.get("/csv")
 def cubo_csv(
     d1: Optional[str] = Query(None),
@@ -123,23 +158,5 @@ def cubo_csv(
     carrera: Optional[str] = Query(None),
     usuario: UsuarioSesion = Depends(requiere_rol("rol_coordinador")),
 ):
-    """El mismo cubo que muestra la pantalla, completo, en CSV."""
-    ctx = _contexto_filtros(periodo, departamento, carrera)
-    dims = _dimensiones(d1, d2, d3)
-    modo = olap.validar_modo(modo)
-    filas = olap.preparar_filas(dw.cubo(ctx["filtros"], dims, modo).head(olap.LIMITE_FILAS), dims, ctx["moneda"])
-    salida = io.StringIO()
-    escritor = csv.writer(salida)
-    escritor.writerow(olap.etiquetas(dims) + ["Nivel", "Con nota final", "Reprobados",
-                                              "Tasa de reprobación", "Nota promedio",
-                                              f"Costo de reprobación ({ctx['moneda']})"])
-    for f in filas:
-        escritor.writerow(f["celdas"] + [f["nivel"], f["cerradas"], f["reprobados"],
-                                         "" if f["tasa"] is None else f"{f['tasa']:.4f}",
-                                         "" if f["nota_texto"] == "—" else f["nota_texto"],
-                                         f"{f['costo']:.2f}"])
-    return Response(
-        content="﻿" + salida.getvalue(),  # BOM: Excel abre bien las tildes
-        media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="cubo_olap.csv"'},
-    )
+    """Se conserva la URL anterior para los enlaces que ya existían."""
+    return cubo_exportar("csv", d1, d2, d3, modo, periodo, departamento, carrera, usuario)

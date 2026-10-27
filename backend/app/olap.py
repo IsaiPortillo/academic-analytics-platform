@@ -142,35 +142,23 @@ def etiquetas(dimensiones: list[str]) -> list[str]:
 
 
 def leer_cubo(filas: list[dict], dimensiones: list[str], modo: str, moneda: str = "USD") -> str:
-    """Qué muestra el cubo, en una o dos frases, sin inventar donde no hay datos."""
-    nombres = etiquetas(dimensiones)
     if not filas:
-        return "El cubo no devolvió filas con los filtros elegidos."
+        return "Sin resultados para estos filtros."
     detalle = [f for f in filas if f["nivel"] == 0]
-    subtotales = [f for f in filas if 0 < f["nivel"] < len(nombres)]
+    subtotales = [f for f in filas if 0 < f["nivel"] < len(etiquetas(dimensiones))]
     total = next((f for f in filas if f["es_total"]), None)
-    texto = (
-        f"{'ROLLUP' if validar_modo(modo) == 'rollup' else 'CUBE'} por {' → '.join(nombres)}: "
-        f"{len(detalle):,} combinaciones de detalle y {len(subtotales):,} "
-        f"subtotal{'es' if len(subtotales) != 1 else ''}"
-    )
-    if total:
-        texto += (f"; en total, {total['cerradas']:,} inscripciones con nota final, "
-                  f"{total['reprobados']:,} reprobadas ({total['tasa_texto']}) y "
-                  f"{total['costo_texto']} de costo de reprobación")
-    texto += "."
+    texto = (f"{len(detalle):,} combinaciones y {len(subtotales):,} "
+             f"subtotal{'es' if len(subtotales) != 1 else ''}")
+    texto += f"; tasa de reprobación total: {total['tasa_texto']}." if total else "."
     comparables = [f for f in detalle if f["cerradas"] >= MINIMO_CERRADAS_LECTURA and f["tasa"] is not None]
     if len(comparables) >= 2:
         alta = max(comparables, key=lambda f: f["tasa"])
         baja = min(comparables, key=lambda f: f["tasa"])
         if alta["tasa"] - baja["tasa"] >= 0.02:
-            texto += (
-                f" Entre las combinaciones con al menos {MINIMO_CERRADAS_LECTURA} inscripciones con nota "
-                f"final, la reprobación más alta es {' · '.join(alta['celdas'])} ({alta['tasa_texto']}) y "
-                f"la más baja {' · '.join(baja['celdas'])} ({baja['tasa_texto']})."
-            )
+            texto += (f" Más alta: {' · '.join(alta['celdas'])} ({alta['tasa_texto']}); "
+                      f"más baja: {' · '.join(baja['celdas'])} ({baja['tasa_texto']}).")
         else:
-            texto += (f" Entre las combinaciones con al menos {MINIMO_CERRADAS_LECTURA} inscripciones con "
-                      f"nota final la tasa de reprobación es casi la misma (de {baja['tasa_texto']} a "
-                      f"{alta['tasa_texto']}): ninguna dimensión de las elegidas la separa.")
+            texto += " Sin diferencias apreciables entre combinaciones."
     return texto
+
+

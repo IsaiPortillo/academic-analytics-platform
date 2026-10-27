@@ -28,3 +28,17 @@
     <span>{{ texto }}</span>
 </span>
 {% endmacro %}
+
+{# Botones de descarga de un reporte en CSV, Excel y PDF.
+   url: endpoint de exportación; consulta: filtros activos ya armados como query string. #}
+{% macro descargas(url, consulta='') %}
+<div class="descargas" role="group" aria-label="Descargar reporte">
+    <span class="descargas-label">Descargar</span>
+    {% for formato, texto in [('csv', 'CSV'), ('xlsx', 'Excel'), ('pdf', 'PDF')] %}
+    <a class="btn-descarga" href="{{ url }}?formato={{ formato }}{% if consulta %}&{{ consulta }}{% endif %}" data-descarga>
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M6 9l4 4 4-4M4 16h12"/></svg>
+        {{ texto }}
+    </a>
+    {% endfor %}
+</div>
+{% endmacro %}

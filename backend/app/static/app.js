@@ -581,3 +581,16 @@ document.querySelectorAll("[data-lock-on-submit]").forEach((formulario) => {
     boton.textContent = formulario.dataset.lockOnSubmit || "Guardando…";
   });
 });
+
+// Descargas de reportes: evita pedir el mismo archivo varias veces mientras el
+// servidor lo genera (un PDF largo tarda uno o dos segundos).
+document.querySelectorAll("[data-descarga]").forEach((enlace) => {
+  enlace.addEventListener("click", () => {
+    enlace.classList.add("is-generando");
+    enlace.setAttribute("aria-busy", "true");
+    setTimeout(() => {
+      enlace.classList.remove("is-generando");
+      enlace.removeAttribute("aria-busy");
+    }, 3000);
+  });
+});

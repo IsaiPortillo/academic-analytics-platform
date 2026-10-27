@@ -114,7 +114,9 @@ academic-analytics-platform/
   - [x] Matrícula (SCRUM-7) — inscribir y retirar estudiantes de secciones.
   - [x] Registro de calificaciones (SCRUM-8) — evaluaciones ponderadas y notas por sección.
   - [x] Control de asistencia (SCRUM-9) — asistencia por sesión y resumen de faltas.
-  - [ ] Reportes operacionales (SCRUM-10) — notas finales y asistencia acumulada.
+  - [x] Reportes operacionales (SCRUM-10) — notas finales, asistencia acumulada, rendimiento por
+    materia, desempeño por docente, ocupación de secciones y notas pendientes de registro. Todos
+    se descargan en CSV, Excel y PDF (`backend/app/exportar.py`).
 
 ### Fase 3: Ingeniería de Datos (ETL y Data Warehouse)
 - [x] **3.1:** Conexión y extracción híbrida (SQLAlchemy para PostgreSQL y driver oficial Neo4j).

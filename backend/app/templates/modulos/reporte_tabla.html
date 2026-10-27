@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% from "_macros.html" import descargas %}
+{% block titulo %}{{ definicion.titulo }}{% endblock %}
+
+{% block contenido %}
+<div class="page-head mb-4">
+    <h1 class="page-title">{{ definicion.titulo }}</h1>
+    <div class="page-head-actions">
+        {{ descargas("/reportes/" ~ slug ~ "/exportar", "periodo_id=" ~ periodo_id if periodo_id else "") }}
+        <a class="btn-outline-neutral" href="/reportes">Volver a reportes</a>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get" action="/reportes/{{ slug }}" class="filter-bar">
+            <div>
+                <label for="periodo_id" class="field-label">Período</label>
+                <select id="periodo_id" name="periodo_id" class="select" onchange="this.form.submit()"
+                        data-skeleton-on-filter="#tabla-reporte">
+                    {% for p in periodos %}
+                    <option value="{{ p.periodo_id }}" {% if p.periodo_id == periodo_id %}selected{% endif %}>
+                        {{ p.codigo_periodo }}{% if p.activo %} (activo){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if total > limite_filas %}
+<div class="alert alert-danger mb-3" role="alert">
+    <span>Se muestran las primeras {{ limite_filas }} de {{ "{:,}".format(total) }} filas. Las descargas incluyen todas.</span>
+    <button type="button" class="alert-close" data-alert-close aria-label="Cerrar">&times;</button>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">{{ "{:,}".format(total) }} fila(s)</div>
+    <div class="table-wrap">
+        <table class="table table-sticky-first" id="tabla-reporte">
+            <thead>
+                <tr>
+                    {% for c in reporte.columnas if reporte %}
+                    <th class="{{ 'text-center' if c.tipo != 'texto' }}">{{ c.etiqueta }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for fila in filas %}
+                <tr>
+                    {% for valor, tipo in fila %}
+                    <td class="{{ 'text-center' if tipo != 'texto' }}{{ ' font-semibold' if loop.first }}">{{ valor }}</td>
+                    {% endfor %}
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="{{ reporte.columnas|length if reporte else 1 }}" class="text-muted text-center py-3">
+                        Sin registros para este período.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

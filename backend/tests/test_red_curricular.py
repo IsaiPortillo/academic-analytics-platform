@@ -202,23 +202,22 @@ class TestLectura(unittest.TestCase):
 
     def test_cuellos_dicen_cuantas_materias_bloquea_la_mayor(self):
         texto = rc.leer_cuellos(self.red, self.materias)
-        self.assertIn("Programación I (PRG115) es la mayor", texto)
-        self.assertIn("2 dependientes directos y 8 indirectos, 10 en total", texto)
+        self.assertIn("PRG115 bloquea 10 materias", texto)
 
     def test_el_cruce_explica_por_que_el_costo_se_propaga(self):
         texto = rc.leer_cruce(self.cruce, self.red)
         # La más cara (BIN115) es terminal: su costo no se propaga.
-        self.assertIn("Inteligencia de Negocios (BIN115) es la materia con más costo", texto)
-        self.assertIn("no se propaga al resto del plan", texto)
+        self.assertIn("BIN115 tiene el mayor costo", texto)
+        self.assertIn("no bloquea otras materias", texto)
         # La que más bloqueos genera no es la más cara.
-        self.assertIn("La que más bloqueos genera es Programación I (PRG115)", texto)
+        self.assertIn("Los cuellos de botella generan el", texto)
 
     def test_cuando_la_mas_cara_es_cuello_de_botella_lo_dice(self):
         costos = _costos(PRG115=(100, 400, 20_000), BIN115=(60, 200, 12_000))
         cruce = rc.cruce_costo_posicion(self.materias, costos)
         texto = rc.leer_cruce(cruce, self.red)
-        self.assertIn("Además bloquea a 10 materias", texto)
-        self.assertIn("coinciden el costo directo y el efecto sobre la malla", texto)
+        self.assertIn("bloquea 10 materias", texto)
+        self.assertIn("PRG115 tiene el mayor costo", texto)
 
     def test_sin_costo_lo_dice_en_vez_de_inventar(self):
         cruce = rc.cruce_costo_posicion(self.materias, _costos())

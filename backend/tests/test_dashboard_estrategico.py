@@ -31,17 +31,16 @@ class TestAprobacionPorCiclo(unittest.TestCase):
     def test_lectura_nombra_el_ciclo_donde_menos_y_donde_mas_se_aprueba(self):
         filas = panel.aprobacion_por_ciclo(_ciclos((1, 1000, 300, 0.0), (2, 800, 160, 0.0), (3, 900, 90, 0.0)))
         texto = panel.leer_aprobacion(filas)
-        self.assertIn("El ciclo 1 es donde menos se aprueba (70.0 %", texto)
-        self.assertIn("el ciclo 3 donde más (90.0 %)", texto)
-        self.assertIn("20.0 puntos porcentuales", texto)
+        self.assertIn("Menor aprobación en el ciclo 1 (70.0 %)", texto)
+        self.assertIn("mayor en el ciclo 3 (90.0 %)", texto)
 
     def test_si_los_ciclos_se_parecen_lo_dice_en_vez_de_inventar_un_hallazgo(self):
         filas = panel.aprobacion_por_ciclo(_ciclos((1, 1000, 250, 0.0), (2, 1000, 255, 0.0)))
-        self.assertIn("prácticamente la misma", panel.leer_aprobacion(filas))
+        self.assertIn("Aprobación similar en todos los ciclos", panel.leer_aprobacion(filas))
 
     def test_ciclos_con_pocas_inscripciones_no_se_comparan(self):
         filas = panel.aprobacion_por_ciclo(_ciclos((1, 20, 10, 0.0), (2, 1000, 100, 0.0)))
-        self.assertIn("No hay suficientes inscripciones", panel.leer_aprobacion(filas))
+        self.assertIn("No hay datos suficientes por ciclo", panel.leer_aprobacion(filas))
 
 
 class TestMateriasQueMasFrenan(unittest.TestCase):
@@ -62,10 +61,9 @@ class TestMateriasQueMasFrenan(unittest.TestCase):
         texto = panel.leer_impacto(self.lista, int(self.cruce["bloqueos"].sum()))
         self.assertIn("generan el", texto)
         self.assertIn("PRG115, PRG215 son cuello de botella", texto)
-        self.assertIn("Red curricular", texto)
 
     def test_sin_bloqueos_no_inventa(self):
-        self.assertIn("no hay bloqueos", panel.leer_impacto([], 0))
+        self.assertIn("No hubo bloqueos", panel.leer_impacto([], 0))
 
 
 if __name__ == "__main__":

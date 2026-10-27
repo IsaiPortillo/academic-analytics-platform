@@ -83,64 +83,46 @@ def _valido(r) -> bool:
 # ---------------------------------------------------------------------------
 
 def leer_correlacion(par: dict) -> str:
-    """Una frase por par: dirección, fuerza y si se distingue del azar."""
+    """Una frase por par: fuerza y si se distingue del azar."""
     a, b, r, n = par["x"], par["y"], par["r"], par["n"]
+    nombre = f"{ETIQUETAS[a].capitalize()} y {ETIQUETAS[b]}"
     if not _valido(r) or n < 3:
-        return (f"Sin datos suficientes para relacionar {ETIQUETAS[a]} con {ETIQUETAS[b]} "
-                f"({n} observaciones).")
-    texto = (f"{ETIQUETAS[a].capitalize()} y {ETIQUETAS[b]}: r = {r:+.2f}, relación "
-             f"{fuerza(r)}")
+        return f"{nombre}: sin datos suficientes."
     if frozenset({a, b}) in PARES_POR_CONSTRUCCION:
-        return texto + (" por construcción: el costo de reprobación solo existe cuando la nota es "
-                        "menor a 6.00, así que esta cifra confirma la regla, no es un hallazgo.")
+        return f"{nombre}: r = {r:+.2f}, relación por definición."
     if not correlacion_significativa(r, n):
-        return texto + f" y no distinguible del azar con {n:,} observaciones."
+        return f"{nombre}: r = {r:+.2f}, sin relación distinguible del azar."
     if fuerza(r) == "despreciable":
-        return texto + (f": aunque con {n:,} observaciones no es cero, es tan pequeña que no "
-                        "explica diferencias en la práctica.")
+        return f"{nombre}: r = {r:+.2f}, relación despreciable."
     sentido = "en el mismo sentido" if r > 0 else "en sentido contrario"
-    return texto + f" ({n:,} observaciones): en promedio, las dos se mueven {sentido}."
+    return f"{nombre}: r = {r:+.2f}, relación {fuerza(r)} {sentido}."
 
 
 def interpretar_correlaciones(pares: list[dict]) -> str:
-    """Lectura de conjunto: qué relación sí aparece y cuál no, sin causalidad."""
     utiles = [p for p in pares
               if _valido(p["r"]) and p["n"] >= 3
               and frozenset({p["x"], p["y"]}) not in PARES_POR_CONSTRUCCION]
     if not utiles:
-        return "No hay inscripciones cerradas suficientes para calcular correlaciones con estos filtros."
+        return "Sin datos suficientes para calcular correlaciones."
 
     con_hallazgo = [p for p in utiles
                     if correlacion_significativa(p["r"], p["n"]) and fuerza(p["r"]) != "despreciable"]
-    texto = []
     if con_hallazgo:
         mayor = max(con_hallazgo, key=lambda p: abs(p["r"]))
-        texto.append(
-            f"La relación más clara es entre {ETIQUETAS[mayor['x']]} y {ETIQUETAS[mayor['y']]} "
-            f"(r = {mayor['r']:+.2f}, {fuerza(mayor['r'])})."
-        )
+        texto = (f"La relación más clara es entre {ETIQUETAS[mayor['x']]} y {ETIQUETAS[mayor['y']]} "
+                 f"(r = {mayor['r']:+.2f}).")
     else:
-        texto.append("Ninguna de las relaciones entre estas variables pasa de despreciable.")
+        texto = "Ninguna relación pasa de despreciable."
 
     asistencia_nota = next((p for p in pares if {p["x"], p["y"]} == {"asistencia", "nota"}), None)
     if asistencia_nota and _valido(asistencia_nota["r"]) and asistencia_nota["n"] >= 3:
         if fuerza(asistencia_nota["r"]) == "despreciable":
-            texto.append(
-                f"La asistencia prácticamente no acompaña a la nota (r = {asistencia_nota['r']:+.2f}): "
-                "en estos datos, faltar más no se asocia con sacar menos."
-            )
+            texto += f" La asistencia casi no se relaciona con la nota (r = {asistencia_nota['r']:+.2f})."
         else:
-            texto.append(
-                f"La asistencia sí acompaña a la nota (r = {asistencia_nota['r']:+.2f}, "
-                f"{fuerza(asistencia_nota['r'])})."
-            )
+            texto += f" La asistencia sí se relaciona con la nota (r = {asistencia_nota['r']:+.2f})."
     elif asistencia_nota:
-        texto.append("No hay asistencia registrada en los períodos elegidos, así que no se puede "
-                     "relacionar con la nota.")
-
-    texto.append("Una correlación describe que dos variables se mueven juntas; no demuestra que "
-                 "una cause la otra.")
-    return " ".join(texto)
+        texto += " Sin asistencia registrada en estos períodos."
+    return texto
 
 
 # ---------------------------------------------------------------------------
@@ -149,21 +131,15 @@ def interpretar_correlaciones(pares: list[dict]) -> str:
 
 def interpretar_ausencias(sobre: dict | None, bajo: dict | None, umbral: int) -> str:
     if not sobre or not bajo or not sobre["cerradas"] or not bajo["cerradas"]:
-        return ("No hay asistencia registrada en los períodos elegidos: no se puede comparar la "
-                "reprobación según las ausencias.")
+        return "Sin asistencia registrada en estos períodos."
     diferencia, significativa = diferencia_proporciones(
         sobre["reprobadas"], sobre["cerradas"], bajo["reprobadas"], bajo["cerradas"]
     )
-    tasa_sobre = sobre["reprobadas"] / sobre["cerradas"]
-    tasa_bajo = bajo["reprobadas"] / bajo["cerradas"]
-    texto = (f"Con {umbral} o más ausencias reprobó el {_pct(tasa_sobre)} "
-             f"({sobre['cerradas']:,} inscripciones); con menos, el {_pct(tasa_bajo)} "
-             f"({bajo['cerradas']:,}).")
+    texto = (f"Con {umbral} o más ausencias reprobó el {_pct(sobre['reprobadas'] / sobre['cerradas'])}; "
+             f"con menos, el {_pct(bajo['reprobadas'] / bajo['cerradas'])}")
     if not significativa:
-        return texto + (f" La diferencia ({_pp(diferencia)}) no se distingue del azar: en estos "
-                        "datos las ausencias no explican la reprobación.")
-    sentido = "más" if diferencia > 0 else "menos"
-    return texto + f" Quienes acumulan faltas reprueban {_pp(diferencia)} {sentido}."
+        return texto + ": la diferencia no es significativa."
+    return texto + f": {_pp(diferencia)} {'más' if diferencia > 0 else 'menos'}."
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +150,7 @@ def interpretar_segmentos(filas: list[dict], variable: str) -> str:
     """filas: dicts con segmento, cerradas, reprobadas. variable: 'el turno', ..."""
     filas = [f for f in filas if f["cerradas"]]
     if len(filas) < 2:
-        return f"No hay suficientes grupos con inscripciones cerradas para comparar {variable}."
+        return "No hay grupos suficientes para comparar."
     for f in filas:
         f["tasa"] = f["reprobadas"] / f["cerradas"]
     alto = max(filas, key=lambda f: f["tasa"])
@@ -182,29 +158,18 @@ def interpretar_segmentos(filas: list[dict], variable: str) -> str:
     diferencia, significativa = diferencia_proporciones(
         alto["reprobadas"], alto["cerradas"], bajo["reprobadas"], bajo["cerradas"]
     )
-    texto = (f"La reprobación más alta está en {alto['segmento']} ({_pct(alto['tasa'])}) y la más "
-             f"baja en {bajo['segmento']} ({_pct(bajo['tasa'])}): {_pp(diferencia)} de diferencia.")
+    texto = (f"Más alta en {alto['segmento']} ({_pct(alto['tasa'])}), más baja en "
+             f"{bajo['segmento']} ({_pct(bajo['tasa'])})")
     if not significativa:
-        return texto + (f" Esa diferencia no se distingue del azar, así que {variable} no explica "
-                        "por qué se reprueba en estos datos.")
+        return texto + ": la diferencia no es significativa."
     if diferencia < 0.02:
-        return texto + (f" Es estadísticamente real pero pequeña: {variable} pesa poco en la "
-                        "reprobación.")
-    return texto + (f" Es una diferencia real y apreciable: {variable} sí se asocia con la "
-                    "reprobación.")
+        return texto + ": diferencia real pero pequeña."
+    return texto + f": {variable} sí marca diferencia."
 
 
 def interpretar_cohortes(filas: list[dict]) -> str:
     filas = [dict(f, segmento=f"la cohorte {f['cohorte']}") for f in filas]
-    texto = interpretar_segmentos(filas, "el año de ingreso")
-    con_patron = sorted((f for f in filas if f.get("estudiantes_patron")),
-                        key=lambda f: f["cohorte"])
-    if con_patron:
-        mayor = max(con_patron, key=lambda f: f["estudiantes_patron"] / f["estudiantes"])
-        texto += (f" La cohorte {mayor['cohorte']} concentra la mayor proporción de estudiantes con "
-                  f"el patrón de riesgo ({_pct(mayor['estudiantes_patron'] / mayor['estudiantes'])} "
-                  "de sus estudiantes).")
-    return texto
+    return interpretar_segmentos(filas, "el año de ingreso")
 
 
 # ---------------------------------------------------------------------------
@@ -212,18 +177,11 @@ def interpretar_cohortes(filas: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 
 def interpretar_patron(resumen: dict, umbral_faltas: int, umbral_nota) -> str:
-    texto = (f"{resumen['estudiantes']:,} estudiantes ya presentan el patrón (nota final menor a "
-             f"{umbral_nota} y {umbral_faltas} o más ausencias en una misma materia), en "
+    texto = (f"{resumen['estudiantes']:,} estudiantes presentan el patrón en "
              f"{resumen['inscripciones']:,} inscripciones.")
     if not resumen["periodos_con_asistencia"]:
-        return texto + (" Ninguno de los períodos elegidos tiene asistencia registrada, así que el "
-                        "patrón no se puede observar en ellos.")
-    if resumen["reprobadas_con_asistencia"]:
-        proporcion = resumen["inscripciones"] / resumen["reprobadas_con_asistencia"]
-        texto += (f" Equivalen al {_pct(proporcion)} de las reprobaciones que tienen asistencia "
-                  "registrada: el resto de los reprobados no acumuló faltas.")
+        return texto + " No hay asistencia registrada en estos períodos."
     if resumen["periodos_con_asistencia"] < resumen["periodos"]:
-        texto += (f" Solo {resumen['periodos_con_asistencia']} de los {resumen['periodos']} "
-                  "períodos elegidos tienen asistencia registrada; en los demás el patrón no se "
-                  "puede observar.")
-    return texto + " Es un patrón observado en el historial, no un pronóstico."
+        texto += (f" Solo {resumen['periodos_con_asistencia']} de {resumen['periodos']} períodos "
+                  "tienen asistencia registrada.")
+    return texto

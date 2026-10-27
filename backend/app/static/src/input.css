@@ -605,6 +605,46 @@
     color: var(--color-text);
   }
 
+  /* Descargas de reportes: CSV, Excel y PDF con el mismo rojo de marca en todos
+     los reportes. */
+  .descargas {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+  }
+  .descargas-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-muted);
+    margin-right: 0.125rem;
+  }
+  .btn-descarga {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    background-color: var(--color-brand);
+    color: #fff;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    padding: 0.375rem 0.75rem;
+    border-radius: var(--radius-sm);
+    transition: background-color 0.15s ease-in-out, opacity 0.15s ease-in-out;
+  }
+  .btn-descarga svg {
+    width: 0.875rem;
+    height: 0.875rem;
+  }
+  .btn-descarga:hover {
+    background-color: var(--color-brand-hover);
+  }
+  .btn-descarga:active {
+    background-color: var(--color-brand-active);
+  }
+  .btn-descarga.is-generando {
+    opacity: 0.6;
+    pointer-events: none;
+  }
   .btn-nav-action {
     border: 1px solid var(--color-border);
     color: var(--color-muted);
@@ -1991,6 +2031,7 @@
     .btn-destructive,
     .btn-outline-neutral,
     .btn-nav-action,
+    .btn-descarga,
     .btn-login {
       display: inline-flex;
       align-items: center;

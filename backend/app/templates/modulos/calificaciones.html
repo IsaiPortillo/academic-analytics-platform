@@ -192,11 +192,6 @@
                         </tbody>
                     </table>
                 </div>
-                <p class="text-xs text-muted">
-                    Cada columna se guarda por separado con su propio botón «Guardar» — una nota
-                    fuera de 0.00–10.00 se marca en rojo y bloquea el guardado de esa columna hasta
-                    corregirla.
-                </p>
                 {% for e in evaluaciones %}
                 <form id="form-ev-{{ e.evaluacion_id }}" method="post" action="/calificaciones/registrar"
                       data-lock-on-submit="Guardando…">

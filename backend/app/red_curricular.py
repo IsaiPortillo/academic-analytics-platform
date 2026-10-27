@@ -38,8 +38,7 @@ ALTO_ROTULOS = 28
 # comprueba que no se desalineen.
 UMBRAL_CUELLO_BOTELLA = 0.25
 
-SIN_RED = ("El Data Warehouse todavía no tiene la malla curricular. Se carga desde Neo4j con "
-           "python -m etl.carga (con el grafo ya cargado: python database/nosql/03_cargar_grafo_neo4j.py).")
+SIN_RED = "La malla curricular aún no está cargada en el Data Warehouse."
 
 TIPOS = {
     "propaga": "Costo que se propaga",
@@ -251,32 +250,14 @@ def _nombre(red: nx.DiGraph, codigo: str) -> str:
 
 
 def leer_estructura(red: nx.DiGraph) -> str:
-    """Qué forma tiene la malla: entradas, terminales y cadena más larga."""
     if not red.number_of_edges():
         return SIN_RED
-    entradas = sorted(n for n in red if red.in_degree(n) == 0 and red.out_degree(n) > 0)
-    terminales = sorted(n for n in red if red.out_degree(n) == 0 and red.in_degree(n) > 0)
-    sueltas = sorted(n for n in red if red.degree(n) == 0)
     cadena = cadena_mas_larga(red)
-    texto = (
-        f"La malla tiene {len(red)} materias unidas por {_plural(red.number_of_edges(), 'relación', 'relaciones')} "
-        f"de prerrequisito. {_plural(len(entradas), 'materia no exige', 'materias no exigen')} ninguna previa "
-        f"({', '.join(entradas)}) y de ellas parte toda la cascada; {_plural(len(terminales), 'materia no es', 'materias no son')} "
-        f"prerrequisito de ninguna otra ({', '.join(terminales)}): reprobarlas retrasa a quien las cursa, "
-        f"pero no bloquea nada más. "
-    )
-    if sueltas:
-        texto += (f"{', '.join(sueltas)} no {'tiene' if len(sueltas) == 1 else 'tienen'} relación con "
-                  f"ninguna otra materia. ")
-    texto += (
-        f"La cadena más larga tiene {len(cadena)} materias ({' → '.join(cadena)}): reprobar "
-        f"{cadena[0]} deja detenidas, en cascada, a las {len(cadena) - 1} siguientes de la cadena."
-    )
-    return texto
+    return (f"{len(red)} materias y {_plural(red.number_of_edges(), 'relación', 'relaciones')} de "
+            f"prerrequisito; la cadena más larga tiene {len(cadena)} materias ({' → '.join(cadena)}).")
 
 
 def leer_cuellos(red: nx.DiGraph, materias: pd.DataFrame) -> str:
-    """Quiénes son los cuellos de botella y cuánto del plan bloquean."""
     if not red.number_of_edges():
         return SIN_RED
     cuellos = materias[materias["es_cuello_botella"].fillna(False).astype(bool)]
@@ -284,82 +265,31 @@ def leer_cuellos(red: nx.DiGraph, materias: pd.DataFrame) -> str:
     if cuellos.empty:
         mayor = materias.sort_values(["dependientes_totales", "codigo_materia"],
                                      ascending=[False, True]).iloc[0]
-        return (f"Ninguna materia bloquea una parte lo bastante grande del plan para ser cuello de "
-                f"botella; la que más bloquea es {mayor['nombre_materia']} ({mayor['codigo_materia']}), "
-                f"con {_plural(int(mayor['dependientes_totales']), 'dependiente', 'dependientes')}.")
+        return (f"Ninguna materia llega a cuello de botella; la que más bloquea es "
+                f"{mayor['codigo_materia']} ({_plural(int(mayor['dependientes_totales']), 'dependiente', 'dependientes')}).")
     primera = cuellos.iloc[0]
-    texto = (
-        f"{_plural(len(cuellos), 'materia es', 'materias son')} cuello de botella: "
-        f"{'bloquea' if len(cuellos) == 1 else 'bloquean'}, directa o indirectamente, al menos el "
-        f"{porcentaje(UMBRAL_CUELLO_BOTELLA, 0)} del resto del plan. "
-        f"{primera['nombre_materia']} ({primera['codigo_materia']}) es la mayor: {int(primera['dependientes_directos'])} "
-        f"dependientes directos y {int(primera['dependientes_indirectos'])} indirectos, "
-        f"{int(primera['dependientes_totales'])} en total ({porcentaje(primera['indice_bloqueo'])} del plan)."
-    )
-    if len(cuellos) > 1:
-        resto = ", ".join(f"{c.codigo_materia} ({int(c.dependientes_totales)} dependientes)"
-                          for c in cuellos.iloc[1:].itertuples())
-        texto += f" Le {'siguen' if len(cuellos) > 2 else 'sigue'} {resto}."
-    return texto
+    una = len(cuellos) == 1
+    return (f"{', '.join(cuellos['codigo_materia'])} {'es' if una else 'son'} cuello de botella; "
+            f"{primera['codigo_materia']} bloquea {int(primera['dependientes_totales'])} materias "
+            f"({porcentaje(primera['indice_bloqueo'])} del plan).")
 
 
 def leer_cruce(cruce: pd.DataFrame, red: nx.DiGraph, moneda: str = "USD") -> str:
-    """El cruce central: costo de cada materia frente a su posición en la malla."""
     if not red.number_of_edges():
         return SIN_RED
-    total = float(cruce["costo_reprobacion"].sum())
-    if total <= 0:
-        return ("No hubo costo de reprobación con los filtros elegidos, así que solo se puede leer la "
-                "estructura de la malla, no cuánto cuesta lo que se reprueba en ella.")
-    otras = max(len(cruce) - 1, 1)
+    if float(cruce["costo_reprobacion"].sum()) <= 0:
+        return "No hubo costo de reprobación con estos filtros."
     cara = cruce.sort_values(["costo_reprobacion", "codigo_materia"], ascending=[False, True]).iloc[0]
-    texto = (
-        f"{cara['nombre_materia']} ({cara['codigo_materia']}) es la materia con más costo de reprobación: "
-        f"{dinero(cara['costo_reprobacion'], moneda)}, el {porcentaje(cara['pct_costo'])} del total. "
-    )
-    if cara["dependientes_totales"] == 0:
-        texto += ("No es prerrequisito de ninguna materia, así que ese costo se queda en ella: "
-                  "no se propaga al resto del plan. ")
-    else:
-        texto += (
-            f"Además bloquea a {_plural(int(cara['dependientes_totales']), 'materia', 'materias')} "
-            f"({porcentaje(cara['dependientes_totales'] / otras, 0)} del resto del plan), así que cada "
-            f"reprobación suya detiene a esos estudiantes en toda la cascada: su costo real es mayor que "
-            f"la cifra directa. "
-        )
+    texto = (f"{cara['codigo_materia']} tiene el mayor costo ({dinero(cara['costo_reprobacion'], moneda)}, "
+             f"{porcentaje(cara['pct_costo'])} del total)")
+    dependientes = int(cara["dependientes_totales"])
+    texto += (" y no bloquea otras materias." if not dependientes
+              else f" y bloquea {_plural(dependientes, 'materia', 'materias')}.")
     cuellos = cruce[cruce["es_cuello_botella"].fillna(False).astype(bool)]
     if not cuellos.empty:
-        texto += (
-            f"Los cuellos de botella ({', '.join(cuellos['codigo_materia'])}) concentran el "
-            f"{porcentaje(cuellos['pct_costo'].sum())} del costo de reprobación y generan el "
-            f"{porcentaje(cuellos['pct_bloqueos'].sum())} de los bloqueos (reprobaciones × materias "
-            f"dependientes). "
-        )
-    if cruce["bloqueos"].sum() > 0:
-        mayor = cruce.sort_values(["bloqueos", "codigo_materia"], ascending=[False, True]).iloc[0]
-        if mayor["codigo_materia"] != cara["codigo_materia"]:
-            texto += (
-                f"La que más bloqueos genera es {mayor['nombre_materia']} ({mayor['codigo_materia']}), "
-                f"con {int(mayor['bloqueos']):,} pares reprobación–materia bloqueada y "
-                f"{dinero(mayor['costo_reprobacion'], moneda)} de costo directo: lo que cuesta no "
-                f"basta para medir lo que detiene."
-            )
-        else:
-            texto += (
-                f"También es la que más bloqueos genera ({int(mayor['bloqueos']):,} pares "
-                f"reprobación–materia bloqueada): en esta materia coinciden el costo directo y el "
-                f"efecto sobre la malla."
-            )
-    estructurales = cruce[cruce["tipo"] == "estructural"]
-    if not estructurales.empty:
-        una = len(estructurales) == 1
-        texto += (
-            f" {', '.join(estructurales['codigo_materia'])} "
-            f"{'tiene' if una else 'tienen'} poco o ningún costo de reprobación pero "
-            f"{'bloquea' if una else 'bloquean'} mucho de la malla: un costo bajo por sí solo no "
-            f"{'la hace menos importante' if una else 'las hace menos importantes'}."
-        )
-    return texto.strip()
+        texto += (f" Los cuellos de botella generan el {porcentaje(cuellos['pct_bloqueos'].sum())} "
+                  "de los bloqueos.")
+    return texto
 
 
 def dispersion(cruce: pd.DataFrame, moneda: str = "USD", ancho: int = 560, alto: int = 340) -> dict:

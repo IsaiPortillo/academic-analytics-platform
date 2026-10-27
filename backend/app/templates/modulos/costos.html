@@ -4,9 +4,7 @@
 {% block contenido %}
 <h1 class="page-title mb-1">Costos institucionales</h1>
 <p class="text-sm text-muted mb-4">
-    Costo por unidad valorativa en cada período académico. De aquí sale el costo de cada materia
-    (<span class="text-sm">unidades valorativas × costo por UV</span>) y, con él, todas las medidas
-    monetarias del Data Warehouse.
+    Costo por unidad valorativa en cada período académico.
 </p>
 
 {% if ok %}
@@ -109,10 +107,7 @@
     <div class="card-header">Llevar los costos al tablero</div>
     <div class="card-body">
         <p class="text-sm text-muted mb-3">
-            El costo se escribe en el esquema operacional, pero el tablero no lo lee de ahí: lo lee
-            del Data Warehouse, donde llega como un atributo de la dimensión de período y como las
-            medidas del hecho. Hasta que no se recargue, el tablero sigue mostrando las cifras
-            anteriores.
+            Después de cambiar un costo, recarga el Data Warehouse para ver las cifras actualizadas.
         </p>
 
         <div class="filter-bar mb-3">
@@ -136,15 +131,6 @@
             </div>
         </div>
 
-        <p class="text-sm text-muted">
-            La recarga no corre dentro de esta aplicación: lanza el proceso del ETL, que se conecta
-            con su propio rol de escritura. Esta aplicación no puede escribir en el Data Warehouse,
-            y esa separación se mantiene también al pulsar el botón. Si algo falla a mitad, la carga
-            va en una sola transacción y el Data Warehouse queda como estaba.
-        </p>
-        <p class="text-sm text-muted mt-2">
-            El equivalente por línea de comandos es <code>python -m etl.carga</code>.
-        </p>
     </div>
 </div>
 {% endblock %}

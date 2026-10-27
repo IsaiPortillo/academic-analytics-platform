@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import badge %}
+{% from "_macros.html" import badge, descargas %}
 {% block titulo %}Análisis diagnóstico{% endblock %}
 
 {% macro barras(filas, valor_extra=None) %}
@@ -22,12 +22,7 @@
 <div class="flex items-start justify-between flex-wrap gap-3 mb-4">
     <div>
         <h1 class="page-title mb-1">Análisis diagnóstico: por qué se reprueba</h1>
-        <p class="text-sm text-muted">
-            Nivel diagnóstico — ¿por qué ocurrió? Describe patrones <strong>observados</strong> en el
-            historial; no pronostica quién va a reprobar o desertar ni recomienda acciones.
-        </p>
     </div>
-    <span class="telemetry-badge"><span class="dot"></span>Data Warehouse · dw_academico · rol_dashboard</span>
 </div>
 
 {% if error %}
@@ -101,17 +96,9 @@
             </div>
             <div class="flex items-center justify-between flex-wrap gap-2 mt-3">
                 <span class="corr-legend">−1 <span class="corr-legend-scale" aria-hidden="true"></span> +1</span>
-                <span class="text-xs text-muted">* relación por construcción, no es hallazgo</span>
+                <span class="text-xs text-muted">* relación por definición</span>
             </div>
             <p class="kpi-interpretacion">{{ lectura_correlaciones }}</p>
-            <details class="mt-2">
-                <summary class="text-sm text-muted" style="cursor: pointer;">Lectura de cada par</summary>
-                <ul class="text-sm text-muted mt-2" style="display: flex; flex-direction: column; gap: 0.375rem;">
-                    {% for fila in matriz.filas %}{% set i = loop.index0 %}{% for c in fila.celdas %}{% if loop.index0 > i %}
-                    <li>{{ c.lectura }}</li>
-                    {% endif %}{% endfor %}{% endfor %}
-                </ul>
-            </details>
         </div>
     </div>
 
@@ -120,10 +107,6 @@
         <div class="card-body">
             {% if ausencias %}{{ barras(ausencias) }}{% endif %}
             <p class="kpi-interpretacion">{{ lectura_ausencias }}</p>
-            <p class="text-xs text-muted mt-2">
-                Solo inscripciones cerradas con asistencia registrada. El umbral ({{ umbral_faltas }}
-                ausencias) es el mismo del reporte de asistencia acumulada del sistema transaccional.
-            </p>
         </div>
     </div>
 </div>
@@ -180,19 +163,18 @@
         <div class="card-body">
             {{ barras(s.filas) }}
             <p class="kpi-interpretacion">{{ s.lectura }}</p>
-            {% if s.adicional %}
-            <p class="text-xs text-muted mt-2">
-                No está entre las variables definidas en el criterio, pero el Data Warehouse ya la
-                tiene (dim_estudiante.trabaja) y es la que más separa la reprobación.
-            </p>
-            {% endif %}
         </div>
     </div>
     {% endfor %}
 </div>
 
 {# ------------------------------------------------------------------ #}
-<h2 class="page-subtitle mb-2">Estudiantes que ya presentan el patrón de riesgo</h2>
+<div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+    <h2 class="page-subtitle">Estudiantes que ya presentan el patrón de riesgo</h2>
+    {{ descargas("/analisis-diagnostico/estudiantes/exportar",
+                 ("periodo=" ~ periodo) ~ ("&departamento=" ~ departamento if departamento else "")
+                 ~ ("&carrera=" ~ carrera if carrera else "")) }}
+</div>
 <div class="card mb-4">
     <div class="card-body">
         <div class="kpi-grid mb-3">
@@ -246,9 +228,6 @@
         </div>
         <p class="text-xs text-muted mt-2">
             {% if resumen_patron.estudiantes > limite_estudiantes %}Se muestran los primeros {{ limite_estudiantes }} de {{ "{:,}".format(resumen_patron.estudiantes) }}, con más materias en el patrón primero. {% endif %}
-            El ID es el mismo que muestran los reportes del sistema: cada caso se puede revisar en
-            <a href="/reportes/asistencia?solo_riesgo=true" style="text-decoration: underline;">Reportes → Asistencia acumulada</a>
-            y en Notas finales.
         </p>
         {% endif %}
     </div>
@@ -256,8 +235,7 @@
 
 {% if ultima_carga %}
 <p class="text-xs text-muted">
-    Última carga del Data Warehouse: {{ ultima_carga.ejecutada_en.strftime("%Y-%m-%d %H:%M") }} UTC
-    · fecha de corte {{ ultima_carga.fecha_corte }}. Esta vista no consulta el sistema transaccional.
+    Datos al {{ ultima_carga.fecha_corte }}.
 </p>
 {% endif %}
 

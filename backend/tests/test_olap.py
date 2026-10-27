@@ -108,24 +108,24 @@ class TestLectura(unittest.TestCase):
     def test_describe_el_cubo_y_compara_celdas_con_base_suficiente(self):
         filas = olap.preparar_filas(_resultado(), ["periodo", "ciclo"])
         texto = olap.leer_cubo(filas, ["periodo", "ciclo"], "rollup")
-        self.assertIn("ROLLUP por Período → Ciclo del plan: 2 combinaciones de detalle y 1 subtotal", texto)
-        self.assertIn("700 inscripciones con nota final, 136 reprobadas (19.4 %)", texto)
-        self.assertIn("la reprobación más alta es 2024-I · 1 (25.0 %) y la más baja 2024-I · 2 (12.0 %)", texto)
+        self.assertIn("2 combinaciones y 1 subtotal", texto)
+        self.assertIn("tasa de reprobación total: 19.4 %", texto)
+        self.assertIn("Más alta: 2024-I · 1 (25.0 %); más baja: 2024-I · 2 (12.0 %)", texto)
 
     def test_si_la_diferencia_es_minima_dice_que_ninguna_dimension_separa(self):
         df = _resultado()
         df.loc[1, ["reprobados", "tasa_reprobacion"]] = [76, 0.2533]
         texto = olap.leer_cubo(olap.preparar_filas(df, ["periodo", "ciclo"]), ["periodo", "ciclo"], "rollup")
-        self.assertIn("ninguna dimensión de las elegidas la separa", texto)
+        self.assertIn("Sin diferencias apreciables", texto)
 
     def test_celdas_con_pocas_inscripciones_no_se_comparan(self):
         df = _resultado()
         df.loc[0, "cerradas"] = 10
         texto = olap.leer_cubo(olap.preparar_filas(df, ["periodo", "ciclo"]), ["periodo", "ciclo"], "rollup")
-        self.assertNotIn("la reprobación más alta", texto)
+        self.assertNotIn("Más alta", texto)
 
     def test_sin_filas(self):
-        self.assertIn("no devolvió filas", olap.leer_cubo([], ["periodo"], "rollup"))
+        self.assertIn("Sin resultados", olap.leer_cubo([], ["periodo"], "rollup"))
 
 
 if __name__ == "__main__":
