@@ -725,9 +725,12 @@ Consecuencias del diseño:
 - **Auditoría de notas:** cada alta, cambio o borrado de una nota queda en
   `auditoria.log_cambios_notas` con el usuario de la aplicación (no solo el rol), que la
   aplicación declara con `set_config('app.usuario', …, true)`.
-- **Contraseña propia:** el docente no tiene permiso sobre `usuarios`; cambia la suya con
-  `cambiar_password_propio()` (`18_usuarios_cuenta.sql`), que solo toca su fila y solo acepta
-  hashes bcrypt.
+- **Contraseña y perfil propios:** el docente no tiene permiso sobre `usuarios`; cambia su
+  contraseña con `cambiar_password_propio()` (`18_usuarios_cuenta.sql`) y su nombre con
+  `actualizar_perfil_propio()` (`21_perfil_propio.sql`). Ambas solo tocan su fila y solo esas
+  columnas; la contraseña solo acepta hashes bcrypt. Se usan desde **Mi cuenta** (`/cuenta`,
+  el avatar de la barra superior), que además muestra el último acceso y deja elegir
+  Automático / Claro / Oscuro.
 
 En la capa web:
 

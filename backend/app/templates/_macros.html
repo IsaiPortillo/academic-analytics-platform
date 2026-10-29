@@ -43,6 +43,9 @@
 </div>
 {% endmacro %}
 
+{# Iniciales para el avatar: primera letra del primer y del último nombre. #}
+{% macro iniciales(nombre) %}{% set partes = (nombre or '').split() %}{% if partes %}{{ (partes[0][0] ~ (partes[-1][0] if partes|length > 1 else ''))|upper }}{% else %}?{% endif %}{% endmacro %}
+
 {# Avisos de éxito y error que deja redirigir() en la sesión (app/avisos.py). #}
 {% macro avisos(ok, error) %}
 {% if ok %}

@@ -13,14 +13,17 @@ sesiones abiertas se cortan (dependencies.cuenta_vigente compara la huella).
 
 import re
 import secrets
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, Query, Request
+from fastapi.responses import RedirectResponse
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from ..avisos import redirigir, tomar_aviso
+from ..config import settings
 from ..database import ROLES_VALIDOS, get_db
 from ..dependencies import (CLAVE_CAMBIO_OBLIGATORIO, CLAVE_HUELLA, UsuarioSesion, huella_password,
                             requiere_rol, usuario_actual)
@@ -32,6 +35,9 @@ router = APIRouter(tags=["usuarios"])
 
 PATRON_USERNAME = re.compile(r"^[a-z0-9][a-z0-9._-]{2,49}$")
 LONGITUD_MINIMA = 10
+LARGO_NOMBRE = (3, 120)   # los mismos límites que actualizar_perfil_propio() (script 21)
+# El Salvador no tiene horario de verano: un desfase fijo es exacto y no exige tzdata.
+ZONA_LOCAL = timezone(timedelta(hours=-6))
 ROLES = {"rol_coordinador": "Coordinador", "rol_docente": "Docente"}
 
 
@@ -54,6 +60,20 @@ def problema_password(nueva: str, username: str) -> Optional[str]:
     if username.lower() in nueva.lower():
         return "La contraseña no puede contener el nombre de usuario."
     return None
+
+
+def normalizar_nombre(nombre: str) -> str:
+    """Espacios sobrantes fuera, como lo hace la función del motor."""
+    return re.sub(r"\s+", " ", nombre or "").strip()
+
+
+def hora_local(momento: Optional[datetime]) -> Optional[str]:
+    """«29/10/2026 11:55» en hora de El Salvador; None si nunca ocurrió."""
+    if momento is None:
+        return None
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return momento.astimezone(ZONA_LOCAL).strftime("%d/%m/%Y %H:%M")
 
 
 def password_temporal() -> str:
@@ -224,16 +244,56 @@ def restablecer(
 # Mi cuenta (cualquier usuario)
 # ---------------------------------------------------------------------------
 
-@router.get("/cuenta/contrasena")
-def ver_cambio(
+@router.get("/cuenta")
+def ver_cuenta(
     request: Request,
     usuario: UsuarioSesion = Depends(usuario_actual),
+    db: Session = Depends(get_db),
 ):
     ok, error = tomar_aviso(request)
-    return templates.TemplateResponse(request, "modulos/cuenta_contrasena.html", {
+    registro = db.scalar(select(Usuario).where(Usuario.usuario_id == usuario.usuario_id))
+    docente = db.get(Docente, usuario.docente_id) if usuario.docente_id else None
+    return templates.TemplateResponse(request, "modulos/cuenta.html", {
         "usuario": usuario, "ok": ok, "error": error, "longitud_minima": LONGITUD_MINIMA,
         "obligatorio": bool(request.session.get(CLAVE_CAMBIO_OBLIGATORIO)),
+        "docente": docente, "largo_nombre": LARGO_NOMBRE,
+        "ultimo_acceso": hora_local(getattr(registro, "ultimo_acceso", None)),
+        "password_cambiado": hora_local(getattr(registro, "password_cambiado_en", None)),
+        "creada": hora_local(getattr(registro, "creado_en", None)),
+        "inactividad_minutos": settings.sesion_inactividad_minutos,
+        "duracion_horas": settings.sesion_duracion_horas,
     })
+
+
+@router.post("/cuenta/perfil")
+def actualizar_perfil(
+    request: Request,
+    nombre_completo: str = Form(...),
+    usuario: UsuarioSesion = Depends(usuario_actual),
+    db: Session = Depends(get_db),
+):
+    nombre = normalizar_nombre(nombre_completo)
+    minimo, maximo = LARGO_NOMBRE
+    if not minimo <= len(nombre) <= maximo:
+        return redirigir(request, "/cuenta", error=f"El nombre debe tener entre {minimo} y {maximo} caracteres.")
+    if nombre == usuario.nombre_completo:
+        return redirigir(request, "/cuenta", ok="No había cambios que guardar.")
+    try:
+        # El docente no tiene UPDATE sobre usuarios: la función del motor solo
+        # cambia el nombre de la fila de quien está en la sesión (script 21).
+        db.execute(text("SELECT academico_oltp.actualizar_perfil_propio(:n)"), {"n": nombre})
+    except DBAPIError as exc:
+        db.rollback()
+        return redirigir(request, "/cuenta", error=_mensaje_bd(exc))
+    # El nombre de la barra superior sale de la sesión: se actualiza ahí también.
+    request.session["usuario"] = {**request.session["usuario"], "nombre_completo": nombre}
+    return redirigir(request, "/cuenta", ok="Tus datos se actualizaron.")
+
+
+@router.get("/cuenta/contrasena")
+def ver_cambio():
+    # Enlaces y marcadores anteriores: la contraseña ahora se cambia en Mi cuenta.
+    return RedirectResponse("/cuenta", status_code=303)
 
 
 @router.post("/cuenta/contrasena")
@@ -245,7 +305,7 @@ def cambiar(
     usuario: UsuarioSesion = Depends(usuario_actual),
     db: Session = Depends(get_db),
 ):
-    destino = "/cuenta/contrasena"
+    destino = "/cuenta"
     registro = db.scalar(select(Usuario).where(Usuario.usuario_id == usuario.usuario_id))
     if registro is None or not verificar_password(actual, registro.password_hash):
         return redirigir(request, destino, error="La contraseña actual no es correcta.")

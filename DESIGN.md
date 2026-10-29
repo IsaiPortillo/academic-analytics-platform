@@ -223,8 +223,9 @@ Follows `prefers-color-scheme` until the user toggles it (sun/moon icon in the t
 Built as a `@layer components` vocabulary in `backend/app/static/src/input.css`, compiled by the standalone Tailwind CLI into `backend/app/static/app.css`.
 
 ### Shell
-- **`.sidebar`** / **`.sidebar-link`** (`.is-active` fills brand crimson) / **`.sidebar-footer`** (engine-status telemetry chips).
-- **`.topbar`** / **`.telemetry-badge`** (mono, dot indicator, states a real architectural fact — the active `SET LOCAL ROLE`, never a live query timer).
+- **`.sidebar`** / **`.sidebar-link`** (`.is-active` fills brand crimson). The sidebar carries navigation only: no engine-status chips.
+- **`.topbar`** / **`.topbar-cuenta`**: the signed-in user is an `.avatar` (initials) that opens **Mi cuenta** (`/cuenta`); name and role show beside it from 1024px, and below that they live in the drawer's `.sidebar-user`. Password, profile name and theme (Automático / Claro / Oscuro, `.seg`) are managed there, not as buttons in the bar. The bar keeps only the theme toggle, the account chip and *Salir*. Implementation details of the stack (database role, engines) are never shown to end users — not in the bar, the drawer or the login.
+- **`.login-card`**: the sign-in screen is a single centered card (brand, user, password, *Ingresar*); no architecture panel, SQL banner or role selector.
 
 ### Buttons
 - **`.btn-login`** / **`.btn-save`**: solid brand crimson, shadow-card, the two highest-emphasis write actions.

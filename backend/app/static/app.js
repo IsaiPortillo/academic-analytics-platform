@@ -77,27 +77,13 @@ document.querySelectorAll("[data-filter-rows]").forEach((campo) => {
 })();
 
 // ---------------------------------------------------------------------------
-// Login — el selector de rol solo cambia el rótulo ilustrativo del banner
-// SQL (qué SET LOCAL ROLE ejecutará el backend real al autenticar), nunca
-// decide el rol de la sesión: eso lo determina el rol_db real del usuario en
-// la tabla usuarios, leído en auth.py después de validar la contraseña.
-// El campo de usuario toma el foco solo con puntero fino: en un teléfono el
-// foco automático abre el teclado y tapa el formulario antes de que se vea.
+// Login — el campo de usuario toma el foco solo con puntero fino: en un
+// teléfono el foco automático abre el teclado y tapa el formulario antes de
+// que se vea. El rol de la sesión lo decide el rol_db real del usuario en la
+// tabla usuarios, leído en auth.py después de validar la contraseña.
 if (window.matchMedia("(pointer: fine)").matches) {
   document.querySelector('form[action="/login"] #username')?.focus();
 }
-
-document.querySelectorAll("#rolSelector .tap-toggle").forEach((boton) => {
-  boton.addEventListener("click", () => {
-    document.querySelectorAll("#rolSelector .tap-toggle").forEach((hermano) => {
-      hermano.setAttribute("aria-pressed", hermano === boton ? "true" : "false");
-    });
-    const banner = document.getElementById("sqlBanner");
-    if (!banner) return;
-    const rol = boton.dataset.rol;
-    banner.innerHTML = `BEGIN;\n<span class="kw">SET LOCAL ROLE</span> ${rol};\n<span class="str">-- transacción autorizada por PostgreSQL, no por esta interfaz</span>\nCOMMIT;`;
-  });
-});
 
 // Acceso rápido de demostración — rellena y envía el mismo formulario con
 // las cuentas sintéticas ya sembradas en la base (coordinador / docente),
@@ -310,6 +296,35 @@ document.getElementById("temaToggle")?.addEventListener("click", () => {
   try {
     localStorage.setItem("tema", siguiente);
   } catch (e) {}
+});
+
+// Apariencia en Mi cuenta: Automático (sigue al dispositivo), Claro u Oscuro.
+// Usa la misma clave de localStorage que el botón de la barra superior; Automático
+// borra la preferencia y deja que decida prefers-color-scheme.
+document.querySelectorAll("[data-tema-opciones]").forEach((grupo) => {
+  const opciones = grupo.querySelectorAll("[data-tema]");
+  const marcar = (valor) => {
+    opciones.forEach((o) => o.setAttribute("aria-pressed", o.dataset.tema === valor ? "true" : "false"));
+  };
+  let guardado = "auto";
+  try {
+    const previo = localStorage.getItem("tema");
+    if (previo === "light" || previo === "dark") guardado = previo;
+  } catch (e) {}
+  marcar(guardado);
+  opciones.forEach((opcion) => {
+    opcion.addEventListener("click", () => {
+      const valor = opcion.dataset.tema;
+      const raiz = document.documentElement;
+      if (valor === "auto") raiz.removeAttribute("data-theme");
+      else raiz.setAttribute("data-theme", valor);
+      try {
+        if (valor === "auto") localStorage.removeItem("tema");
+        else localStorage.setItem("tema", valor);
+      } catch (e) {}
+      marcar(valor);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

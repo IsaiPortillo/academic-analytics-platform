@@ -64,6 +64,7 @@ SCRIPTS=(
   "18_usuarios_cuenta.sql|SELECT 1 FROM pg_proc WHERE proname='cambiar_password_propio'"
   "19_motivo_retiro.sql|SELECT 1 FROM information_schema.columns WHERE table_schema='academico_oltp' AND table_name='inscripciones' AND column_name='motivo_retiro'"
   "20_metas_indicadores.sql|SELECT 1 FROM pg_views WHERE schemaname='dw_academico' AND viewname='v_semaforo_indicador'"
+  "21_perfil_propio.sql|SELECT 1 FROM pg_proc WHERE proname='actualizar_perfil_propio'"
 )
 
 consultar() {
