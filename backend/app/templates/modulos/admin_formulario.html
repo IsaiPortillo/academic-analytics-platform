@@ -70,7 +70,7 @@
 
         {% if registro %}
         <form method="post" action="/admin/{{ catalogo.slug }}/{{ id }}/eliminar" class="mt-3"
-              data-confirmar="¿Eliminar {{ catalogo.etiqueta(registro) }}? Solo es posible si nada depende de este registro.">
+              data-confirmar="¿Eliminar {{ catalogo.etiqueta(registro) }}? Solo es posible si nada depende de este registro." data-confirmar-boton="Eliminar" data-confirmar-peligro>
             {{ csrf_campo() }}
             <button type="submit" class="btn-destructive">Eliminar</button>
         </form>

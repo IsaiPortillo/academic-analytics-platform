@@ -152,7 +152,7 @@
                     </form>
                     {% if estados_sesion %}
                     <form method="post" action="/asistencia/sesion/eliminar" class="toolbar-end"
-                          data-confirmar="Se eliminarán las {{ estados_sesion|length }} marca(s) de asistencia del {{ fecha_sesion.strftime('%d/%m/%Y') }}. ¿Continuar?">
+                          data-confirmar="Se eliminarán las {{ estados_sesion|length }} marca(s) de asistencia del {{ fecha_sesion.strftime('%d/%m/%Y') }}. ¿Continuar?" data-confirmar-boton="Eliminar" data-confirmar-peligro>
                         {{ csrf_campo() }}
                         <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
                         <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">

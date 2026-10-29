@@ -11,7 +11,8 @@
     <div class="page-head-actions">
         <a class="btn-outline-neutral" href="/red-curricular">Ver red curricular</a>
         <form method="post" action="/costos/recargar"
-              data-confirmar="La recarga reconstruye el Data Warehouse completo y tarda unos segundos. ¿Continuar?">
+              data-confirmar="La recarga reconstruye el Data Warehouse completo y tarda unos segundos. ¿Continuar?"
+              data-confirmar-boton="Recargar">
             {{ csrf_campo() }}
             <button type="submit" class="btn-save" {% if carga_en_curso %}disabled{% endif %}>
                 {{ 'Recarga en curso…' if carga_en_curso else 'Recargar el Data Warehouse' }}
@@ -89,7 +90,7 @@
                         <div class="chip-list">
                             {% for r in f.requisitos %}
                             <form method="post" action="/admin/malla/quitar" class="contents"
-                                  data-confirmar="¿Quitar el prerrequisito {{ r }} de {{ f.codigo }}?">
+                                  data-confirmar="¿Quitar el prerrequisito {{ r }} de {{ f.codigo }}?" data-confirmar-boton="Quitar" data-confirmar-peligro>
                                 {{ csrf_campo() }}
                                 <input type="hidden" name="materia" value="{{ f.codigo }}">
                                 <input type="hidden" name="requisito" value="{{ r }}">

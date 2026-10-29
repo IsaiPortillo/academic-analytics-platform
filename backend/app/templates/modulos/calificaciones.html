@@ -143,7 +143,7 @@
                                     </details>
                                     {% set n_notas = notas_por_evaluacion.get(e.evaluacion_id, 0) %}
                                     <form method="post" action="/calificaciones/evaluaciones/{{ e.evaluacion_id }}/eliminar"
-                                          data-confirmar="Se eliminará «{{ e.nombre_evaluacion }}»{% if n_notas %} y sus {{ n_notas }} nota(s) registradas{% endif %}. Queda constancia en la bitácora. ¿Continuar?">
+                                          data-confirmar="Se eliminará «{{ e.nombre_evaluacion }}»{% if n_notas %} y sus {{ n_notas }} nota(s) registradas{% endif %}. Queda constancia en la bitácora. ¿Continuar?" data-confirmar-boton="Eliminar" data-confirmar-peligro>
                                         {{ csrf_campo() }}
                                         <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
                                         <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
@@ -194,7 +194,7 @@
                 </div>
                 {% if usuario.es_coordinador %}
                 <form method="post" action="/calificaciones/acta/reabrir" class="filter-bar mb-3"
-                      data-confirmar="Al reabrir el acta, las inscripciones vuelven a estar en curso y las notas se pueden modificar. ¿Reabrir?">
+                      data-confirmar="Al reabrir el acta, las inscripciones vuelven a estar en curso y las notas se pueden modificar. ¿Reabrir?" data-confirmar-boton="Reabrir acta">
                     {{ csrf_campo() }}
                     <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
                     <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
@@ -220,7 +220,7 @@
                         <button type="submit" class="btn-outline-neutral">Importar</button>
                     </form>
                     <form method="post" action="/calificaciones/acta/cerrar" class="toolbar-end"
-                          data-confirmar="Al cerrar el acta las {{ roster|length }} inscripción(es) quedan finalizadas y ya no se podrán cambiar notas, evaluaciones ni asistencia de esta sección. Solo el coordinador puede reabrirla. ¿Cerrar el acta?">
+                          data-confirmar="Al cerrar el acta las {{ roster|length }} inscripción(es) quedan finalizadas y ya no se podrán cambiar notas, evaluaciones ni asistencia de esta sección. Solo el coordinador puede reabrirla. ¿Cerrar el acta?" data-confirmar-boton="Cerrar acta">
                         {{ csrf_campo() }}
                         <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
                         <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">

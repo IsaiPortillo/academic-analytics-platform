@@ -241,12 +241,12 @@ document.querySelectorAll(".js-demo-login").forEach((boton) => {
     estudianteSeleccionado(valor);
   });
 
-  confirmarBtn?.addEventListener("click", () => {
+  confirmarBtn?.addEventListener("click", async () => {
     if (!estudianteId || dock.size === 0) return;
     const materiaCount = dock.size;
-    if (!confirm(`¿Matricular al estudiante ${estudianteId} en ${materiaCount} materia(s)?`)) {
-      return;
-    }
+    const acepto = await confirmar(`¿Matricular al estudiante ${estudianteId} en ${materiaCount} materia(s)?`,
+      { boton: "Matricular" });
+    if (!acepto || confirmarBtn.disabled) return;
 
     confirmarBtn.disabled = true; // candado de doble clic: una sola pasada por dock
     confirmarBtn.textContent = "Matriculando…";
@@ -608,6 +608,71 @@ document.querySelectorAll("[data-copiar]").forEach((boton) => {
   });
 });
 
+// Confirmaciones dentro de la aplicación (no el cuadro del navegador): un <dialog>
+// modal propio, con la misma identidad que el resto. Devuelve una promesa con
+// true si la persona confirma y false si cancela (botón, Esc o clic fuera).
+//   opciones.boton    texto del botón de confirmar (por defecto «Continuar»)
+//   opciones.peligro  true para acciones que borran o cortan algo: el botón va en
+//                     rojo y el foco empieza en «Cancelar».
+// El mensaje puede traer al final la pregunta («… ¿Continuar?»): esa pregunta es el
+// título y lo anterior, la explicación. Sin explicación, la pregunta va en el cuerpo.
+let dialogoConfirmar = null;
+function crearDialogoConfirmar() {
+  const dialogo = document.createElement("dialog");
+  dialogo.className = "dialogo";
+  dialogo.setAttribute("aria-labelledby", "dialogoTitulo");
+  dialogo.setAttribute("aria-describedby", "dialogoCuerpo");
+  dialogo.innerHTML = `
+    <form method="dialog" class="dialogo-panel">
+      <div class="dialogo-icono" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><circle cx="12" cy="16.25" r="0.6" fill="currentColor" stroke="none"/></svg>
+      </div>
+      <h2 class="dialogo-titulo" id="dialogoTitulo"></h2>
+      <p class="dialogo-cuerpo" id="dialogoCuerpo"></p>
+      <div class="dialogo-acciones">
+        <button type="button" class="btn-outline-neutral dialogo-cancelar">Cancelar</button>
+        <button type="button" class="btn-save dialogo-aceptar">Continuar</button>
+      </div>
+    </form>`;
+  document.body.appendChild(dialogo);
+  return dialogo;
+}
+
+function confirmar(mensaje, opciones = {}) {
+  if (typeof HTMLDialogElement === "undefined") return Promise.resolve(window.confirm(mensaje));
+  dialogoConfirmar = dialogoConfirmar || crearDialogoConfirmar();
+  const dialogo = dialogoConfirmar;
+  const partes = mensaje.trim().match(/^([\s\S]*?)\s*(¿[^¿?]*\?)$/);
+  const explicacion = partes ? partes[1].trim() : mensaje.trim();
+  const pregunta = partes ? partes[2] : "";
+  dialogo.querySelector(".dialogo-titulo").textContent = explicacion && pregunta ? pregunta : "Confirma la acción";
+  dialogo.querySelector(".dialogo-cuerpo").textContent = explicacion || pregunta;
+  const aceptar = dialogo.querySelector(".dialogo-aceptar");
+  aceptar.textContent = opciones.boton || "Continuar";
+  aceptar.classList.toggle("btn-destructive", Boolean(opciones.peligro));
+  aceptar.classList.toggle("btn-save", !opciones.peligro);
+  dialogo.classList.toggle("es-peligro", Boolean(opciones.peligro));
+  return new Promise((resolver) => {
+    // Se resuelve con los propios botones (y Esc / clic en el fondo), sin esperar el
+    // evento «close»: así el resultado no depende de cuándo lo despache el navegador.
+    const escuchas = new AbortController();
+    const terminar = (valor) => {
+      escuchas.abort();
+      if (dialogo.open) dialogo.close();
+      resolver(valor);
+    };
+    const opcion = { signal: escuchas.signal };
+    aceptar.addEventListener("click", () => terminar(true), opcion);
+    dialogo.querySelector(".dialogo-cancelar").addEventListener("click", () => terminar(false), opcion);
+    dialogo.addEventListener("cancel", (evento) => { evento.preventDefault(); terminar(false); }, opcion);
+    // Clic en el fondo oscuro (el <dialog> mismo, no su panel) = cancelar.
+    dialogo.addEventListener("click", (evento) => { if (evento.target === dialogo) terminar(false); }, opcion);
+    dialogo.showModal();
+    (opciones.peligro ? dialogo.querySelector(".dialogo-cancelar") : aceptar).focus();
+  });
+}
+window.confirmarAccion = confirmar;
+
 // Confirmaciones antes de enviar. Van en fase de captura para correr antes que
 // el candado de doble clic: si se cancelan, el botón no queda bloqueado.
 //   data-confirmar="…"                  pregunta siempre.
@@ -615,6 +680,27 @@ document.querySelectorAll("[data-copiar]").forEach((boton) => {
 //     ya registrados (campos con data-original no vacío), y dice cuántos.
 //     Usa formulario.elements, que incluye los campos asociados con form="…"
 //     fuera del <form> (la matriz de notas).
+//   data-confirmar-boton="…" y data-confirmar-peligro (sin valor) ajustan el texto
+//     y el tono del botón de confirmar.
+// Al confirmar se reenvía el formulario con requestSubmit (conserva qué botón lo
+// envió); la marca evita preguntar dos veces.
+function confirmarEnvio(formulario, evento, mensaje) {
+  if (formulario.dataset.yaConfirmado === "1") return;
+  evento.preventDefault();
+  const remitente = evento.submitter || undefined;
+  confirmar(mensaje, {
+    boton: formulario.dataset.confirmarBoton,
+    peligro: formulario.hasAttribute("data-confirmar-peligro"),
+  }).then((acepto) => {
+    if (!acepto) return;
+    formulario.dataset.yaConfirmado = "1";
+    try {
+      formulario.requestSubmit(remitente);
+    } finally {
+      delete formulario.dataset.yaConfirmado;
+    }
+  });
+}
 function mismoValor(a, b) {
   const x = Number(a);
   const y = Number(b);
@@ -622,7 +708,7 @@ function mismoValor(a, b) {
 }
 document.querySelectorAll("form[data-confirmar]").forEach((formulario) => {
   formulario.addEventListener("submit", (evento) => {
-    if (!confirm(formulario.dataset.confirmar)) evento.preventDefault();
+    confirmarEnvio(formulario, evento, formulario.dataset.confirmar);
   }, true);
 });
 document.querySelectorAll("form[data-confirmar-sobrescritura]").forEach((formulario) => {
@@ -633,8 +719,7 @@ document.querySelectorAll("form[data-confirmar-sobrescritura]").forEach((formula
       return original !== undefined && original !== "" && actual !== "" && !mismoValor(actual, original);
     }).length;
     if (cambiados === 0) return;
-    const mensaje = formulario.dataset.confirmarSobrescritura.replace("{n}", cambiados);
-    if (!confirm(mensaje)) evento.preventDefault();
+    confirmarEnvio(formulario, evento, formulario.dataset.confirmarSobrescritura.replace("{n}", cambiados));
   }, true);
 });
 

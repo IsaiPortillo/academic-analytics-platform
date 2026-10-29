@@ -7,12 +7,14 @@
     <h1 class="page-title">Almacén de datos</h1>
     <div class="page-head-actions">
         <form method="post" action="/almacen/validar" data-lock-on-submit="Validando…"
-              data-confirmar="La validación compara el almacén contra el OLTP y Neo4j y tarda alrededor de un minuto. ¿Ejecutarla?">
+              data-confirmar="La validación compara el almacén contra el OLTP y Neo4j y tarda alrededor de un minuto. ¿Ejecutarla?"
+              data-confirmar-boton="Ejecutar validación">
             {{ csrf_campo() }}
             <button type="submit" class="btn-outline-neutral" {% if en_curso %}disabled{% endif %}>Ejecutar validación</button>
         </form>
         <form method="post" action="/costos/recargar" data-lock-on-submit="Recargando…"
-              data-confirmar="La recarga reconstruye el Data Warehouse completo y tarda unos segundos. ¿Continuar?">
+              data-confirmar="La recarga reconstruye el Data Warehouse completo y tarda unos segundos. ¿Continuar?"
+              data-confirmar-boton="Recargar">
             {{ csrf_campo() }}
             <button type="submit" class="btn-save" {% if en_curso %}disabled{% endif %}>
                 {{ 'Proceso en curso…' if en_curso else 'Recargar el Data Warehouse' }}

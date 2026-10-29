@@ -210,7 +210,7 @@
                                     <summary class="btn-destructive">Retirar</summary>
                                     <form method="post" action="/matricula/retirar/{{ inscripcion.inscripcion_id }}"
                                           class="inline-edit-form"
-                                          data-confirmar="¿Retirar al estudiante {{ estudiante.estudiante_id }} de esta sección?">
+                                          data-confirmar="¿Retirar al estudiante {{ estudiante.estudiante_id }} de esta sección?" data-confirmar-boton="Retirar" data-confirmar-peligro>
                                         {{ csrf_campo() }}
                                         <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
                                         <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">

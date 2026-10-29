@@ -8,7 +8,8 @@
     <div class="page-head-actions">
         <a class="btn-outline-neutral" href="/vista-ejecutiva">Ver vista ejecutiva</a>
         <form method="post" action="/costos/recargar"
-              data-confirmar="La recarga reconstruye el Data Warehouse completo y tarda unos segundos. ¿Continuar?">
+              data-confirmar="La recarga reconstruye el Data Warehouse completo y tarda unos segundos. ¿Continuar?"
+              data-confirmar-boton="Recargar">
             {{ csrf_campo() }}
             <button type="submit" class="btn-save" {% if carga_en_curso %}disabled{% endif %}>
                 {{ 'Recarga en curso…' if carga_en_curso else 'Recargar el Data Warehouse' }}
