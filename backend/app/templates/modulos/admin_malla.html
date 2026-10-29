@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avisos, badge %}
+{% block titulo %}Malla curricular{% endblock %}
+
+{% block contenido %}
+<div class="page-head mb-4">
+    <div>
+        <a class="text-sm text-muted" href="/admin">&larr; Catálogos</a>
+        <h1 class="page-title">Malla curricular</h1>
+    </div>
+    <div class="page-head-actions">
+        <a class="btn-outline-neutral" href="/red-curricular">Ver red curricular</a>
+        <form method="post" action="/costos/recargar"
+              data-confirmar="La recarga reconstruye el Data Warehouse completo y tarda unos segundos. ¿Continuar?">
+            {{ csrf_campo() }}
+            <button type="submit" class="btn-save" {% if carga_en_curso %}disabled{% endif %}>
+                {{ 'Recarga en curso…' if carga_en_curso else 'Recargar el Data Warehouse' }}
+            </button>
+        </form>
+    </div>
+</div>
+
+{{ avisos(ok, error) }}
+
+{% if no_disponible %}
+<div class="alert alert-danger mb-3" role="alert"><span>{{ no_disponible }}</span></div>
+{% else %}
+
+{% if sin_nodo or huerfanos %}
+<div class="alert alert-warning mb-3" role="status">
+    <span>
+        {% if sin_nodo %}{{ sin_nodo }} materia(s) del catálogo todavía no están en el grafo: usa «Sincronizar con el catálogo».{% endif %}
+        {% if huerfanos %}El grafo tiene materias que ya no están en el catálogo: {{ huerfanos|join(', ') }}.{% endif %}
+    </span>
+</div>
+{% endif %}
+
+<div class="card mb-3">
+    <div class="card-header">Agregar prerrequisito</div>
+    <div class="card-body">
+        <form method="post" action="/admin/malla/agregar" class="filter-bar" data-lock-on-submit="Agregando…">
+            {{ csrf_campo() }}
+            <div class="flex-1 min-w-[200px]">
+                <label class="field-label" for="materia">Para cursar</label>
+                <select class="select" id="materia" name="materia" required>
+                    <option value="">Elegir…</option>
+                    {% for codigo, m in materias.items() %}
+                    <option value="{{ codigo }}">{{ codigo }} · {{ m.nombre }} (ciclo {{ m.ciclo }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex-1 min-w-[200px]">
+                <label class="field-label" for="requisito">hay que haber aprobado</label>
+                <select class="select" id="requisito" name="requisito" required>
+                    <option value="">Elegir…</option>
+                    {% for codigo, m in materias.items() %}
+                    <option value="{{ codigo }}">{{ codigo }} · {{ m.nombre }} (ciclo {{ m.ciclo }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn-save shrink-0">Agregar</button>
+        </form>
+        <p class="text-xs text-muted mt-2">El sistema rechaza los prerrequisitos que formarían un ciclo.</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header flex flex-wrap items-center justify-between gap-2">
+        <span>{{ filas|length }} materia(s) · {{ aristas|length }} prerrequisito(s)</span>
+        <button type="submit" form="form-areas" class="btn-outline-neutral">Sincronizar con el catálogo</button>
+    </div>
+    <div class="table-wrap">
+        <table class="table table-stack">
+            <thead><tr><th>Materia</th><th>Ciclo</th><th>Área</th><th>Exige haber aprobado</th></tr></thead>
+            <tbody>
+                {% for f in filas %}
+                <tr>
+                    <td class="cell-title">
+                        <div class="font-semibold">{{ f.codigo }}{% if not f.en_grafo %} {{ badge('warning', 'sin nodo') }}{% endif %}</div>
+                        <div class="text-xs text-muted">{{ f.nombre }}</div>
+                    </td>
+                    <td data-label="Ciclo">{{ f.ciclo }}</td>
+                    <td data-label="Área">
+                        <label class="sr-only" for="area-{{ f.codigo }}">Área de {{ f.codigo }}</label>
+                        <input class="input" id="area-{{ f.codigo }}" name="area_{{ f.codigo }}" form="form-areas"
+                               value="{{ f.area or '' }}" list="areas-conocidas" maxlength="60" placeholder="Sin área">
+                    </td>
+                    <td data-label="Exige">
+                        <div class="chip-list">
+                            {% for r in f.requisitos %}
+                            <form method="post" action="/admin/malla/quitar" class="contents"
+                                  data-confirmar="¿Quitar el prerrequisito {{ r }} de {{ f.codigo }}?">
+                                {{ csrf_campo() }}
+                                <input type="hidden" name="materia" value="{{ f.codigo }}">
+                                <input type="hidden" name="requisito" value="{{ r }}">
+                                <button type="submit" class="chip chip-quitar" aria-label="Quitar {{ r }}">{{ r }} <span aria-hidden="true">&times;</span></button>
+                            </form>
+                            {% else %}
+                            <span class="text-xs text-muted">Ninguno</span>
+                            {% endfor %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<form method="post" action="/admin/malla/sincronizar" id="form-areas">{{ csrf_campo() }}</form>
+<datalist id="areas-conocidas">{% for a in areas %}<option value="{{ a }}">{% endfor %}</datalist>
+{% endif %}
+{% endblock %}

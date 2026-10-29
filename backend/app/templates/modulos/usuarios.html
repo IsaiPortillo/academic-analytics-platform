@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge, avisos %}
+{% block titulo %}Usuarios{% endblock %}
+
+{% macro campos_rol(prefijo, rol_actual, docente_actual) %}
+<div>
+    <label class="field-label" for="{{ prefijo }}-rol">Rol</label>
+    <select class="select" id="{{ prefijo }}-rol" name="rol_db" data-rol-docente="#{{ prefijo }}-docente-campo">
+        {% for clave, texto in roles.items() %}
+        <option value="{{ clave }}" {% if clave == rol_actual %}selected{% endif %}>{{ texto }}</option>
+        {% endfor %}
+    </select>
+</div>
+<div id="{{ prefijo }}-docente-campo" {% if rol_actual != 'rol_docente' %}hidden{% endif %}>
+    <label class="field-label" for="{{ prefijo }}-docente">Docente</label>
+    <select class="select" id="{{ prefijo }}-docente" name="docente_id">
+        <option value="">Elegir…</option>
+        {% for d in docentes %}
+        <option value="{{ d.docente_id }}" {% if d.docente_id == docente_actual %}selected{% endif %}>
+            {{ d.codigo_docente }}{% if not d.activo %} (inactivo){% endif %}
+        </option>
+        {% endfor %}
+    </select>
+</div>
+{% endmacro %}
+
+{% block contenido %}
+<div class="page-head mb-4">
+    <h1 class="page-title">Usuarios</h1>
+</div>
+
+{{ avisos(ok, error) }}
+
+<div class="card mb-3">
+    <div class="card-header">Nueva cuenta</div>
+    <div class="card-body">
+        <form method="post" action="/usuarios" class="filter-bar" data-lock-on-submit="Creando…">
+            {{ csrf_campo() }}
+            <div>
+                <label class="field-label" for="nuevo-username">Usuario</label>
+                <input class="input" id="nuevo-username" name="username" required minlength="3" maxlength="50"
+                       pattern="[a-z0-9][a-z0-9._\-]{2,49}" autocomplete="off" placeholder="jperez">
+            </div>
+            <div class="flex-1 min-w-[200px]">
+                <label class="field-label" for="nuevo-nombre">Nombre completo</label>
+                <input class="input" id="nuevo-nombre" name="nombre_completo" required maxlength="120">
+            </div>
+            {{ campos_rol("nuevo", "rol_docente", none) }}
+            <button type="submit" class="btn-save shrink-0">Crear cuenta</button>
+        </form>
+        <p class="text-xs text-muted mt-2">Se genera una contraseña temporal que se muestra una sola vez. La persona debe cambiarla al entrar.</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header flex flex-wrap items-center justify-between gap-2">
+        <span>{{ cuentas|length }} cuenta(s)</span>
+        <form method="get" action="/usuarios" class="flex gap-2">
+            <label class="sr-only" for="buscar">Buscar</label>
+            <input type="search" id="buscar" name="buscar" class="input" value="{{ buscar }}" placeholder="Usuario o nombre…">
+            <button type="submit" class="btn-outline-neutral">Buscar</button>
+        </form>
+    </div>
+    <div class="table-wrap">
+        <table class="table table-stack">
+            <thead>
+                <tr><th>Usuario</th><th>Rol</th><th>Docente</th><th>Último acceso</th><th>Estado</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for c, d in cuentas %}
+                {% set es_yo = c.usuario_id == usuario.usuario_id %}
+                <tr>
+                    <td class="cell-title">
+                        <div class="font-semibold">{{ c.username }}{% if es_yo %} <span class="text-xs text-muted">(tú)</span>{% endif %}</div>
+                        <div class="text-xs text-muted">{{ c.nombre_completo }}</div>
+                    </td>
+                    <td data-label="Rol">{{ roles.get(c.rol_db, c.rol_db) }}</td>
+                    <td data-label="Docente">{{ d.codigo_docente if d else '—' }}</td>
+                    <td data-label="Último acceso" class="text-sm whitespace-nowrap">
+                        {{ c.ultimo_acceso.astimezone().strftime('%d/%m/%Y %H:%M') if c.ultimo_acceso else 'Nunca' }}
+                    </td>
+                    <td data-label="Estado">
+                        {% if not c.activo %}{{ badge('neutral', 'Inactiva') }}
+                        {% elif c.debe_cambiar_password %}{{ badge('warning', 'Contraseña temporal') }}
+                        {% else %}{{ badge('success', 'Activa') }}{% endif %}
+                    </td>
+                    <td class="cell-actions">
+                        <div class="flex flex-wrap items-start justify-end gap-2">
+                            <details class="inline-edit">
+                                <summary class="btn-view">Editar</summary>
+                                <form method="post" action="/usuarios/{{ c.usuario_id }}/editar" class="inline-edit-form"
+                                      data-lock-on-submit="Guardando…">
+                                    {{ csrf_campo() }}
+                                    <label class="field-label" for="nombre-{{ c.usuario_id }}">Nombre completo</label>
+                                    <input class="input" id="nombre-{{ c.usuario_id }}" name="nombre_completo"
+                                           value="{{ c.nombre_completo }}" required maxlength="120">
+                                    {{ campos_rol("editar-" ~ c.usuario_id, c.rol_db, c.docente_id) }}
+                                    <button type="submit" class="btn-save">Guardar</button>
+                                </form>
+                            </details>
+                            {% if not es_yo %}
+                            <form method="post" action="/usuarios/{{ c.usuario_id }}/restablecer"
+                                  data-confirmar="Se generará una contraseña temporal para «{{ c.username }}» y se cerrarán sus sesiones abiertas. ¿Continuar?">
+                                {{ csrf_campo() }}
+                                <button type="submit" class="btn-outline-neutral">Restablecer contraseña</button>
+                            </form>
+                            <form method="post" action="/usuarios/{{ c.usuario_id }}/estado"
+                                  {% if c.activo %}data-confirmar="«{{ c.username }}» no podrá entrar y su sesión abierta se cerrará. ¿Desactivar?"{% endif %}>
+                                {{ csrf_campo() }}
+                                <input type="hidden" name="activo" value="{{ 'false' if c.activo else 'true' }}">
+                                <button type="submit" class="{{ 'btn-destructive' if c.activo else 'btn-save' }}">
+                                    {{ 'Desactivar' if c.activo else 'Activar' }}
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-muted text-center py-3">Sin cuentas para esa búsqueda.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

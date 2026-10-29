@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import DBAPIError
 
 
 class DWNoConfigurado(Exception):
@@ -168,6 +169,41 @@ def evolucion_por_periodo(filtros: Filtros) -> pd.DataFrame:
         GROUP BY p.codigo_periodo, p.orden
         ORDER BY p.orden
     """, params)
+
+
+def historial_cargas(limite: int = 20) -> list[dict]:
+    """Últimas cargas registradas en carga_control (la carga nunca la vacía)."""
+    return _leer("""
+        SELECT carga_id, ejecutada_en, fecha_corte, filas_hechos, calidad
+        FROM dw_academico.carga_control
+        ORDER BY carga_id DESC
+        LIMIT :limite
+    """, {"limite": limite}).to_dict("records")
+
+
+def metas_indicadores() -> dict[str, dict]:
+    """Meta y banda de tolerancia de cada KPI (dim_indicador, script 20).
+    Vacío si el DW todavía no tiene el script 20 aplicado."""
+    try:
+        df = _leer("""
+            SELECT codigo, nombre, unidad, sentido, perspectiva, responsable_cargo,
+                   meta_por_periodo, meta, tolerancia, justificacion
+            FROM dw_academico.dim_indicador ORDER BY orden
+        """)
+    except DBAPIError:
+        return {}
+    return {fila["codigo"]: fila for fila in df.to_dict("records")}
+
+
+def semaforo_por_periodo() -> pd.DataFrame:
+    """Lo que calcula la vista v_semaforo_indicador: estado de cada KPI por período."""
+    try:
+        return _leer("""
+            SELECT codigo, codigo_periodo, orden_periodo, valor, estado
+            FROM dw_academico.v_semaforo_indicador ORDER BY orden_periodo
+        """)
+    except DBAPIError:
+        return pd.DataFrame(columns=["codigo", "codigo_periodo", "orden_periodo", "valor", "estado"])
 
 
 def ultima_carga() -> dict | None:

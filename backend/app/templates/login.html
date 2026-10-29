@@ -39,6 +39,7 @@
 COMMIT;</div>
 
             <form method="post" action="/login">
+                {{ csrf_campo() }}
                 <input type="hidden" name="siguiente" value="{{ siguiente|default('/') }}">
                 <div class="mb-3">
                     <label for="username" class="field-label">Usuario</label>

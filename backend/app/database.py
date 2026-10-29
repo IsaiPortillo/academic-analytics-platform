@@ -26,7 +26,8 @@ def get_db(request: Request):
     """
     db = SessionLocal()
     try:
-        rol = (request.session.get("usuario") or {}).get("rol_db")
+        datos = request.session.get("usuario") or {}
+        rol = datos.get("rol_db")
         if rol is not None:
             if rol not in ROLES_VALIDOS:
                 raise HTTPException(
@@ -34,6 +35,22 @@ def get_db(request: Request):
                     detail="Rol de sesión no reconocido",
                 )
             db.execute(text(f"SET LOCAL ROLE {rol}"))
+            # Quién es en la aplicación: lo registran la bitácora de notas y la de
+            # actas (database/oltp/17), porque el rol del motor lo comparten todos.
+            db.execute(
+                text("SELECT set_config('app.usuario', :usuario, true), "
+                     "set_config('app.usuario_id', :usuario_id, true)"),
+                {"usuario": str(datos.get("username") or ""),
+                 "usuario_id": str(datos.get("usuario_id") or "")},
+            )
+            if rol == "rol_docente":
+                # Las políticas de seguridad por fila (database/oltp/16) leen este
+                # valor para limitar al docente a sus secciones. El tercer argumento
+                # (true) lo hace local a la transacción, igual que el SET LOCAL ROLE.
+                db.execute(
+                    text("SELECT set_config('app.docente_id', :docente, true)"),
+                    {"docente": str(datos.get("docente_id") or "")},
+                )
         yield db
         db.commit()
     except Exception:

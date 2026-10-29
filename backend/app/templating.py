@@ -2,6 +2,8 @@ import hashlib
 from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
+from jinja2 import pass_context
+from markupsafe import Markup
 
 DIRECTORIO_APP = Path(__file__).resolve().parent
 
@@ -42,3 +44,13 @@ def url_dashboard_streamlit() -> str | None:
 
 
 templates.env.globals["url_dashboard_streamlit"] = url_dashboard_streamlit
+
+
+@pass_context
+def csrf_campo(contexto) -> Markup:
+    """Campo oculto con el token CSRF; va dentro de cada <form method="post">."""
+    from .csrf import CAMPO, token_csrf
+    return Markup(f'<input type="hidden" name="{CAMPO}" value="{token_csrf(contexto["request"])}">')
+
+
+templates.env.globals["csrf_campo"] = csrf_campo

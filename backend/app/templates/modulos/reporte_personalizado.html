@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% from "_macros.html" import descargas %}
+{% block titulo %}Reporte personalizado{% endblock %}
+
+{% block contenido %}
+<div class="page-head mb-4">
+    <div>
+        <a class="text-sm text-muted" href="/reportes">&larr; Reportes</a>
+        <h1 class="page-title">Reporte personalizado</h1>
+    </div>
+    <div class="page-head-actions">
+        {{ descargas("/reportes/personalizado/exportar", consulta) }}
+    </div>
+</div>
+
+<div class="chip-list mb-3" aria-label="Reportes frecuentes">
+    {% for titulo, descripcion, q in atajos %}
+    <a class="chip" href="/reportes/personalizado?{{ q }}" title="{{ descripcion }}">{{ titulo }}</a>
+    {% endfor %}
+</div>
+
+<form method="get" action="/reportes/personalizado" class="card mb-3" id="form-reporte">
+    <div class="card-body grid gap-3">
+        <div class="filter-bar">
+            <div>
+                <label class="field-label" for="tema">Tema</label>
+                <select class="select" id="tema" name="tema" onchange="this.form.submit()">
+                    {% for clave, t in temas.items() %}<option value="{{ clave }}" {% if clave == p.tema %}selected{% endif %}>{{ t.titulo }}</option>{% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="field-label" for="dimension">Agrupar por</label>
+                <select class="select" id="dimension" name="dimension">
+                    {% for clave, d in dimensiones %}<option value="{{ clave }}" {% if clave == p.dimension %}selected{% endif %}>{{ d.etiqueta }}</option>{% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="field-label" for="desglose">Comparar por</label>
+                <select class="select" id="desglose" name="desglose">
+                    <option value="">Sin desglose</option>
+                    {% for clave, d in dimensiones %}<option value="{{ clave }}" {% if clave == p.desglose %}selected{% endif %}>{{ d.etiqueta }}</option>{% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="field-label" for="metrica">Métrica de la gráfica</label>
+                <select class="select" id="metrica" name="metrica">
+                    {% for clave, m in tema.metricas.items() %}<option value="{{ clave }}" {% if clave == p.metrica %}selected{% endif %}>{{ m.etiqueta }}</option>{% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="field-label" for="grafica">Gráfica</label>
+                <select class="select" id="grafica" name="grafica">
+                    {% for clave, texto in graficas.items() %}<option value="{{ clave }}" {% if clave == p.grafica %}selected{% endif %}>{{ texto }}</option>{% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="field-label" for="orden">Orden</label>
+                <select class="select" id="orden" name="orden">
+                    <option value="natural" {% if p.orden == 'natural' %}selected{% endif %}>Natural</option>
+                    <option value="metrica" {% if p.orden == 'metrica' %}selected{% endif %}>Por la métrica (mayor primero)</option>
+                </select>
+            </div>
+        </div>
+        <div class="filter-bar">
+            <div>
+                <label class="field-label" for="desde">Desde</label>
+                <input type="date" class="input" id="desde" name="desde" value="{{ p.desde or '' }}">
+            </div>
+            <div>
+                <label class="field-label" for="hasta">Hasta</label>
+                <input type="date" class="input" id="hasta" name="hasta" value="{{ p.hasta or '' }}">
+            </div>
+            <div>
+                <label class="field-label" for="periodo_id">Período</label>
+                <select class="select" id="periodo_id" name="periodo_id">
+                    <option value="">Todos</option>
+                    {% for x in periodos %}<option value="{{ x.periodo_id }}" {% if x.periodo_id == p.periodo_id %}selected{% endif %}>{{ x.codigo_periodo }}</option>{% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="field-label" for="materia_id">Materia</label>
+                <select class="select" id="materia_id" name="materia_id">
+                    <option value="">Todas</option>
+                    {% for x in materias %}<option value="{{ x.materia_id }}" {% if x.materia_id == p.materia_id %}selected{% endif %}>{{ x.codigo_materia }}</option>{% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="field-label" for="docente_id">Docente</label>
+                <select class="select" id="docente_id" name="docente_id">
+                    <option value="">Todos</option>
+                    {% for x in docentes %}<option value="{{ x.docente_id }}" {% if x.docente_id == p.docente_id %}selected{% endif %}>{{ x.codigo_docente }}</option>{% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="field-label" for="turno">Turno</label>
+                <select class="select" id="turno" name="turno">
+                    <option value="">Todos</option>
+                    {% for t in ('MATUTINO', 'VESPERTINO', 'NOCTURNO') %}<option value="{{ t }}" {% if t == p.turno %}selected{% endif %}>{{ t|capitalize }}</option>{% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn-save shrink-0">Generar</button>
+            <a class="btn-outline-neutral shrink-0" href="/reportes/personalizado?tema={{ p.tema }}">Limpiar</a>
+        </div>
+        <p class="text-xs text-muted">{{ tema.descripcion }}</p>
+    </div>
+</form>
+
+<div class="card mb-3">
+    <div class="card-header">{{ reporte.titulo }}</div>
+    <div class="card-body">
+        {% if not reporte.filas %}
+        <p class="text-sm text-muted text-center py-6">Sin datos para estos filtros.</p>
+        {% elif svg %}
+        {{ svg }}
+        {% elif barras %}
+        <div class="bar-list" role="list">
+            {% for b in barras %}
+            <div class="bar-row" role="listitem">
+                <div class="text-sm truncate" title="{{ b.etiqueta }}">{{ b.etiqueta }}</div>
+                <div class="bar-track"><div class="bar-fill" style="--pct: {{ '%.4f'|format(b.pct) }};"></div></div>
+                <div class="bar-value">{{ b.valor }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if resumen.otros %}
+        <p class="text-xs text-muted mt-2">Se comparan las {{ resumen.series }} series con más registros; {{ resumen.otros }} más quedan fuera de la gráfica y la tabla.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">{{ "{:,}".format(resumen.filas) }} fila(s)</div>
+    <div class="table-wrap">
+        <table class="table table-sticky-first">
+            <thead><tr>{% for c in reporte.columnas %}<th class="{{ 'text-right' if c.tipo != 'texto' }}">{{ c.etiqueta }}</th>{% endfor %}</tr></thead>
+            <tbody>
+                {% for fila in filas %}
+                <tr>{% for valor, tipo in fila %}<td class="{{ 'text-right tabular-nums' if tipo != 'texto' else '' }}{{ ' font-semibold' if loop.first }}">{{ valor }}</td>{% endfor %}</tr>
+                {% else %}
+                <tr><td colspan="{{ reporte.columnas|length }}" class="text-muted text-center py-3">Sin datos para estos filtros.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

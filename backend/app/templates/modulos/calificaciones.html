@@ -95,7 +95,8 @@
         </div>
         <div class="card mb-3">
             <div class="card-header flex flex-wrap items-center justify-between gap-3">
-                <span class="whitespace-nowrap">{{ materia.codigo_materia }} &middot; Evaluaciones</span>
+                <span class="whitespace-nowrap">{{ materia.codigo_materia }} &middot; Evaluaciones
+                    {% if seccion.acta_cerrada %}{{ badge('neutral', 'Acta cerrada') }}{% endif %}</span>
                 <div class="weight-check flex-1 max-w-[220px]" data-weight-check="{{ ponderacion_usada }}">
                     <div class="weight-check-track"><div class="weight-check-fill"></div></div>
                     <span class="text-xs text-muted whitespace-nowrap">{{ ponderacion_usada }}% / 100%</span>
@@ -104,7 +105,7 @@
             <div class="table-wrap">
                 <table class="table">
                     <thead>
-                        <tr><th>Nombre</th><th>%</th><th>Fecha</th></tr>
+                        <tr><th>Nombre</th><th>%</th><th>Fecha</th>{% if not seccion.acta_cerrada %}<th></th>{% endif %}</tr>
                     </thead>
                     <tbody>
                         {% for e in evaluaciones %}
@@ -112,16 +113,57 @@
                             <td>{{ e.nombre_evaluacion }}</td>
                             <td>{{ e.porcentaje }}%</td>
                             <td class="text-sm">{{ e.fecha_evaluacion.strftime('%d/%m/%Y') }}</td>
+                            {% if not seccion.acta_cerrada %}
+                            <td class="cell-actions">
+                                <div class="flex flex-wrap items-start justify-end gap-2">
+                                    <details class="inline-edit">
+                                        <summary class="btn-view">Editar</summary>
+                                        <form method="post" action="/calificaciones/evaluaciones/{{ e.evaluacion_id }}/editar"
+                                              class="inline-edit-form" data-lock-on-submit="Guardando…">
+                                            {{ csrf_campo() }}
+                                            <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
+                                            <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
+                                            <label class="field-label" for="ev-nombre-{{ e.evaluacion_id }}">Nombre</label>
+                                            <input class="input" id="ev-nombre-{{ e.evaluacion_id }}" name="nombre_evaluacion"
+                                                   value="{{ e.nombre_evaluacion }}" required maxlength="100">
+                                            <div class="flex gap-2">
+                                                <div class="w-24">
+                                                    <label class="field-label" for="ev-pct-{{ e.evaluacion_id }}">%</label>
+                                                    <input class="input" id="ev-pct-{{ e.evaluacion_id }}" type="number" name="porcentaje"
+                                                           value="{{ e.porcentaje }}" required min="0.01" max="100" step="0.01">
+                                                </div>
+                                                <div class="flex-1">
+                                                    <label class="field-label" for="ev-fecha-{{ e.evaluacion_id }}">Fecha</label>
+                                                    <input class="input" id="ev-fecha-{{ e.evaluacion_id }}" type="date" name="fecha_evaluacion"
+                                                           value="{{ e.fecha_evaluacion.isoformat() }}" required>
+                                                </div>
+                                            </div>
+                                            <button type="submit" class="btn-save">Guardar cambios</button>
+                                        </form>
+                                    </details>
+                                    {% set n_notas = notas_por_evaluacion.get(e.evaluacion_id, 0) %}
+                                    <form method="post" action="/calificaciones/evaluaciones/{{ e.evaluacion_id }}/eliminar"
+                                          data-confirmar="Se eliminará «{{ e.nombre_evaluacion }}»{% if n_notas %} y sus {{ n_notas }} nota(s) registradas{% endif %}. Queda constancia en la bitácora. ¿Continuar?">
+                                        {{ csrf_campo() }}
+                                        <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
+                                        <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
+                                        <button type="submit" class="btn-destructive">Eliminar</button>
+                                    </form>
+                                </div>
+                            </td>
+                            {% endif %}
                         </tr>
                         {% else %}
-                        <tr><td colspan="3" class="text-muted text-center py-3">Sin evaluaciones registradas.</td></tr>
+                        <tr><td colspan="4" class="text-muted text-center py-3">Sin evaluaciones registradas.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+            {% if not seccion.acta_cerrada %}
             <div class="card-body border-t border-border">
                 <form method="post" action="/calificaciones/evaluaciones" class="filter-bar"
                       data-lock-on-submit="Creando…">
+                    {{ csrf_campo() }}
                     <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
                     <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
                     <div class="flex-1 min-w-[180px]">
@@ -140,11 +182,61 @@
                     <button type="submit" class="btn-save shrink-0">Agregar</button>
                 </form>
             </div>
+            {% endif %}
         </div>
 
         <div class="card">
             <div class="card-header">Matriz de notas — {{ roster|length }} estudiante(s)</div>
             <div class="card-body">
+                {% if seccion.acta_cerrada %}
+                <div class="alert alert-warning mb-3" role="status">
+                    <span>El acta de esta sección está cerrada: las notas se muestran solo para consulta.</span>
+                </div>
+                {% if usuario.es_coordinador %}
+                <form method="post" action="/calificaciones/acta/reabrir" class="filter-bar mb-3"
+                      data-confirmar="Al reabrir el acta, las inscripciones vuelven a estar en curso y las notas se pueden modificar. ¿Reabrir?">
+                    {{ csrf_campo() }}
+                    <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
+                    <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
+                    <div class="flex-1 min-w-[220px]">
+                        <label class="field-label" for="motivo-reapertura">Motivo de la reapertura</label>
+                        <input class="input" id="motivo-reapertura" name="motivo" required minlength="5" maxlength="300"
+                               placeholder="Ej.: corrección de nota solicitada por el estudiante">
+                    </div>
+                    <button type="submit" class="btn-outline-neutral shrink-0">Reabrir acta</button>
+                </form>
+                {% endif %}
+                {% elif evaluaciones %}
+                <div class="toolbar mb-3">
+                    <a class="btn-outline-neutral" href="/calificaciones/plantilla?seccion_id={{ seccion.seccion_id }}">Descargar plantilla</a>
+                    <form method="post" action="/calificaciones/importar" enctype="multipart/form-data"
+                          class="toolbar-upload" data-lock-on-submit="Leyendo…">
+                        {{ csrf_campo() }}
+                        <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
+                        <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
+                        <label class="sr-only" for="archivo-notas">Archivo de notas</label>
+                        <input type="file" id="archivo-notas" name="archivo" class="input-file" required
+                               accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv">
+                        <button type="submit" class="btn-outline-neutral">Importar</button>
+                    </form>
+                    <form method="post" action="/calificaciones/acta/cerrar" class="toolbar-end"
+                          data-confirmar="Al cerrar el acta las {{ roster|length }} inscripción(es) quedan finalizadas y ya no se podrán cambiar notas, evaluaciones ni asistencia de esta sección. Solo el coordinador puede reabrirla. ¿Cerrar el acta?">
+                        {{ csrf_campo() }}
+                        <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
+                        <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
+                        <button type="submit" class="btn-save" {% if notas_faltantes or ponderacion_usada != 100 %}disabled
+                                title="{{ 'Faltan ' ~ notas_faltantes ~ ' nota(s)' if notas_faltantes else 'Las evaluaciones deben sumar 100 %' }}"{% endif %}>
+                            Cerrar acta
+                        </button>
+                    </form>
+                </div>
+                {% if notas_faltantes or ponderacion_usada != 100 %}
+                <p class="text-xs text-muted mb-2">
+                    Para cerrar el acta:
+                    {% if ponderacion_usada != 100 %}las evaluaciones deben sumar 100 % (hoy {{ ponderacion_usada }} %){% endif %}{% if notas_faltantes and ponderacion_usada != 100 %} y {% endif %}{% if notas_faltantes %}faltan {{ notas_faltantes }} nota(s){% endif %}.
+                </p>
+                {% endif %}
+                {% endif %}
                 {% if evaluaciones %}
                 <p class="text-xs text-muted mb-2 lg:hidden">
                     Desliza la tabla para ver todas las evaluaciones; la columna del ID queda fija.
@@ -158,12 +250,14 @@
                                 <th>
                                     <div>{{ e.nombre_evaluacion }}</div>
                                     <div class="text-xs text-muted font-normal">{{ e.porcentaje }}%</div>
+                                    {% if not seccion.acta_cerrada %}
                                     <button type="submit" form="form-ev-{{ e.evaluacion_id }}"
                                             class="js-matrix-save btn-save matrix-col-save"
                                             data-columna="{{ e.evaluacion_id }}"
                                             style="font-size: 0.6875rem; padding: 0.1875rem 0.5rem;">
                                         Guardar
                                     </button>
+                                    {% endif %}
                                 </th>
                                 {% endfor %}
                                 <th>Acumulado</th>
@@ -179,7 +273,9 @@
                                            form="form-ev-{{ e.evaluacion_id }}"
                                            data-columna="{{ e.evaluacion_id }}"
                                            min="0" max="10" step="0.01"
-                                           value="{{ fila.celdas[loop.index0] if fila.celdas[loop.index0] is not none else '' }}">
+                                           value="{{ fila.celdas[loop.index0] if fila.celdas[loop.index0] is not none else '' }}"
+                                           data-original="{{ fila.celdas[loop.index0] if fila.celdas[loop.index0] is not none else '' }}"
+                                           {% if seccion.acta_cerrada %}disabled{% endif %}>
                                     <input type="hidden" name="inscripcion_id" value="{{ fila.inscripcion.inscripcion_id }}"
                                            form="form-ev-{{ e.evaluacion_id }}">
                                 </td>
@@ -194,7 +290,9 @@
                 </div>
                 {% for e in evaluaciones %}
                 <form id="form-ev-{{ e.evaluacion_id }}" method="post" action="/calificaciones/registrar"
-                      data-lock-on-submit="Guardando…">
+                      data-lock-on-submit="Guardando…"
+                      data-confirmar-sobrescritura="Vas a cambiar {n} nota(s) ya registradas en «{{ e.nombre_evaluacion }}». El cambio queda en la bitácora de auditoría. ¿Continuar?">
+                    {{ csrf_campo() }}
                     <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
                     <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
                     <input type="hidden" name="evaluacion_id" value="{{ e.evaluacion_id }}">

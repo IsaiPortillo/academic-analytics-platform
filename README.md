@@ -117,6 +117,23 @@ academic-analytics-platform/
   - [x] Reportes operacionales (SCRUM-10) — notas finales, asistencia acumulada, rendimiento por
     materia, desempeño por docente, ocupación de secciones y notas pendientes de registro. Todos
     se descargan en CSV, Excel y PDF (`backend/app/exportar.py`).
+  - [x] Reporte personalizado (`/reportes/personalizado`) — el coordinador elige tema (asistencia,
+    calificaciones, matrícula), agrupación (período, mes, semana, día, carrera, materia, docente,
+    turno, motivo de retiro…), desglose, rango de fechas y gráfica (líneas, columnas o barras).
+    La gráfica sale en la página (SVG), en el PDF y como gráfico nativo en el Excel.
+  - [x] Carga masiva desde Excel — notas, asistencia y matrícula: plantilla con la lista de la
+    sección, vista previa con errores y cambios fila por fila, y confirmación explícita antes de
+    sobrescribir.
+  - [x] Cierre de acta — el docente cierra la sección cuando las evaluaciones suman 100 % y no
+    falta ninguna nota; desde ahí el motor bloquea cambios. Solo el coordinador la reabre, con motivo.
+  - [x] Administración (solo coordinador) — períodos, secciones, materias, docentes, estudiantes,
+    carreras y departamentos; malla curricular (escribe en Neo4j y rechaza ciclos); usuarios
+    (alta, rol, desactivar, contraseña temporal); metas de los indicadores; auditoría de cambios
+    de notas y actas; estado del almacén (historial de cargas y última validación).
+  - [x] Cuenta propia — cada usuario cambia su contraseña; la temporal obliga a cambiarla al entrar.
+
+  Validación de estas funciones, decisiones y limitaciones:
+  [`docs/validacion/funcionalidades_lista_d.md`](docs/validacion/funcionalidades_lista_d.md).
 
 ### Fase 3: Ingeniería de Datos (ETL y Data Warehouse)
 - [x] **3.1:** Conexión y extracción híbrida (SQLAlchemy para PostgreSQL y driver oficial Neo4j).
@@ -559,7 +576,9 @@ borrar nada ni averiguar cuál falta:
 ```
 
 Si aplicó algo del Data Warehouse, recárgalo después con `python -m etl.carga`. Conviene correrlo
-cada vez que traigas cambios de `develop`.
+cada vez que traigas cambios de `develop`. Ejemplo: los scripts 17 a 20 (actas, cuentas, motivo de
+retiro, metas) son necesarios para Administración, cierre de acta y semáforo de metas, y el 20 toca
+el Data Warehouse, así que después hay que correr `python -m etl.carga`.
 
 **`-bash: source: .venv/bin/activate: No such file` o `The term 'source' is not recognized`**
 En Windows el entorno virtual vive en `.venv/Scripts/`, no en `.venv/bin/`, y `source` solo
@@ -691,6 +710,35 @@ Consecuencias del diseño:
   la sesión se queda sin privilegios en lugar de acumular los de todos los roles.
 - `SET LOCAL` (y no `SET`) limita el cambio a la transacción, evitando que una conexión
   reutilizada del pool arrastre el rol del usuario anterior.
+- **Cada docente solo ve y escribe sus propias secciones**, y también lo impone el motor:
+  `evaluaciones`, `calificaciones` y `asistencias` tienen seguridad por fila
+  (`database/oltp/16_rls_docente.sql`). Junto al `SET LOCAL ROLE`, la aplicación declara el
+  docente de la sesión con `set_config('app.docente_id', …, true)`. Si no lo declara, el docente
+  no ve ninguna fila: también falla cerrado. El coordinador y `rol_etl` tienen políticas de
+  acceso completo. Límite honesto: protege de errores de la aplicación, no de quien tenga la
+  credencial de `rol_app`, que puede declarar cualquier docente.
+- **Actas cerradas:** un trigger (`database/oltp/17_auditoria_y_actas.sql`) rechaza cualquier
+  cambio de evaluaciones, notas o asistencia de una sección con el acta cerrada, venga de la
+  aplicación o de SQL directo, incluso al coordinador. Cerrar y reabrir son funciones
+  `SECURITY DEFINER` que validan rol, propiedad de la sección, ponderación y notas completas, y
+  dejan constancia en `auditoria.log_actas`.
+- **Auditoría de notas:** cada alta, cambio o borrado de una nota queda en
+  `auditoria.log_cambios_notas` con el usuario de la aplicación (no solo el rol), que la
+  aplicación declara con `set_config('app.usuario', …, true)`.
+- **Contraseña propia:** el docente no tiene permiso sobre `usuarios`; cambia la suya con
+  `cambiar_password_propio()` (`18_usuarios_cuenta.sql`), que solo toca su fila y solo acepta
+  hashes bcrypt.
+
+En la capa web:
+
+- **CSRF:** todo `POST` exige el token de la sesión (`app/csrf.py`), que va oculto en cada
+  formulario (`{{ csrf_campo() }}`). Cerrar sesión también es un `POST`.
+- **Intentos de login:** 5 fallos por IP y usuario (o 20 por IP) bloquean 15 minutos
+  (`app/limite_login.py`). En el servidor, nginx limita además los `POST /login`.
+- **Sesión:** dura 8 horas, se cierra tras 30 minutos sin actividad y se corta en el siguiente
+  clic si la cuenta se desactiva o le cambian el rol (`app/dependencies.py`).
+- **Mensajes:** los avisos de éxito o error viajan en la sesión, no en la URL (`app/avisos.py`).
+  Nadie puede fabricar un enlace al sistema real con un mensaje falso.
 
 ### Comprobación del modelo (demostrable ante el jurado)
 
@@ -718,6 +766,33 @@ Resultado esperado:
 | `DELETE` como `rol_docente` | `ERROR: permission denied for table inscripciones` |
 | `DELETE` como `rol_coordinador` | `DELETE 1` |
 | Leer `auditoria` como `rol_docente` | `ERROR: permission denied for schema auditoria` |
+
+Seguridad por fila: un docente que intenta registrar asistencia en la sección de otro.
+
+```bash
+docker exec -i -e PGPASSWORD="$APP_DB_PASSWORD" academico_postgres     psql -U "$APP_DB_USER" -d "$POSTGRES_DB" <<'SQL'
+BEGIN;
+SET LOCAL ROLE rol_docente;
+SELECT set_config('app.docente_id', '1', true);
+SELECT count(*) FROM academico_oltp.calificaciones;           -- solo las de sus secciones
+INSERT INTO academico_oltp.asistencias (inscripcion_id, fecha_sesion, estado_asistencia)
+SELECT i.inscripcion_id, DATE '2099-01-01', 'PRESENTE'
+FROM academico_oltp.inscripciones i JOIN academico_oltp.secciones s USING (seccion_id)
+WHERE s.docente_id <> 1 LIMIT 1;
+ROLLBACK;
+SQL
+```
+
+| Operación | Resultado |
+|---|---|
+| `SELECT` de notas como el docente 1 | solo las de sus secciones (4 964 de 131 872) |
+| `INSERT` en la sección de otro docente | `ERROR: new row violates row-level security policy` |
+
+Las pruebas `backend/tests/test_rls_docente.py` repiten estos intentos y otros (mover una
+evaluación a otra sección, cruzar una evaluación propia con un estudiante ajeno) contra la base
+real. `backend/tests/test_actas_db.py` recorre el ciclo del acta (cerrar, intentar modificar,
+reabrir) y las funciones de cuenta. Las dos suites corren en transacciones que se revierten y se
+omiten si PostgreSQL no está levantado.
 
 ---
 

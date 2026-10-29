@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% from "_macros.html" import descargas %}
+{% block titulo %}Auditoría{% endblock %}
+
+{% block contenido %}
+<div class="page-head mb-4">
+    <h1 class="page-title">Auditoría</h1>
+    <div class="page-head-actions">
+        {{ descargas("/auditoria/exportar", "vista=" ~ vista ~ ("&" ~ consulta if consulta else "")) }}
+    </div>
+</div>
+
+<nav class="tabs" aria-label="Bitácoras">
+    <a class="tab{% if vista == 'notas' %} is-active{% endif %}" href="/auditoria?vista=notas{{ '&' ~ consulta if consulta }}"
+       {% if vista == 'notas' %}aria-current="page"{% endif %}>Notas</a>
+    <a class="tab{% if vista == 'actas' %} is-active{% endif %}" href="/auditoria?vista=actas{{ '&' ~ consulta if consulta }}"
+       {% if vista == 'actas' %}aria-current="page"{% endif %}>Actas</a>
+</nav>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get" action="/auditoria" class="filter-bar">
+            <input type="hidden" name="vista" value="{{ vista }}">
+            <div>
+                <label for="desde" class="field-label">Desde</label>
+                <input type="date" id="desde" name="desde" class="input" value="{{ filtros.desde or '' }}">
+            </div>
+            <div>
+                <label for="hasta" class="field-label">Hasta</label>
+                <input type="date" id="hasta" name="hasta" class="input" value="{{ filtros.hasta or '' }}">
+            </div>
+            <div>
+                <label for="usuario-filtro" class="field-label">Usuario</label>
+                <select id="usuario-filtro" name="usuario" class="select">
+                    <option value="">Todos</option>
+                    {% for u in usuarios %}
+                    <option value="{{ u }}" {% if filtros.usuario == u %}selected{% endif %}>{{ u }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% if vista == 'notas' %}
+            <div>
+                <label for="operacion" class="field-label">Operación</label>
+                <select id="operacion" name="operacion" class="select">
+                    <option value="">Todas</option>
+                    {% for clave, texto in operaciones.items() %}
+                    <option value="{{ clave }}" {% if filtros.operacion == clave %}selected{% endif %}>{{ texto }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <div>
+                <label for="periodo_id" class="field-label">Período</label>
+                <select id="periodo_id" name="periodo_id" class="select">
+                    <option value="">Todos</option>
+                    {% for p in periodos %}
+                    <option value="{{ p.periodo_id }}" {% if filtros.periodo_id == p.periodo_id %}selected{% endif %}>{{ p.codigo_periodo }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn-save shrink-0">Filtrar</button>
+            {% if consulta %}<a class="btn-outline-neutral shrink-0" href="/auditoria?vista={{ vista }}">Limpiar</a>{% endif %}
+        </form>
+    </div>
+</div>
+
+{% if total > limite %}
+<div class="alert alert-danger mb-3" role="alert">
+    <span>Se muestran los {{ limite }} registros más recientes de {{ "{:,}".format(total) }}. Las descargas incluyen todos.</span>
+    <button type="button" class="alert-close" data-alert-close aria-label="Cerrar">&times;</button>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">{{ "{:,}".format(total) }} registro(s)</div>
+    <div class="table-wrap">
+        <table class="table" id="tabla-auditoria">
+            <thead>
+                <tr>
+                    {% for c in reporte.columnas %}
+                    <th class="{{ 'text-center' if c.tipo not in ('texto', 'fecha_hora') }}">{{ c.etiqueta }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for fila in filas %}
+                <tr>
+                    {% for valor, tipo in fila %}
+                    <td class="{{ 'text-center' if tipo not in ('texto', 'fecha_hora') }}{{ ' whitespace-nowrap' if tipo == 'fecha_hora' }}">{{ valor }}</td>
+                    {% endfor %}
+                </tr>
+                {% else %}
+                <tr><td colspan="{{ reporte.columnas|length }}" class="text-muted text-center py-3">Sin registros para estos filtros.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

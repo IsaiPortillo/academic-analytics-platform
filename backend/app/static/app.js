@@ -255,7 +255,7 @@ document.querySelectorAll(".js-demo-login").forEach((boton) => {
     estudianteSeleccionado(valor);
   });
 
-  confirmarBtn?.addEventListener("click", async () => {
+  confirmarBtn?.addEventListener("click", () => {
     if (!estudianteId || dock.size === 0) return;
     const materiaCount = dock.size;
     if (!confirm(`¿Matricular al estudiante ${estudianteId} en ${materiaCount} materia(s)?`)) {
@@ -265,49 +265,27 @@ document.querySelectorAll(".js-demo-login").forEach((boton) => {
     confirmarBtn.disabled = true; // candado de doble clic: una sola pasada por dock
     confirmarBtn.textContent = "Matriculando…";
 
-    let exitos = 0;
-    let ultimoError = null;
-    let ultimaSeccion = null;
-    for (const [seccionId] of dock) {
-      ultimaSeccion = seccionId;
-      try {
-        const cuerpo = new URLSearchParams({
-          periodo_id: periodoId,
-          seccion_id: seccionId,
-          estudiante_id: estudianteId,
-        });
-        const respuesta = await fetch("/matricula/inscribir", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: cuerpo,
-        });
-        const url = new URL(respuesta.url);
-        if (url.searchParams.get("ok")) {
-          exitos += 1;
-        } else {
-          ultimoError = url.searchParams.get("error") || "Error desconocido";
-        }
-      } catch (e) {
-        ultimoError = "No se pudo conectar con el servidor";
-      }
+    // Un solo POST con todas las secciones: el servidor matricula cada una y deja
+    // el resultado en la sesión, que la página de matrícula muestra al volver.
+    const formulario = document.createElement("form");
+    formulario.method = "post";
+    formulario.action = "/matricula/inscribir";
+    formulario.hidden = true;
+    const campos = [
+      ["csrf_token", dockPanel.querySelector('input[name="csrf_token"]')?.value || ""],
+      ["periodo_id", periodoId],
+      ["estudiante_id", estudianteId],
+      ...[...dock.keys()].map((seccionId) => ["seccion_id", seccionId]),
+    ];
+    for (const [nombre, valor] of campos) {
+      const campo = document.createElement("input");
+      campo.type = "hidden";
+      campo.name = nombre;
+      campo.value = valor;
+      formulario.appendChild(campo);
     }
-
-    const destino = new URL(`/matricula`, window.location.origin);
-    destino.searchParams.set("periodo_id", periodoId);
-    destino.searchParams.set("seccion_id", ultimaSeccion || "");
-    if (exitos > 0) {
-      destino.searchParams.set(
-        "ok",
-        exitos === materiaCount
-          ? `Estudiante ${estudianteId} matriculado en ${exitos} materia(s) correctamente`
-          : `Estudiante ${estudianteId} matriculado en ${exitos} de ${materiaCount} materia(s)`
-      );
-    }
-    if (ultimoError) {
-      destino.searchParams.set("error", ultimoError);
-    }
-    window.location.href = destino.toString();
+    document.body.appendChild(formulario);
+    formulario.submit();
   });
 })();
 
@@ -428,6 +406,17 @@ document.querySelectorAll(".tap-toggle").forEach((boton) => {
   });
 });
 recalcularTally();
+
+// "Marcar todos presentes": fija el mismo estado en cada fila. No guarda: el
+// docente revisa las excepciones y luego pulsa Guardar.
+document.querySelectorAll("[data-marcar-todos]").forEach((boton) => {
+  boton.addEventListener("click", () => {
+    const estado = boton.dataset.marcarTodos;
+    boton.closest("form")?.querySelectorAll(`.tap-toggle[data-estado="${estado}"]`).forEach((opcion) => {
+      if (!opcion.disabled) opcion.click();
+    });
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Skeleton de carga en filtros — periodo/materia/checkbox ya disparaban
@@ -568,12 +557,79 @@ document.querySelectorAll("[data-skeleton-on-filter]").forEach((filtro) => {
   seleccionar(datos.inicial);
 })();
 
+// Usuarios: el campo «Docente» solo aplica (y solo se envía) con el rol docente.
+document.querySelectorAll("select[data-rol-docente]").forEach((selector) => {
+  const campo = document.querySelector(selector.dataset.rolDocente);
+  if (!campo) return;
+  const sincronizar = () => {
+    const esDocente = selector.value === "rol_docente";
+    campo.hidden = !esDocente;
+    const lista = campo.querySelector("select");
+    if (lista) {
+      lista.disabled = !esDocente;
+      lista.required = esDocente;
+    }
+  };
+  selector.addEventListener("change", sincronizar);
+  sincronizar();
+});
+
+// Copiar al portapapeles (contraseña temporal).
+document.querySelectorAll("[data-copiar]").forEach((boton) => {
+  boton.addEventListener("click", async () => {
+    const origen = document.querySelector(boton.dataset.copiar);
+    if (!origen) return;
+    try {
+      await navigator.clipboard.writeText(origen.textContent.trim());
+      boton.textContent = "Copiada";
+    } catch (e) {
+      const rango = document.createRange();
+      rango.selectNodeContents(origen);
+      const seleccion = window.getSelection();
+      seleccion.removeAllRanges();
+      seleccion.addRange(rango);
+      boton.textContent = "Selecciónala y cópiala";
+    }
+  });
+});
+
+// Confirmaciones antes de enviar. Van en fase de captura para correr antes que
+// el candado de doble clic: si se cancelan, el botón no queda bloqueado.
+//   data-confirmar="…"                  pregunta siempre.
+//   data-confirmar-sobrescritura="…{n}…" pregunta solo si el envío cambia valores
+//     ya registrados (campos con data-original no vacío), y dice cuántos.
+//     Usa formulario.elements, que incluye los campos asociados con form="…"
+//     fuera del <form> (la matriz de notas).
+function mismoValor(a, b) {
+  const x = Number(a);
+  const y = Number(b);
+  return a !== "" && b !== "" && !Number.isNaN(x) && !Number.isNaN(y) ? x === y : a === b;
+}
+document.querySelectorAll("form[data-confirmar]").forEach((formulario) => {
+  formulario.addEventListener("submit", (evento) => {
+    if (!confirm(formulario.dataset.confirmar)) evento.preventDefault();
+  }, true);
+});
+document.querySelectorAll("form[data-confirmar-sobrescritura]").forEach((formulario) => {
+  formulario.addEventListener("submit", (evento) => {
+    const cambiados = Array.from(formulario.elements).filter((campo) => {
+      const original = campo.dataset ? campo.dataset.original : undefined;
+      const actual = (campo.value || "").trim();
+      return original !== undefined && original !== "" && actual !== "" && !mismoValor(actual, original);
+    }).length;
+    if (cambiados === 0) return;
+    const mensaje = formulario.dataset.confirmarSobrescritura.replace("{n}", cambiados);
+    if (!confirm(mensaje)) evento.preventDefault();
+  }, true);
+});
+
 // Candado de doble clic genérico — deshabilita cualquier submit marcado
 // data-lock-on-submit apenas se envía, para que una escritura no idempotente
 // (crear evaluación, registrar asistencia) no viaje dos veces por un doble
 // clic mientras la página todavía no recarga.
 document.querySelectorAll("[data-lock-on-submit]").forEach((formulario) => {
-  formulario.addEventListener("submit", () => {
+  formulario.addEventListener("submit", (evento) => {
+    if (evento.defaultPrevented) return; // se canceló una confirmación: no bloquear
     const boton = formulario.querySelector('button[type="submit"]');
     if (!boton) return;
     boton.disabled = true;

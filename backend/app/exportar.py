@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 from io import BytesIO, StringIO
-from typing import Any, Sequence
+from typing import Any, Optional, Sequence
 
 from fastapi import HTTPException
 from fastapi.responses import Response, StreamingResponse
@@ -36,8 +36,10 @@ COLOR_LINEA = "E2E8F0"
 # Excel en Windows asume la codificación local si el CSV no lleva BOM.
 BOM_UTF8 = "﻿"
 
-TIPOS = ("texto", "id", "entero", "decimal", "porcentaje", "dinero")
+TIPOS = ("texto", "id", "entero", "decimal", "porcentaje", "dinero", "fecha", "fecha_hora")
 FORMATO_EXCEL = {
+    "fecha": "dd/mm/yyyy",
+    "fecha_hora": "dd/mm/yyyy hh:mm",
     "id": "0",
     "entero": "#,##0",
     "decimal": "0.00",
@@ -50,8 +52,23 @@ FORMATO_EXCEL = {
 class Columna:
     clave: str             # nombre en el CSV
     etiqueta: str          # nombre en pantalla, Excel y PDF
-    tipo: str = "texto"    # texto | id (entero sin separador) | entero | decimal | porcentaje (0–1) | dinero
+    tipo: str = "texto"    # texto | id (entero sin separador) | entero | decimal | porcentaje (0–1) | dinero | fecha | fecha_hora
     ancho: float = 1.0     # ancho relativo en el PDF
+
+
+# Paleta de series: la primera es el rojo de marca. La misma que --chart-1..6.
+PALETA_SERIES = ("8B0000", "475569", "B45309", "0F766E", "4338CA", "BE185D")
+LIMITE_CATEGORIAS_GRAFICO = 40
+
+
+@dataclass(frozen=True)
+class Grafico:
+    """Gráfica que acompaña al reporte en el PDF y en el Excel. La categoría es
+    siempre la primera columna; `columnas` son los índices de las series."""
+    tipo: str              # lineas | columnas | barras
+    etiqueta: str          # qué se grafica (título del eje)
+    tipo_valor: str        # tipo de Columna de las series (porcentaje, entero, decimal…)
+    columnas: list[int]
 
 
 @dataclass
@@ -61,6 +78,7 @@ class Reporte:
     columnas: list[Columna]
     filas: list[Sequence[Any]]
     filtros: list[tuple[str, str]] = field(default_factory=list)
+    grafico: Optional[Grafico] = None
 
 
 def formatear(valor: Any, tipo: str) -> str:
@@ -77,7 +95,16 @@ def formatear(valor: Any, tipo: str) -> str:
         return f"{float(valor) * 100:.1f} %"
     if tipo == "dinero":
         return f"${float(valor):,.2f}"
+    if tipo == "fecha" and isinstance(valor, (date, datetime)):
+        return f"{valor:%d/%m/%Y}"
+    if tipo == "fecha_hora" and isinstance(valor, datetime):
+        return f"{_hora_local(valor):%d/%m/%Y %H:%M}"
     return str(valor)
+
+
+def _hora_local(valor: datetime) -> datetime:
+    """Sin zona horaria, en la hora local del servidor: Excel no admite zonas."""
+    return valor.astimezone().replace(tzinfo=None) if valor.tzinfo else valor
 
 
 def _numero(valor: Any) -> Any:
@@ -86,6 +113,8 @@ def _numero(valor: Any) -> Any:
         return float(valor)
     if isinstance(valor, float) and valor != valor:
         return None
+    if isinstance(valor, datetime):
+        return _hora_local(valor)
     return valor
 
 
@@ -176,9 +205,50 @@ def a_excel_bytes(reporte: Reporte) -> bytes:
             for c, v in zip(reporte.columnas, fila)
         ])
 
+    if reporte.grafico and reporte.filas:
+        _grafico_excel(hoja, reporte, fila_cabecera)
+
     salida = BytesIO()
     libro.save(salida)
     return salida.getvalue()
+
+
+def _grafico_excel(hoja, reporte: Reporte, fila_cabecera: int) -> None:
+    """Gráfico nativo de Excel sobre las mismas celdas de la tabla: si alguien
+    corrige un valor en la hoja, la gráfica cambia con él."""
+    from openpyxl.chart import BarChart, LineChart, Reference  # noqa: PLC0415
+
+    g = reporte.grafico
+    n = min(len(reporte.filas), LIMITE_CATEGORIAS_GRAFICO)
+    if g.tipo == "lineas":
+        grafico = LineChart()
+    else:
+        grafico = BarChart()
+        grafico.type = "bar" if g.tipo == "barras" else "col"
+    grafico.title = reporte.titulo
+    grafico.y_axis.title = g.etiqueta
+    grafico.height, grafico.width = 9, 18
+    if g.tipo_valor == "porcentaje":
+        grafico.y_axis.numFmt = "0%"
+    categorias = Reference(hoja, min_col=1, min_row=fila_cabecera + 1, max_row=fila_cabecera + n)
+    for i, columna in enumerate(g.columnas):
+        datos = Reference(hoja, min_col=columna + 1, min_row=fila_cabecera, max_row=fila_cabecera + n)
+        grafico.add_data(datos, titles_from_data=True)
+        serie = grafico.series[-1]
+        color = PALETA_SERIES[i % len(PALETA_SERIES)]
+        if g.tipo == "lineas":
+            serie.graphicalProperties.line.solidFill = color
+            serie.graphicalProperties.line.width = 22000
+            serie.smooth = False
+        else:
+            serie.graphicalProperties.solidFill = color
+            serie.graphicalProperties.line.solidFill = color
+    grafico.set_categories(categorias)
+    if len(g.columnas) == 1:
+        grafico.legend = None
+    columna_libre = len(reporte.columnas) + 2
+    from openpyxl.utils import get_column_letter  # noqa: PLC0415
+    hoja.add_chart(grafico, f"{get_column_letter(columna_libre)}{fila_cabecera}")
 
 
 def a_excel(reporte: Reporte) -> Response:
@@ -224,6 +294,8 @@ def a_pdf_bytes(reporte: Reporte) -> bytes:
         historia.append(Paragraph(f"Primeras {LIMITE_FILAS_PDF:,} de {len(reporte.filas):,} filas. "
                                   "El conjunto completo está en Excel o CSV.", estilo_meta))
     historia.append(Spacer(1, 8))
+    if reporte.grafico and reporte.filas:
+        historia += [_grafico_pdf(reporte, util), Spacer(1, 10)]
 
     total = sum(c.ancho for c in reporte.columnas)
     anchos = [util * c.ancho / total for c in reporte.columnas]
@@ -271,6 +343,78 @@ def a_pdf_bytes(reporte: Reporte) -> bytes:
                       topMargin=margen, bottomMargin=16 * mm, title=reporte.titulo,
                       author="Sistema Minerva").build(historia, onFirstPage=pie, onLaterPages=pie)
     return salida.getvalue()
+
+
+def _grafico_pdf(reporte: Reporte, ancho: float):
+    """La gráfica del reporte como dibujo vectorial de reportlab (nítido al imprimir)."""
+    from reportlab.graphics.charts.barcharts import HorizontalBarChart, VerticalBarChart  # noqa: PLC0415
+    from reportlab.graphics.charts.legends import Legend  # noqa: PLC0415
+    from reportlab.graphics.charts.linecharts import HorizontalLineChart  # noqa: PLC0415
+    from reportlab.graphics.shapes import Drawing, String  # noqa: PLC0415
+    from reportlab.lib import colors  # noqa: PLC0415
+
+    g = reporte.grafico
+    filas = reporte.filas[:LIMITE_CATEGORIAS_GRAFICO]
+    categorias = [str(f[0])[:18] for f in filas]
+    series = [[float(f[c]) if f[c] is not None else None for f in filas] for c in g.columnas]
+    multiples = len(series) > 1
+    alto = 190 if g.tipo != "barras" else max(120, 14 * len(categorias) + 40)
+    dibujo = Drawing(ancho, alto + (18 if multiples else 0))
+    if g.tipo == "lineas":
+        grafico = HorizontalLineChart()
+    elif g.tipo == "barras":
+        grafico = HorizontalBarChart()
+    else:
+        grafico = VerticalBarChart()
+    izquierda = 110 if g.tipo == "barras" else 46
+    grafico.x, grafico.y = izquierda, 34 + (18 if multiples else 0)
+    grafico.width, grafico.height = ancho - izquierda - 12, alto - 50
+    # reportlab no admite huecos en barras: un valor faltante se dibuja como 0.
+    grafico.data = [[v if v is not None else 0 for v in s] for s in series] if g.tipo != "lineas" else \
+        [[v if v is not None else None for v in s] for s in series]
+    grafico.categoryAxis.categoryNames = categorias
+    grafico.categoryAxis.labels.fontName = "Helvetica"
+    grafico.categoryAxis.labels.fontSize = 6.5
+    if g.tipo != "barras" and len(categorias) > 8:
+        grafico.categoryAxis.labels.angle = 35
+        grafico.categoryAxis.labels.boxAnchor = "ne"
+    grafico.valueAxis.labels.fontName = "Helvetica"
+    grafico.valueAxis.labels.fontSize = 6.5
+    grafico.valueAxis.valueMin = 0
+    valores = [v for s in series for v in s if v is not None]
+    if g.tipo_valor == "porcentaje":
+        grafico.valueAxis.valueMax = min(1.0, max(valores or [1]) * 1.15) or 1
+        grafico.valueAxis.labelTextFormat = lambda v: f"{v * 100:.0f} %"
+    elif g.tipo_valor == "decimal":
+        grafico.valueAxis.labelTextFormat = "%.1f"
+    else:
+        grafico.valueAxis.labelTextFormat = lambda v: f"{v:,.0f}"
+    grafico.valueAxis.strokeColor = colors.HexColor(f"#{COLOR_LINEA}")
+    grafico.categoryAxis.strokeColor = colors.HexColor(f"#{COLOR_LINEA}")
+    grafico.valueAxis.gridStrokeColor = colors.HexColor(f"#{COLOR_LINEA}")
+    grafico.valueAxis.visibleGrid = True
+    for i in range(len(series)):
+        color = colors.HexColor(f"#{PALETA_SERIES[i % len(PALETA_SERIES)]}")
+        if g.tipo == "lineas":
+            grafico.lines[i].strokeColor = color
+            grafico.lines[i].strokeWidth = 1.6
+        else:
+            grafico.bars[i].fillColor = color
+            grafico.bars[i].strokeColor = color
+    dibujo.add(grafico)
+    dibujo.add(String(0, alto + (18 if multiples else 0) - 10, g.etiqueta, fontName="Helvetica-Bold", fontSize=8,
+                      fillColor=colors.HexColor(f"#{COLOR_TENUE}")))
+    if multiples:
+        leyenda = Legend()
+        leyenda.x, leyenda.y = izquierda, 10
+        leyenda.alignment = "right"
+        leyenda.columnMaximum = 1
+        leyenda.deltax = 90
+        leyenda.fontName, leyenda.fontSize = "Helvetica", 7
+        leyenda.colorNamePairs = [(colors.HexColor(f"#{PALETA_SERIES[i % len(PALETA_SERIES)]}"),
+                                   reporte.columnas[c].etiqueta[:22]) for i, c in enumerate(g.columnas)]
+        dibujo.add(leyenda)
+    return dibujo
 
 
 def a_pdf(reporte: Reporte) -> Response:

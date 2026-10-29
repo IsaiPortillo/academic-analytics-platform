@@ -59,6 +59,11 @@ SCRIPTS=(
   "13_dw_cierre_scrum35.sql|SELECT 1 FROM pg_views WHERE schemaname='dw_academico' AND viewname='v_mart_departamento'"
   "14_bootstrap_rol_dw_carga.sh|SELECT 1 FROM pg_roles WHERE rolname='rol_dw_carga' AND rolcanlogin"
   "15_dw_red_curricular.sql|SELECT 1 FROM pg_tables WHERE schemaname='dw_academico' AND tablename='bridge_prerrequisito'"
+  "16_rls_docente.sql|SELECT 1 FROM pg_policies WHERE schemaname='academico_oltp' AND tablename='calificaciones' AND policyname='docente_propias'"
+  "17_auditoria_y_actas.sql|SELECT 1 FROM pg_trigger WHERE tgname='trg_bloquear_acta' AND tgrelid='academico_oltp.calificaciones'::regclass"
+  "18_usuarios_cuenta.sql|SELECT 1 FROM pg_proc WHERE proname='cambiar_password_propio'"
+  "19_motivo_retiro.sql|SELECT 1 FROM information_schema.columns WHERE table_schema='academico_oltp' AND table_name='inscripciones' AND column_name='motivo_retiro'"
+  "20_metas_indicadores.sql|SELECT 1 FROM pg_views WHERE schemaname='dw_academico' AND viewname='v_semaforo_indicador'"
 )
 
 consultar() {
@@ -106,7 +111,7 @@ for entrada in "${SCRIPTS[@]}"; do
     fi
 
     faltan=$((faltan + 1))
-    [[ "$archivo" == 1[0-5]_* ]] && toca_dw=1
+    [[ "$archivo" == 1[0-5]_* || "$archivo" == 20_* ]] && toca_dw=1
 
     if (( SOLO_REVISAR )); then
         printf "  %-42s FALTA\n" "$archivo"

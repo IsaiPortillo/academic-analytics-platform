@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avisos, badge %}
+{% block titulo %}Metas de indicadores{% endblock %}
+
+{% block contenido %}
+<div class="page-head mb-4">
+    <h1 class="page-title">Metas de indicadores</h1>
+    <div class="page-head-actions">
+        <a class="btn-outline-neutral" href="/vista-ejecutiva">Ver vista ejecutiva</a>
+        <form method="post" action="/costos/recargar"
+              data-confirmar="La recarga reconstruye el Data Warehouse completo y tarda unos segundos. ¿Continuar?">
+            {{ csrf_campo() }}
+            <button type="submit" class="btn-save" {% if carga_en_curso %}disabled{% endif %}>
+                {{ 'Recarga en curso…' if carga_en_curso else 'Recargar el Data Warehouse' }}
+            </button>
+        </form>
+    </div>
+</div>
+
+{{ avisos(ok, error) }}
+
+{% if sin_tablas %}
+<div class="alert alert-danger mb-3" role="alert">
+    <span>Falta el catálogo de indicadores en la base. Aplícalo con: ./scripts/aplicar_ddl_pendiente.sh</span>
+</div>
+{% else %}
+<p class="text-sm text-muted mb-3">
+    Favorable si cumple la meta; en observación si no la cumple pero está dentro de la tolerancia; desfavorable si la supera.
+</p>
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-3">
+    {% for f in filas %}
+    <div class="card">
+        <div class="card-header flex flex-wrap items-center justify-between gap-2">
+            <span>{{ f.nombre }}</span>
+            {{ badge('neutral', 'menor es mejor' if f.sentido == 'menor_mejor' else 'mayor es mejor') }}
+        </div>
+        <div class="card-body">
+            <p class="text-xs text-muted mb-3">{{ f.definicion }}</p>
+            <form method="post" action="/admin/metas/{{ f.codigo }}" class="grid grid-cols-2 gap-3" data-lock-on-submit="Guardando…">
+                {{ csrf_campo() }}
+                {% set unidad = '%' if f.unidad == 'porcentaje' else 'USD' %}
+                <div>
+                    <label class="field-label" for="meta-{{ f.codigo }}">Meta ({{ unidad }}{{ ' por período' if f.meta_por_periodo }})</label>
+                    <input class="input" type="number" step="0.01" min="0" {% if f.unidad == 'porcentaje' %}max="100"{% endif %}
+                           id="meta-{{ f.codigo }}" name="meta" value="{{ f.meta_pantalla }}" required>
+                </div>
+                <div>
+                    <label class="field-label" for="tol-{{ f.codigo }}">Tolerancia ({{ 'puntos' if f.unidad == 'porcentaje' else 'USD' }})</label>
+                    <input class="input" type="number" step="0.01" min="0" id="tol-{{ f.codigo }}" name="tolerancia"
+                           value="{{ f.tolerancia_pantalla }}" required>
+                </div>
+                <div>
+                    <label class="field-label" for="persp-{{ f.codigo }}">Perspectiva (CMI)</label>
+                    <select class="select" id="persp-{{ f.codigo }}" name="perspectiva">
+                        {% for p in perspectivas %}<option {% if p == f.perspectiva %}selected{% endif %}>{{ p }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="field-label" for="resp-{{ f.codigo }}">Responsable (cargo)</label>
+                    <input class="input" id="resp-{{ f.codigo }}" name="responsable_cargo" value="{{ f.responsable_cargo }}" maxlength="80" required>
+                </div>
+                <div class="col-span-2">
+                    <label class="field-label" for="just-{{ f.codigo }}">Justificación de la meta</label>
+                    <textarea class="input" id="just-{{ f.codigo }}" name="justificacion" rows="2" minlength="10" maxlength="400" required>{{ f.justificacion or '' }}</textarea>
+                </div>
+                <div class="col-span-2 flex flex-wrap items-center justify-between gap-2">
+                    <span class="text-xs text-muted">
+                        {% if f.actualizado_en %}Actualizada {{ f.actualizado_en.astimezone().strftime('%d/%m/%Y %H:%M') }} por {{ f.actualizado_por }}{% endif %}
+                    </span>
+                    <button type="submit" class="btn-save">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

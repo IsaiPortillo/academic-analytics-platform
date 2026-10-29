@@ -3,12 +3,15 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse, Response
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from ..config import settings
+from ..csrf import renovar_token
 from ..database import ROLES_VALIDOS, get_db
-from ..dependencies import UsuarioSesion, usuario_opcional
+from ..dependencies import (CLAVE_CAMBIO_OBLIGATORIO, CLAVE_HUELLA, UsuarioSesion, huella_password,
+                            iniciar_actividad, usuario_opcional)
+from ..limite_login import limite_login
 from ..models import Usuario
 from ..security import verificar_password
 from ..templating import templates
@@ -29,7 +32,7 @@ def destino_seguro(valor: str | None) -> str:
 @router.get("/login")
 def mostrar_login(request: Request, siguiente: str | None = None):
     destino = destino_seguro(siguiente)
-    if request.session.get("usuario"):
+    if usuario_opcional(request):
         return RedirectResponse(destino, status_code=303)
     # modo_demo controla si el login expone accesos rápidos con credenciales
     # reales precargadas — ver la nota en config.py. Apagado por defecto.
@@ -50,7 +53,8 @@ def verificar_acceso_coordinador(request: Request):
     """
     usuario = usuario_opcional(request)
     cabeceras = {"Cache-Control": "no-store"}
-    if usuario is None:
+    # Con la contraseña temporal sin cambiar, tampoco entra al dashboard.
+    if usuario is None or request.session.get(CLAVE_CAMBIO_OBLIGATORIO):
         estado = 401
     elif not usuario.es_coordinador:
         estado = 403
@@ -73,6 +77,21 @@ def procesar_login(
     db: Session = Depends(get_db),
 ):
     destino = destino_seguro(siguiente)
+    # Detrás de nginx, uvicorn toma la IP real de X-Forwarded-For (--proxy-headers).
+    ip = request.client.host if request.client else "desconocida"
+
+    espera = limite_login.segundos_de_bloqueo(ip, username)
+    if espera:
+        minutos = -(-espera // 60)
+        return templates.TemplateResponse(
+            request,
+            "login.html",
+            {"error": f"Demasiados intentos fallidos. Espera {minutos} minuto(s) e inténtalo de nuevo.",
+             "modo_demo": settings.modo_demo, "siguiente": destino},
+            status_code=429,
+            headers={"Retry-After": str(espera)},
+        )
+
     # En este punto la sesión aún no tiene rol, así que get_db no aplica ningún
     # SET ROLE: la consulta corre con los permisos directos de rol_app, que solo
     # puede leer esta tabla. Es justo lo que necesita el login.
@@ -85,6 +104,7 @@ def procesar_login(
     )
 
     if not credenciales_validas:
+        limite_login.registrar_fallo(ip, username)
         # Mensaje genérico a propósito: no revela si el usuario existe.
         return templates.TemplateResponse(
             request,
@@ -113,13 +133,33 @@ def procesar_login(
         rol_db=usuario.rol_db,
         docente_id=usuario.docente_id,
     )
+    limite_login.registrar_exito(ip, username)
+    # Sesión nueva: se descarta todo lo anterior (incluido el token CSRF que vio la
+    # página de login) para que nada de antes del inicio de sesión siga valiendo.
+    request.session.clear()
     # De aquí lo lee get_db para aplicar el SET LOCAL ROLE de cada transacción.
     request.session["usuario"] = asdict(sesion)
+    request.session[CLAVE_HUELLA] = huella_password(usuario.password_hash)
+    iniciar_actividad(request)
+    renovar_token(request)
+    # Aún sin SET ROLE: lo registra rol_app con su función propia (script 18).
+    db.execute(text("SELECT academico_oltp.registrar_acceso(:u)"), {"u": usuario.usuario_id})
+    if usuario.debe_cambiar_password:
+        request.session[CLAVE_CAMBIO_OBLIGATORIO] = True
+        return RedirectResponse("/cuenta/contrasena", status_code=303)
 
     return RedirectResponse(destino, status_code=303)
 
 
-@router.get("/logout")
+@router.post("/logout")
 def cerrar_sesion(request: Request):
+    # POST con token CSRF: con GET, cualquier página podía cerrar la sesión ajena
+    # con solo incrustar <img src="/logout">.
     request.session.clear()
     return RedirectResponse("/login", status_code=303)
+
+
+@router.get("/logout")
+def logout_sin_formulario():
+    # Enlaces o marcadores antiguos: no cierran la sesión, solo vuelven al inicio.
+    return RedirectResponse("/", status_code=303)

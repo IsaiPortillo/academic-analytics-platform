@@ -149,6 +149,9 @@ class Seccion(Base):
     creado_en: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), server_default=AHORA
     )
+    # Con el acta cerrada, el motor rechaza cambios en evaluaciones, notas y
+    # asistencia de la sección (database/oltp/17).
+    acta_cerrada: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
 
     materia: Mapped["Materia"] = relationship()
     docente: Mapped["Docente"] = relationship()
@@ -171,6 +174,8 @@ class Inscripcion(Base):
     estado_inscripcion: Mapped[Optional[str]] = mapped_column(
         String(20), server_default=text("'INSCRITO'")
     )
+    motivo_retiro: Mapped[Optional[str]] = mapped_column(String(200))
+    fecha_retiro: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     estudiante: Mapped["Estudiante"] = relationship()
     seccion: Mapped["Seccion"] = relationship()
@@ -239,6 +244,9 @@ class Usuario(Base):
     creado_en: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), server_default=AHORA
     )
+    debe_cambiar_password: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    ultimo_acceso: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    password_cambiado_en: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     docente: Mapped[Optional["Docente"]] = relationship()
 
@@ -282,3 +290,21 @@ class LogCambioNota(Base):
     fecha_modificacion: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), server_default=AHORA
     )
+    operacion: Mapped[str] = mapped_column(String(1))  # I(nsert), U(pdate), D(elete)
+    usuario_app: Mapped[Optional[str]] = mapped_column(String(50))
+    inscripcion_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    evaluacion_id: Mapped[Optional[int]] = mapped_column(Integer)
+    evaluacion_nombre: Mapped[Optional[str]] = mapped_column(String(100))
+
+
+class LogActa(Base):
+    __tablename__ = "log_actas"
+    __table_args__ = {"schema": "auditoria"}
+
+    log_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    seccion_id: Mapped[int] = mapped_column(Integer)
+    accion: Mapped[str] = mapped_column(String(10))
+    usuario_app: Mapped[Optional[str]] = mapped_column(String(50))
+    usuario_db: Mapped[str] = mapped_column(String(50))
+    motivo: Mapped[Optional[str]] = mapped_column(String(300))
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=AHORA)

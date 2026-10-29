@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avisos %}
+{% block titulo %}Cambiar contraseña{% endblock %}
+
+{% block contenido %}
+<div class="flex justify-center">
+    <div class="w-full max-w-md">
+        <h1 class="page-title mb-4">Cambiar contraseña</h1>
+        {{ avisos(ok, error) }}
+        {% if obligatorio %}
+        <div class="alert alert-warning mb-3" role="status">
+            <span>Estás usando una contraseña temporal. Cámbiala para continuar.</span>
+        </div>
+        {% endif %}
+        <div class="card">
+            <div class="card-body">
+                <form method="post" action="/cuenta/contrasena" class="grid gap-3" data-lock-on-submit="Guardando…">
+                    {{ csrf_campo() }}
+                    <input type="text" name="username" value="{{ usuario.username }}" autocomplete="username" hidden>
+                    <div>
+                        <label class="field-label" for="actual">Contraseña actual</label>
+                        <input class="input" type="password" id="actual" name="actual" required autocomplete="current-password">
+                    </div>
+                    <div>
+                        <label class="field-label" for="nueva">Nueva contraseña</label>
+                        <input class="input" type="password" id="nueva" name="nueva" required
+                               minlength="{{ longitud_minima }}" autocomplete="new-password" aria-describedby="regla-clave">
+                        <p class="text-xs text-muted mt-1" id="regla-clave">
+                            Al menos {{ longitud_minima }} caracteres, con letras y números, sin tu nombre de usuario.
+                        </p>
+                    </div>
+                    <div>
+                        <label class="field-label" for="confirmar">Repite la nueva contraseña</label>
+                        <input class="input" type="password" id="confirmar" name="confirmar" required
+                               minlength="{{ longitud_minima }}" autocomplete="new-password">
+                    </div>
+                    <button type="submit" class="btn-save">Cambiar contraseña</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

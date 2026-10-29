@@ -171,7 +171,30 @@ def preparar_tablas(resultado: ResultadoTransformacion) -> dict[str, pd.DataFram
     }
 
 
-def cargar_dw(resultado: ResultadoTransformacion) -> dict[str, int]:
+def leer_indicadores() -> pd.DataFrame | None:
+    """Catálogo y metas del OLTP (rol_etl). None si la base todavía no tiene el
+    script 20: la carga sigue funcionando sin el semáforo."""
+    from .conexiones import sesion_oltp  # noqa: PLC0415
+    from .extraccion import extraer_indicadores  # noqa: PLC0415
+    with sesion_oltp() as sesion:
+        existe = sesion.execute(text("SELECT to_regclass('academico_oltp.metas_indicador')")).scalar()
+        return extraer_indicadores(sesion) if existe else None
+
+
+def _cargar_indicadores(conexion, indicadores: pd.DataFrame | None) -> dict[str, int]:
+    """dim_indicador (recarga completa) y fact_indicador_periodo (MERGE)."""
+    if indicadores is None or not conexion.execute(
+            text("SELECT to_regclass('dw_academico.dim_indicador')")).scalar():
+        return {}
+    conexion.execute(text(f"TRUNCATE {ESQUEMA_DW}.dim_indicador"))
+    indicadores.to_sql("dim_indicador", conexion, schema=ESQUEMA_DW, if_exists="append", index=False)
+    # El MERGE corre después de cargar los hechos, en la misma transacción: los
+    # resultados por período nunca quedan desfasados de fact_inscripcion.
+    cambios = conexion.execute(text(f"SELECT {ESQUEMA_DW}.actualizar_resultados_indicadores()")).scalar()
+    return {"dim_indicador": len(indicadores), "fact_indicador_periodo (cambios del MERGE)": int(cambios or 0)}
+
+
+def cargar_dw(resultado: ResultadoTransformacion, indicadores: pd.DataFrame | None = None) -> dict[str, int]:
     """Recarga completa y atómica del DW. Devuelve filas cargadas por tabla."""
     # Se prepara todo ANTES de abrir la conexión de escritura: si los datos no
     # cuadran, ni siquiera se intenta tocar el DW.
@@ -194,7 +217,8 @@ def cargar_dw(resultado: ResultadoTransformacion) -> dict[str, int]:
                 "calidad": json.dumps(resultado.calidad, ensure_ascii=False),
             },
         )
-    return {nombre: len(df) for nombre, df in tablas.items()}
+        extra = _cargar_indicadores(conexion, indicadores)
+    return {**{nombre: len(df) for nombre, df in tablas.items()}, **extra}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -206,8 +230,9 @@ def main(argv: list[str] | None = None) -> int:
     print("Carga del Data Warehouse dw_academico — SCRUM-35\n")
     try:
         resultado = ejecutar_pipeline(args.fecha_corte)
+        indicadores = leer_indicadores()
         print("[DW] Cargando el modelo dimensional (una sola transacción)...")
-        filas = cargar_dw(resultado)
+        filas = cargar_dw(resultado, indicadores)
     except (ErrorAnonimizacion, ErrorIntegridad, ErrorConfiguracion) as exc:
         print(f"\n[DETENIDO] {exc}\nEl DW no se modificó.", file=sys.stderr)
         return 1

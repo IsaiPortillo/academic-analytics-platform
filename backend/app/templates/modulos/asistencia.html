@@ -108,13 +108,64 @@
                     <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
                     <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
                     <div>
-                        <label class="field-label">Fecha de sesión</label>
-                        <input type="date" name="fecha_sesion" class="input"
+                        <label class="field-label" for="fecha-sesion">Fecha de sesión</label>
+                        <input type="date" id="fecha-sesion" name="fecha_sesion" class="input"
                                value="{{ fecha_sesion.isoformat() }}" onchange="this.form.submit()">
                     </div>
+                    {% if estados_sesion %}
+                    <span class="self-end mb-1">{{ badge('warning', 'Sesión ya registrada · ' ~ estados_sesion|length ~ ' marca(s)') }}</span>
+                    {% endif %}
                 </form>
 
-                <form method="post" action="/asistencia/registrar" data-lock-on-submit="Guardando…">
+                {% if sesiones %}
+                <div class="mb-3">
+                    <div class="field-label">Sesiones registradas ({{ sesiones|length }})</div>
+                    <div class="chip-list">
+                        {% for s in sesiones[:24] %}
+                        <a class="chip{% if s.fecha_sesion == fecha_sesion %} is-active{% endif %}"
+                           href="/asistencia?periodo_id={{ periodo_id }}&amp;seccion_id={{ seccion.seccion_id }}&amp;fecha_sesion={{ s.fecha_sesion.isoformat() }}"
+                           title="{{ s.marcas }} marca(s), {{ s.ausentes }} ausencia(s)">
+                            {{ s.fecha_sesion.strftime('%d/%m/%Y') }}{% if s.ausentes %} · {{ s.ausentes }} aus.{% endif %}
+                        </a>
+                        {% endfor %}
+                        {% if sesiones|length > 24 %}<span class="text-xs text-muted self-center">y {{ sesiones|length - 24 }} más</span>{% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if seccion.acta_cerrada %}
+                <div class="alert alert-warning mb-3" role="status">
+                    <span>El acta de esta sección está cerrada: la asistencia se muestra solo para consulta.</span>
+                </div>
+                {% else %}
+                <div class="toolbar mb-3">
+                    <a class="btn-outline-neutral" href="/asistencia/plantilla?seccion_id={{ seccion.seccion_id }}&amp;fecha_sesion={{ fecha_sesion.isoformat() }}">Descargar plantilla</a>
+                    <form method="post" action="/asistencia/importar" enctype="multipart/form-data"
+                          class="toolbar-upload" data-lock-on-submit="Leyendo…">
+                        {{ csrf_campo() }}
+                        <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
+                        <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
+                        <label class="sr-only" for="archivo-asistencia">Archivo de asistencia</label>
+                        <input type="file" id="archivo-asistencia" name="archivo" class="input-file" required
+                               accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv">
+                        <button type="submit" class="btn-outline-neutral">Importar</button>
+                    </form>
+                    {% if estados_sesion %}
+                    <form method="post" action="/asistencia/sesion/eliminar" class="toolbar-end"
+                          data-confirmar="Se eliminarán las {{ estados_sesion|length }} marca(s) de asistencia del {{ fecha_sesion.strftime('%d/%m/%Y') }}. ¿Continuar?">
+                        {{ csrf_campo() }}
+                        <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
+                        <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
+                        <input type="hidden" name="fecha_sesion" value="{{ fecha_sesion.isoformat() }}">
+                        <button type="submit" class="btn-destructive">Eliminar esta sesión</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <form method="post" action="/asistencia/registrar" data-lock-on-submit="Guardando…"
+                      data-confirmar-sobrescritura="Vas a cambiar {n} asistencia(s) ya registradas el {{ fecha_sesion.strftime('%d/%m/%Y') }}. ¿Continuar?">
+                    {{ csrf_campo() }}
                     <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
                     <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
                     <input type="hidden" name="fecha_sesion" value="{{ fecha_sesion.isoformat() }}">
@@ -128,11 +179,12 @@
                                     <td class="cell-actions">
                                         <input type="hidden" name="inscripcion_id" value="{{ inscripcion.inscripcion_id }}">
                                         {% set actual = estados_sesion.get(inscripcion.inscripcion_id, 'PRESENTE') %}
-                                        <input type="hidden" name="estado" value="{{ actual }}">
+                                        <input type="hidden" name="estado" value="{{ actual }}"
+                                               data-original="{{ estados_sesion.get(inscripcion.inscripcion_id, '') }}">
                                         <div class="tap-toggle-group">
                                             {% for opcion in estados_validos %}
                                             <button type="button" class="tap-toggle"
-                                                    data-estado="{{ opcion }}"
+                                                    data-estado="{{ opcion }}" {% if seccion.acta_cerrada %}disabled{% endif %}
                                                     aria-pressed="{{ 'true' if opcion == actual else 'false' }}">
                                                 {{ opcion.capitalize() }}
                                             </button>
@@ -146,9 +198,14 @@
                             </tbody>
                         </table>
                     </div>
-                    <div class="sticky-actions">
+                    {% if not seccion.acta_cerrada and roster %}
+                    <div class="sticky-actions flex flex-wrap gap-2">
+                        <button type="button" class="btn-outline-neutral w-full sm:w-auto" data-marcar-todos="PRESENTE">
+                            Marcar todos presentes
+                        </button>
                         <button type="submit" class="btn-save w-full sm:w-auto">Guardar asistencia</button>
                     </div>
+                    {% endif %}
                 </form>
             </div>
         </div>

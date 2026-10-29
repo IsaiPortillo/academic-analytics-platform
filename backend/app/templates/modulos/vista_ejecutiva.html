@@ -72,6 +72,12 @@
         {% if kpi.variacion %}
         <div class="kpi-trend {{ kpi.variacion.clase }}">{{ kpi.variacion.texto }} vs. {{ periodo_anterior }}</div>
         {% endif %}
+        {% if kpi.semaforo %}
+        <div class="kpi-meta">
+            {% if kpi.semaforo.estado %}{{ badge(kpi.semaforo.clase, kpi.semaforo.etiqueta) }}{% endif %}
+            <span class="text-xs text-muted">{{ kpi.semaforo.texto }}</span>
+        </div>
+        {% endif %}
         <p class="kpi-interpretacion">{{ kpi.texto }}</p>
     </div>
     {% endfor %}
@@ -160,6 +166,38 @@
             {{ texto_evolucion }}
         </p>
         {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% if tabla_semaforo %}
+<div class="card mb-6">
+    <div class="card-header flex flex-wrap items-center justify-between gap-2">
+        <span>Estado frente a la meta por período · institucional</span>
+        {% if usuario.es_coordinador %}<a class="text-sm" href="/admin/metas">Editar metas</a>{% endif %}
+    </div>
+    <div class="table-wrap">
+        <table class="table table-sticky-first semaforo-tabla">
+            <thead>
+                <tr><th>Indicador</th>{% for p in periodos_semaforo %}<th class="text-center">{{ p }}</th>{% endfor %}</tr>
+            </thead>
+            <tbody>
+                {% for f in tabla_semaforo %}
+                <tr>
+                    <td>
+                        <div class="font-semibold">{{ f.nombre }}</div>
+                        <div class="text-xs text-muted">{{ f.perspectiva }} · {{ f.responsable }}</div>
+                        <div class="text-xs text-muted">{{ f.meta }}</div>
+                    </td>
+                    {% for c in f.celdas %}
+                    <td class="text-center">
+                        {% if c %}<div class="text-sm tabular-nums">{{ c.valor }}</div>{{ badge(c.clase, c.etiqueta) }}{% else %}—{% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 {% endif %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block titulo %}Contraseña temporal{% endblock %}
+
+{% block contenido %}
+<div class="flex justify-center">
+    <div class="card w-full max-w-lg">
+        <div class="card-header">Cuenta {{ accion }}: {{ cuenta.username }}</div>
+        <div class="card-body">
+            <p class="text-sm mb-3">Entrega esta contraseña temporal a <strong>{{ cuenta.nombre_completo }}</strong>.
+                Al entrar, el sistema le pedirá cambiarla.</p>
+            <div class="credencial" aria-label="Contraseña temporal">
+                <code id="clave-temporal">{{ clave }}</code>
+                <button type="button" class="btn-outline-neutral" data-copiar="#clave-temporal">Copiar</button>
+            </div>
+            <div class="alert alert-warning mt-3" role="status">
+                <span>Se muestra una sola vez y no queda guardada en ningún lado. Si se pierde, restablécela de nuevo.</span>
+            </div>
+            <a class="btn-save inline-block mt-3" href="/usuarios">Volver a usuarios</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

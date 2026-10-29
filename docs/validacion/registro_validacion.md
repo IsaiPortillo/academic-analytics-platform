@@ -2,11 +2,11 @@
 
 Generado automáticamente por `python -m etl.validar_dw`. No editar a mano: se regenera en cada corrida, y el historial de corridas queda en git.
 
-- **Fecha:** 2026-10-28 20:12
-- **Commit:** `13001b1`
-- **Última carga del DW:** 2026-10-29 02:12 UTC, fecha de corte 2026-10-28
+- **Fecha:** 2026-10-29 07:45
+- **Commit:** `dc304dd`
+- **Última carga del DW:** 2026-10-29 11:45 UTC, fecha de corte 2026-10-29
 - **Volumen:** 36,704 hechos de inscripción, 1,500 estudiantes
-- **Resultado:** 88 de 88 verificaciones correctas ✅
+- **Resultado:** 90 de 90 verificaciones correctas ✅
 
 ## Qué se verifica y contra qué
 
@@ -20,6 +20,7 @@ Generado automáticamente por `python -m etl.validar_dw`. No editar a mano: se r
 | Umbrales | Identidad de las constantes en `backend/app/calculos.py`, el reporte y el ETL |
 | Correlaciones | `corr()` de PostgreSQL (lo que muestra el dashboard) contra pandas |
 | Particiones | Cada segmentación del dashboard debe repartir exactamente el total |
+| Indicadores | La vista de cálculo del DW contra `app/indicadores.py`, y lo guardado por el MERGE contra la vista |
 | Cruce relacional-grafo | Área de cada materia en Neo4j |
 | Seguridad / Anonimización / Integridad | Permisos reales de PostgreSQL y catálogo del DW |
 
@@ -78,6 +79,8 @@ Generado automáticamente por `python -m etl.validar_dw`. No editar a mano: se r
 | Particiones | Ciclo del plan: grupos sin valor (nulos) | 0 | 0 | ✅ OK |
 | Particiones | Suma por condición laboral = total | 8020/32966 | 8020/32966 | ✅ OK |
 | Particiones | Condición laboral: grupos sin valor (nulos) | 0 | 0 | ✅ OK |
+| Indicadores | Vista de cálculo del DW = fórmulas de la app (KPI × período) | 40 | 40 | ✅ OK |
+| Indicadores | Resultados guardados por el MERGE = vista de cálculo | 0 | 0 | ✅ OK |
 | Cruce relacional-grafo | Materias del DW con el área que registra Neo4j | 16 | 16 | ✅ OK |
 | Red curricular | Relaciones de prerrequisito en el DW frente a las de Neo4j | 16 | 16 | ✅ OK |
 | Red curricular | Relaciones que están en un lado y no en el otro (diferencia simétrica) | 0 | 0 | ✅ OK |

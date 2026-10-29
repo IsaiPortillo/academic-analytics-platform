@@ -30,6 +30,8 @@ despliega con varios, habría que moverlo a un lock de PostgreSQL
 (pg_try_advisory_lock), que no exige permisos sobre tablas.
 """
 
+import os
+import re
 import subprocess
 import sys
 import threading
@@ -70,6 +72,49 @@ def hay_carga_en_curso() -> bool:
     return _candado.locked()
 
 
+def _correr(modulo: str) -> subprocess.CompletedProcess:
+    # UTF-8 explícito: en Windows la salida del proceso hijo llega en la página
+    # de códigos local y los mensajes con acentos se leían rotos.
+    entorno = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    return subprocess.run(
+        [sys.executable, "-m", modulo],
+        cwd=RAIZ_PROYECTO,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=entorno,
+        timeout=TIEMPO_LIMITE_SEGUNDOS,
+    )
+
+
+def ejecutar_validacion() -> Resultado:
+    """Corre `python -m etl.validar_dw`, que compara el DW contra el OLTP y Neo4j
+    y reescribe docs/validacion/registro_validacion.md.
+
+    Comparte el candado con la carga: validar mientras se recarga compararía un
+    DW a medio escribir contra el OLTP y daría fallos que no existen.
+    """
+    if not _candado.acquire(blocking=False):
+        return Resultado(False, "Hay una carga o una validación en curso. Espera a que termine.")
+    try:
+        proceso = _correr("etl.validar_dw")
+    except subprocess.TimeoutExpired:
+        return Resultado(False, f"La validación superó el límite de {TIEMPO_LIMITE_SEGUNDOS // 60} minutos.")
+    except OSError as exc:
+        return Resultado(False, f"No se pudo iniciar la validación: {exc}")
+    finally:
+        _candado.release()
+    resumen = re.search(r"(\d+) de (\d+) verificaciones correctas", proceso.stdout or "")
+    if resumen and proceso.returncode == 0:
+        return Resultado(True, f"Validación completa: {resumen.group(0)}.", _ultimas_lineas(proceso.stdout))
+    if resumen:
+        return Resultado(False, f"Validación con fallos: {resumen.group(0)}. Revisa el detalle abajo.",
+                         _ultimas_lineas(proceso.stdout))
+    return Resultado(False, f"La validación no terminó (código {proceso.returncode}).",
+                     _ultimas_lineas(proceso.stderr) or _ultimas_lineas(proceso.stdout))
+
+
 def ejecutar_carga() -> Resultado:
     """Corre `python -m etl.carga` y resume cómo terminó.
 
@@ -80,13 +125,7 @@ def ejecutar_carga() -> Resultado:
         return Resultado(False, "Ya hay una recarga en curso. Espera a que termine.")
 
     try:
-        proceso = subprocess.run(
-            [sys.executable, "-m", "etl.carga"],
-            cwd=RAIZ_PROYECTO,
-            capture_output=True,
-            text=True,
-            timeout=TIEMPO_LIMITE_SEGUNDOS,
-        )
+        proceso = _correr("etl.carga")
     except subprocess.TimeoutExpired:
         return Resultado(
             False,

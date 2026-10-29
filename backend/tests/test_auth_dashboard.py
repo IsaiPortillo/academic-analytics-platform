@@ -4,8 +4,10 @@
 """
 
 import os
+import time
 import unittest
 from types import SimpleNamespace
+from unittest import mock
 
 # Las rutas importan la configuración, que exige estas dos variables. Valores de
 # prueba: aquí no se conecta a nada.
@@ -20,10 +22,17 @@ def _peticion(rol=None):
     if rol:
         sesion["usuario"] = {"usuario_id": 1, "username": "u", "nombre_completo": "U",
                              "rol_db": rol, "docente_id": None}
+        sesion["ultima_actividad"] = int(time.time())
     return SimpleNamespace(session=sesion)
 
 
 class TestVerificacionParaNginx(unittest.TestCase):
+    def setUp(self):
+        # Sin base de datos: la cuenta de la sesión se da por vigente.
+        parche = mock.patch("app.dependencies.cuenta_vigente", return_value=True)
+        parche.start()
+        self.addCleanup(parche.stop)
+
     def test_coordinador_pasa(self):
         self.assertEqual(verificar_acceso_coordinador(_peticion("rol_coordinador")).status_code, 204)
 

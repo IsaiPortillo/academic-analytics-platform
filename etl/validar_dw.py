@@ -292,6 +292,33 @@ def validar_particiones():
         registrar("Particiones", f"{etiqueta}: grupos sin valor (nulos)", 0, int(sin_valor))
 
 
+def validar_indicadores():
+    """Metas y semáforo (database/oltp/20): la vista de cálculo del DW debe dar lo
+    mismo que las fórmulas de la app, y lo guardado por el MERGE, lo mismo que la vista."""
+    from app import indicadores as ind  # noqa: PLC0415
+    try:
+        vista = dw._leer("SELECT codigo, codigo_periodo, valor FROM dw_academico.v_indicador_calculo")
+    except DBAPIError:
+        registrar("Indicadores", "Vista de cálculo de indicadores presente (script 20)", "sí", "no")
+        return
+    coinciden = 0
+    for periodo, grupo in vista.groupby("codigo_periodo"):
+        app = ind.calcular(dw.totales(dw.Filtros((periodo,))))
+        for fila in grupo.itertuples():
+            esperado = getattr(app, fila.codigo)
+            if esperado is not None and fila.valor is not None and \
+                    abs(float(fila.valor) - float(esperado)) <= 1e-6 * max(1.0, abs(float(esperado))):
+                coinciden += 1
+    registrar("Indicadores", "Vista de cálculo del DW = fórmulas de la app (KPI × período)", len(vista), coinciden)
+    distintos = dw._leer("""
+        SELECT count(*) AS n
+        FROM dw_academico.v_indicador_calculo v
+        FULL JOIN dw_academico.fact_indicador_periodo f USING (codigo, codigo_periodo)
+        WHERE v.valor IS DISTINCT FROM f.valor
+    """).iloc[0]["n"]
+    registrar("Indicadores", "Resultados guardados por el MERGE = vista de cálculo", 0, int(distintos))
+
+
 def validar_area(s):
     with sesion_grafo() as g:
         grafo = {r["codigo"]: r["area"] for r in g.run("MATCH (m:Materia) RETURN m.codigo AS codigo, m.area AS area")}
@@ -609,6 +636,7 @@ def escribir_registro(contexto: dict):
         "| Umbrales | Identidad de las constantes en `backend/app/calculos.py`, el reporte y el ETL |",
         "| Correlaciones | `corr()` de PostgreSQL (lo que muestra el dashboard) contra pandas |",
         "| Particiones | Cada segmentación del dashboard debe repartir exactamente el total |",
+        "| Indicadores | La vista de cálculo del DW contra `app/indicadores.py`, y lo guardado por el MERGE contra la vista |",
         "| Cruce relacional-grafo | Área de cada materia en Neo4j |",
         "| Seguridad / Anonimización / Integridad | Permisos reales de PostgreSQL y catálogo del DW |",
         "",
@@ -648,6 +676,7 @@ def main() -> int:
         validar_umbrales()
         correlaciones = validar_correlaciones(s)
         validar_particiones()
+        validar_indicadores()
         validar_area(s)
         validar_red_curricular(s)
         validar_cubo(s)

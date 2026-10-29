@@ -183,6 +183,23 @@ def extraer_costos_periodo(sesion: Session) -> pd.DataFrame:
     ))
 
 
+def extraer_indicadores(sesion: Session) -> pd.DataFrame:
+    """Catálogo de indicadores con su meta y banda de tolerancia (script 20).
+
+    No describe personas: es configuración institucional, como el costo por UV.
+    Va aparte del pipeline porque no pasa por la transformación; la carga lo
+    escribe tal cual en dim_indicador.
+    """
+    return _leer(sesion, text(
+        "SELECT i.codigo, i.nombre, i.definicion, i.unidad, i.sentido, i.perspectiva, "
+        "       i.responsable_cargo, i.meta_por_periodo, i.orden, m.meta, m.tolerancia, "
+        "       m.justificacion, m.actualizado_en AS meta_actualizada_en "
+        "FROM academico_oltp.indicadores i "
+        "LEFT JOIN academico_oltp.metas_indicador m ON m.codigo = i.codigo "
+        "ORDER BY i.orden"
+    ))
+
+
 def extraer_costo_materia_periodo(sesion: Session) -> pd.DataFrame:
     """Costo de impartir cada materia en cada período.
 

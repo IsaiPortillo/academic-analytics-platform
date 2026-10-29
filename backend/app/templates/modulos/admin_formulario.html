@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avisos %}
+{% block titulo %}{{ ('Editar ' if registro else 'Nuevo ') ~ catalogo.singular }}{% endblock %}
+
+{% block contenido %}
+<div class="flex justify-center">
+    <div class="w-full max-w-2xl">
+        <a class="text-sm text-muted" href="/admin/{{ catalogo.slug }}">&larr; {{ catalogo.titulo }}</a>
+        <h1 class="page-title mb-4">
+            {% if registro %}{{ catalogo.singular|capitalize }} · {{ catalogo.etiqueta(registro) }}{% else %}Nuevo {{ catalogo.singular }}{% endif %}
+        </h1>
+
+        {{ avisos(ok, error) }}
+        {% if errores %}
+        <div class="alert alert-danger mb-3" role="alert">
+            <span>{% for e in errores %}{{ e }}{% if not loop.last %}<br>{% endif %}{% endfor %}</span>
+        </div>
+        {% endif %}
+
+        <div class="card">
+            <div class="card-body">
+                <form method="post" action="/admin/{{ catalogo.slug }}/{{ id if registro else 'nuevo' }}"
+                      class="grid grid-cols-1 sm:grid-cols-2 gap-3" data-lock-on-submit="Guardando…">
+                    {{ csrf_campo() }}
+                    {% for c, valor in campos %}
+                    {% if not (c.solo_alta and registro) %}
+                    <div class="{{ 'sm:col-span-2' if c.tipo == 'bool' or c.ayuda }}">
+                        {% if c.tipo == 'bool' %}
+                        <label class="check-label">
+                            <input type="checkbox" name="{{ c.nombre }}" {% if valor %}checked{% endif %}>
+                            {{ c.etiqueta }}
+                        </label>
+                        {% else %}
+                        <label class="field-label" for="campo-{{ c.nombre }}">{{ c.etiqueta }}</label>
+                        {% if c.tipo == 'fk' %}
+                        <select class="select" id="campo-{{ c.nombre }}" name="{{ c.nombre }}" {% if c.requerido %}required{% endif %}>
+                            <option value="">Elegir…</option>
+                            {% for clave, texto in opciones[c.nombre] %}
+                            <option value="{{ clave }}" {% if clave|string == valor|string %}selected{% endif %}>{{ texto }}</option>
+                            {% endfor %}
+                        </select>
+                        {% elif c.tipo == 'opcion' %}
+                        <select class="select" id="campo-{{ c.nombre }}" name="{{ c.nombre }}" {% if c.requerido %}required{% endif %}>
+                            {% for o in c.opciones %}
+                            <option value="{{ o }}" {% if o == valor %}selected{% endif %}>{{ o|capitalize }}</option>
+                            {% endfor %}
+                        </select>
+                        {% else %}
+                        <input class="input" id="campo-{{ c.nombre }}" name="{{ c.nombre }}" value="{{ valor }}"
+                               type="{{ 'number' if c.tipo == 'entero' else 'date' if c.tipo == 'fecha' else 'text' }}"
+                               {% if c.requerido %}required{% endif %}
+                               {% if c.maximo_largo %}maxlength="{{ c.maximo_largo }}"{% endif %}
+                               {% if c.minimo is not none %}min="{{ c.minimo }}"{% endif %}
+                               {% if c.maximo is not none %}max="{{ c.maximo }}"{% endif %}
+                               {% if c.mayusculas %}autocapitalize="characters" style="text-transform: uppercase;"{% endif %}
+                               autocomplete="off">
+                        {% endif %}
+                        {% endif %}
+                        {% if c.ayuda %}<p class="text-xs text-muted mt-1">{{ c.ayuda }}</p>{% endif %}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                    <div class="sm:col-span-2 flex flex-wrap gap-2">
+                        <button type="submit" class="btn-save">{{ 'Guardar cambios' if registro else 'Crear' }}</button>
+                        <a class="btn-outline-neutral" href="/admin/{{ catalogo.slug }}">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {% if registro %}
+        <form method="post" action="/admin/{{ catalogo.slug }}/{{ id }}/eliminar" class="mt-3"
+              data-confirmar="¿Eliminar {{ catalogo.etiqueta(registro) }}? Solo es posible si nada depende de este registro.">
+            {{ csrf_campo() }}
+            <button type="submit" class="btn-destructive">Eliminar</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

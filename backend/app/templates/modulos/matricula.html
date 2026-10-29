@@ -32,6 +32,21 @@
                 </select>
             </div>
         </form>
+        {% if periodo_id %}
+        <div class="toolbar mt-3 pt-3 border-t border-border">
+            <span class="text-sm font-semibold">Matrícula masiva</span>
+            <a class="btn-outline-neutral" href="/matricula/plantilla?periodo_id={{ periodo_id }}">Descargar plantilla</a>
+            <form method="post" action="/matricula/importar" enctype="multipart/form-data"
+                  class="toolbar-upload" data-lock-on-submit="Leyendo…">
+                {{ csrf_campo() }}
+                <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
+                <label class="sr-only" for="archivo-matricula">Archivo de matrícula</label>
+                <input type="file" id="archivo-matricula" name="archivo" class="input-file" required
+                       accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv">
+                <button type="submit" class="btn-outline-neutral">Revisar archivo</button>
+            </form>
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -101,6 +116,8 @@
     <div>
         {% if periodo_id %}
         <div class="card mb-3" id="dock-panel" data-periodo-id="{{ periodo_id }}">
+            {# El dock envía la matrícula con un formulario armado en app.js; lleva este token. #}
+            {{ csrf_campo() }}
             <div class="card-header">Dock de matrícula</div>
             <div class="card-body">
                 <p class="text-sm text-muted mb-2">
@@ -189,12 +206,24 @@
                             <td data-label="Intento">{{ inscripcion.numero_intento }}</td>
                             <td class="text-sm" data-label="Fecha">{{ inscripcion.fecha_inscripcion.strftime('%d/%m/%Y') if inscripcion.fecha_inscripcion else '—' }}</td>
                             <td class="cell-actions">
-                                <form method="post" action="/matricula/retirar/{{ inscripcion.inscripcion_id }}"
-                                      onsubmit="return confirm('¿Retirar al estudiante {{ estudiante.estudiante_id }} de esta sección?');">
-                                    <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
-                                    <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
-                                    <button type="submit" class="btn-destructive">Retirar</button>
-                                </form>
+                                <details class="inline-edit">
+                                    <summary class="btn-destructive">Retirar</summary>
+                                    <form method="post" action="/matricula/retirar/{{ inscripcion.inscripcion_id }}"
+                                          class="inline-edit-form"
+                                          data-confirmar="¿Retirar al estudiante {{ estudiante.estudiante_id }} de esta sección?">
+                                        {{ csrf_campo() }}
+                                        <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
+                                        <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
+                                        <label class="field-label" for="motivo-{{ inscripcion.inscripcion_id }}">Motivo</label>
+                                        <select class="select" id="motivo-{{ inscripcion.inscripcion_id }}" name="motivo" required>
+                                            <option value="">Elegir…</option>
+                                            {% for m in motivos_retiro %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+                                        </select>
+                                        <label class="field-label" for="detalle-{{ inscripcion.inscripcion_id }}">Detalle (opcional; obligatorio con «Otro»)</label>
+                                        <input class="input" id="detalle-{{ inscripcion.inscripcion_id }}" name="detalle" maxlength="150">
+                                        <button type="submit" class="btn-destructive">Confirmar retiro</button>
+                                    </form>
+                                </details>
                             </td>
                         </tr>
                         {% else %}
@@ -203,6 +232,25 @@
                     </tbody>
                 </table>
             </div>
+            {% if retirados %}
+            <details class="border-t border-border">
+                <summary class="card-body text-sm font-semibold cursor-pointer">Retirados de esta sección ({{ retirados|length }})</summary>
+                <div class="table-wrap">
+                    <table class="table table-stack">
+                        <thead><tr><th>ID</th><th>Fecha</th><th>Motivo</th></tr></thead>
+                        <tbody>
+                            {% for inscripcion, estudiante in retirados %}
+                            <tr>
+                                <td data-label="Estudiante">{{ estudiante.estudiante_id }}</td>
+                                <td class="text-sm" data-label="Fecha">{{ inscripcion.fecha_retiro.astimezone().strftime('%d/%m/%Y') if inscripcion.fecha_retiro else '—' }}</td>
+                                <td class="text-sm" data-label="Motivo">{{ inscripcion.motivo_retiro or 'Sin registrar' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+            {% endif %}
         </div>
         {% elif not periodo_id %}
         <div class="card">

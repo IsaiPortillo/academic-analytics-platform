@@ -23,7 +23,7 @@ Definiciones (las mismas que se defienden ante el jurado):
                           materia por segunda vez o más.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 # Margen para decir que los repitentes reprueban "más" o "menos" que el resto:
 # ±15 % sobre lo esperado por su peso en la matrícula. Por debajo de eso la
@@ -212,6 +212,10 @@ def interpretar_ranking(ranking, costo_total: float, moneda: str = "USD") -> str
 # indicador.
 # ---------------------------------------------------------------------------
 
+CODIGOS_INDICADORES = ("costo_reprobacion", "costo_por_estudiante", "tasa_reprobacion",
+                       "tasa_retiro", "proporcion_repeticion")
+
+
 @dataclass(frozen=True)
 class Tarjeta:
     etiqueta: str
@@ -221,6 +225,38 @@ class Tarjeta:
     actual: float | None
     previo: float | None
     formato: str        # "dinero" o "puntos": cómo se muestra el cambio contra el período previo
+    codigo: str = ""    # el de dim_indicador / metas_indicador (script 20)
+
+
+# Estado frente a la meta. La misma regla que la vista v_semaforo_indicador
+# (database/oltp/20): se repite aquí para poder aplicarla al filtro activo
+# (una carrera, un departamento), que la vista institucional no conoce.
+ESTADOS_META = {
+    "favorable": ("success", "Favorable"),
+    "en_observacion": ("warning", "En observación"),
+    "desfavorable": ("danger", "Desfavorable"),
+}
+
+
+def estado_meta(valor: float | None, meta: float | None, tolerancia: float | None,
+                sentido: str = "menor_mejor") -> str | None:
+    if valor is None or meta is None:
+        return None
+    tolerancia = tolerancia or 0
+    if sentido == "mayor_mejor":
+        return ("favorable" if valor >= meta else
+                "en_observacion" if valor >= meta - tolerancia else "desfavorable")
+    return ("favorable" if valor <= meta else
+            "en_observacion" if valor <= meta + tolerancia else "desfavorable")
+
+
+def texto_meta(meta: dict, moneda: str = "USD") -> str:
+    signo = "≤" if meta["sentido"] == "menor_mejor" else "≥"
+    if meta["unidad"] == "dinero":
+        valor, banda = dinero(float(meta["meta"]), moneda), dinero(float(meta["tolerancia"]), moneda)
+    else:
+        valor, banda = porcentaje(float(meta["meta"])), f"{float(meta['tolerancia']) * 100:.1f} pp"
+    return f"Meta {signo} {valor} · tolerancia {banda}"
 
 
 def formatear_cambio(valor: float, formato: str, moneda: str = "USD") -> str:
@@ -232,7 +268,7 @@ def tarjetas(ind: Indicadores, previos: Indicadores | None, periodo_anterior: st
     def previo(campo: str):
         return getattr(previos, campo) if previos else None
 
-    return [
+    lista = [
         Tarjeta(
             "Costo de reprobación", dinero(ind.costo_reprobacion, moneda),
             "Suma de lo invertido (UV × costo por UV) en inscripciones que terminaron reprobadas.",
@@ -264,6 +300,8 @@ def tarjetas(ind: Indicadores, previos: Indicadores | None, periodo_anterior: st
             ind.proporcion_repeticion, previo("proporcion_repeticion"), "puntos",
         ),
     ]
+    # Mismo orden que las tarjetas de arriba.
+    return [replace(t, codigo=c) for t, c in zip(lista, CODIGOS_INDICADORES)]
 
 
 def interpretar_evolucion(evolucion, moneda: str = "USD") -> str | None:

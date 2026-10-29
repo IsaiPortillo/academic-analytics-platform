@@ -57,6 +57,7 @@
                     <tr>
                         <form method="post" action="/costos/{{ p.periodo_id }}">
                             <td class="cell-title" data-label="Período">
+                                {{ csrf_campo() }}
                                 {{ p.codigo_periodo }}
                                 {% if p.activo %}<span class="badge-success">activo</span>{% endif %}
                             </td>
@@ -113,6 +114,7 @@
         <div class="filter-bar mb-3">
             <form method="post" action="/costos/recargar"
                   onsubmit="return confirm('La recarga reconstruye el Data Warehouse completo y tarda unos segundos. ¿Continuar?');">
+                {{ csrf_campo() }}
                 <button type="submit" class="btn-save" {% if carga_en_curso %}disabled{% endif %}>
                     {{ 'Recarga en curso…' if carga_en_curso else 'Recargar el Data Warehouse' }}
                 </button>

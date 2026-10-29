@@ -243,6 +243,21 @@ Structurally unchanged from the prior system's October 2026 addition — see the
 - **`.modal-backdrop`** / **`.modal-panel`**: centered overlay with backdrop blur, used for the student graph-detail view. Its Cypher/telemetry content is illustrative (see Honesty Boundary) and says so via inline comment in `dashboard.html`.
 - **`.preview-banner`**: the required marker for any screen backed by an unbuilt engine — see Honesty Boundary. No screen uses it today.
 
+### Charts (`app/graficas.py`)
+- **`.chart-figura`** / **`.chart-svg`**: server-rendered SVG (`role="img"` with `<title>`/`<desc>`), no JS charting library. `.chart-eje`, `.chart-grid`, `.chart-linea`, `.chart-punto`, `.chart-leyenda`, `.chart-muestra` style its parts.
+- Series colors come from the theme tokens **`--chart-1` … `--chart-6`** (light and dark values); `.serie-N` picks one. The PDF (reportlab) and the Excel chart (openpyxl) use the same palette via `exportar.PALETA_SERIES`, so a report looks the same on screen, printed and in Excel.
+- **One-series charts never rely on color**: the value is printed on each bar/point, and the table below the chart always carries the exact figures.
+
+### Administration & bulk-edit (new)
+- **`.tabs`** / **`.tab`**: section switcher on Administración and the custom report.
+- **`.toolbar`** / **`.toolbar-end`** / **`.toolbar-upload`** / **`.input-file`**: the row of actions above a roster (template download, Excel upload, “todos presentes”).
+- **`.inline-edit`** / **`.inline-edit-form`**: edit an evaluation or a catalog row in place.
+- **`.chip-list`** / **`.chip`** / **`.chip-quitar`**: prerequisites in the malla editor.
+- **`.credencial`**: one-time display of a temporary password, with a copy button (`data-copiar`). Shown once, never stored in plain text.
+- **`.kpi-meta`** / **`.semaforo-tabla`**: an indicator's value against its meta, always as icon + text (cumple / alerta / no cumple), never color alone.
+- **`.card-link`**, **`.check-label`**: clickable cards on the hub pages and checkbox labels.
+- Overwrites and destructive steps go through `data-confirmar` / `data-confirmar-sobrescritura` (`app.js`), and the server re-validates what the preview showed: the confirmation is a UX aid, not the control.
+
 ## Do's and Don'ts
 
 ### Do:

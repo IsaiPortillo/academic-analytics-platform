@@ -18,6 +18,7 @@ e idx_secciones_periodo).
 
 from dataclasses import dataclass
 from typing import Callable, Optional
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import and_, desc, func, select
@@ -45,6 +46,7 @@ from ..models import (
     PeriodoAcademico,
     Seccion,
 )
+from ..reporte_personalizado import ATAJOS as ATAJOS_PERSONALIZADOS
 from ..templating import templates
 
 router = APIRouter(prefix="/reportes", tags=["reportes"])
@@ -245,7 +247,9 @@ def inicio_reportes(
 ):
     return templates.TemplateResponse(
         request, "modulos/reportes.html",
-        {"usuario": usuario, "adicionales": REPORTES_ADICIONALES},
+        {"usuario": usuario, "adicionales": REPORTES_ADICIONALES,
+         # Accesos directos a reportes personalizados ya armados.
+         "atajos": [(t, d, urlencode(q)) for t, d, q in ATAJOS_PERSONALIZADOS]},
     )
 
 

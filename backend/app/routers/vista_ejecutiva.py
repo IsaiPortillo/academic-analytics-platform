@@ -106,6 +106,19 @@ def vista_ejecutiva(
     def dinero(v):
         return ind.dinero(v, moneda)
 
+    metas = dw.metas_indicadores()
+
+    def semaforo(t):
+        meta = metas.get(t.codigo)
+        if not meta or meta.get("meta") is None:
+            return None
+        if meta["meta_por_periodo"] and len(sel_periodos) != 1:
+            # Una meta en dinero es por ciclo: la suma de varios no se compara con ella.
+            return {"estado": None, "texto": ind.texto_meta(meta, moneda) + " por período"}
+        estado = ind.estado_meta(t.actual, float(meta["meta"]), float(meta["tolerancia"]), meta["sentido"])
+        clase, etiqueta = ind.ESTADOS_META.get(estado, ("neutral", "Sin dato"))
+        return {"estado": estado, "clase": clase, "etiqueta": etiqueta, "texto": ind.texto_meta(meta, moneda)}
+
     kpis = [
         {
             "etiqueta": t.etiqueta,
@@ -114,9 +127,37 @@ def vista_ejecutiva(
             "variacion": _variacion(t.actual, t.previo,
                                     lambda v, t=t: ind.formatear_cambio(v, t.formato, moneda)),
             "texto": t.texto,
+            "semaforo": semaforo(t),
         }
         for t in ind.tarjetas(totales, previos, periodo_anterior, moneda)
     ]
+
+    # Tabla institucional por período: sale tal cual de la vista
+    # v_semaforo_indicador del DW (database/oltp/20).
+    tabla_semaforo = []
+    semaforos = dw.semaforo_por_periodo()
+    if not semaforos.empty:
+        por_codigo = {c: g for c, g in semaforos.groupby("codigo")}
+        orden_periodos = semaforos.drop_duplicates("codigo_periodo").sort_values("orden_periodo")["codigo_periodo"].tolist()
+        for codigo, meta in metas.items():
+            filas_codigo = por_codigo.get(codigo)
+            if filas_codigo is None:
+                continue
+            celdas = {f["codigo_periodo"]: f for f in filas_codigo.to_dict("records")}
+            tabla_semaforo.append({
+                "nombre": meta["nombre"], "perspectiva": meta["perspectiva"],
+                "responsable": meta["responsable_cargo"], "meta": ind.texto_meta(meta, moneda),
+                "celdas": [
+                    {**dict(zip(("clase", "etiqueta"), ind.ESTADOS_META.get(c["estado"], ("neutral", "Sin dato")))),
+                     "valor": (dinero(c["valor"]) if meta["unidad"] == "dinero" else ind.porcentaje(c["valor"]))
+                     if c["valor"] is not None else "—"}
+                    if (c := celdas.get(p)) else None
+                    for p in orden_periodos
+                ],
+            })
+        periodos_semaforo = orden_periodos
+    else:
+        periodos_semaforo = []
 
     ranking = dw.ranking_materias(filtros, LIMITE_RANKING)
     maximo_ranking = float(ranking["costo_reprobacion"].max()) if not ranking.empty else 0.0
@@ -173,6 +214,8 @@ def vista_ejecutiva(
             "columnas": columnas,
             "texto_evolucion": texto_evolucion,
             "supuesto": supuesto,
+            "tabla_semaforo": tabla_semaforo,
+            "periodos_semaforo": periodos_semaforo,
             "ultima_carga": dw.ultima_carga(),
             "moneda": moneda,
         },

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block titulo %}Catálogos{% endblock %}
+
+{% block contenido %}
+<h1 class="page-title mb-4">Catálogos</h1>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+    {% for c, total in tarjetas %}
+    <a class="card card-link" href="/admin/{{ c.slug }}">
+        <div class="card-body">
+            <div class="flex items-baseline justify-between gap-2">
+                <h2 class="font-semibold">{{ c.titulo }}</h2>
+                <span class="stat-number text-xl">{{ "{:,}".format(total) }}</span>
+            </div>
+            <p class="text-sm text-muted mt-1">{{ c.descripcion }}</p>
+        </div>
+    </a>
+    {% endfor %}
+    <a class="card card-link" href="/admin/malla">
+        <div class="card-body">
+            <h2 class="font-semibold">Malla curricular</h2>
+            <p class="text-sm text-muted mt-1">Prerrequisitos entre materias, guardados en Neo4j.</p>
+        </div>
+    </a>
+</div>
+{% endblock %}

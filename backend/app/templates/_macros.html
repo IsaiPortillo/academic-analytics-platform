@@ -42,3 +42,19 @@
     {% endfor %}
 </div>
 {% endmacro %}
+
+{# Avisos de éxito y error que deja redirigir() en la sesión (app/avisos.py). #}
+{% macro avisos(ok, error) %}
+{% if ok %}
+<div class="alert alert-success mb-3" role="alert">
+    <span>{{ ok }}</span>
+    <button type="button" class="alert-close" data-alert-close aria-label="Cerrar">&times;</button>
+</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-danger mb-3" role="alert">
+    <span>{{ error }}</span>
+    <button type="button" class="alert-close" data-alert-close aria-label="Cerrar">&times;</button>
+</div>
+{% endif %}
+{% endmacro %}

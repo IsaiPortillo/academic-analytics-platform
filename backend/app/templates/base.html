@@ -44,6 +44,14 @@
     ("/reportes", "Reportes", "reportes", usuario.es_coordinador),
     ("/costos", "Costos institucionales", "costos", usuario.es_coordinador),
 ] %}
+{% set modulos_admin = [
+    ("/admin", "Catálogos", usuario.es_coordinador),
+    ("/admin/malla", "Malla curricular", usuario.es_coordinador),
+    ("/admin/metas", "Metas de indicadores", usuario.es_coordinador),
+    ("/usuarios", "Usuarios", usuario.es_coordinador),
+    ("/auditoria", "Auditoría", usuario.es_coordinador),
+    ("/almacen", "Almacén de datos", usuario.es_coordinador),
+] %}
 {% set modulos_inteligencia = [
     ("/vista-ejecutiva", "Vista ejecutiva", "ejecutiva", usuario.es_coordinador),
     ("/analisis-diagnostico", "Análisis diagnóstico", "diagnostico", usuario.es_coordinador),
@@ -118,6 +126,21 @@
             </a>
             {% endif %}
             {% endfor %}
+
+            {% if usuario.es_coordinador %}
+            <div class="sidebar-section-label" style="margin-top: 0.75rem;">Administración</div>
+            {% for href, etiqueta, visible in modulos_admin %}
+            {% if visible %}
+            {% set activo = request.url.path.startswith(href) and not (href == '/admin' and (request.url.path.startswith('/admin/malla') or request.url.path.startswith('/admin/metas'))) %}
+            <a class="sidebar-link{% if activo %} is-active{% endif %}" href="{{ href }}">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10 2.5l6 2.5v4.5c0 3.6-2.6 6.9-6 8-3.4-1.1-6-4.4-6-8V5l6-2.5z" />
+                </svg>
+                {{ etiqueta }}
+            </a>
+            {% endif %}
+            {% endfor %}
+            {% endif %}
         </div>
 
         <div class="sidebar-footer">
@@ -154,7 +177,11 @@
                 {{ usuario.nombre_completo }}
                 <span class="badge-role ml-1">{{ usuario.rol_legible }}</span>
             </span>
-            <a href="/logout" class="btn-nav-action">Salir</a>
+            <a href="/cuenta/contrasena" class="btn-nav-action">Mi contraseña</a>
+            <form method="post" action="/logout" class="contents">
+                {{ csrf_campo() }}
+                <button type="submit" class="btn-nav-action">Salir</button>
+            </form>
         </header>
 
         <main class="app-content">

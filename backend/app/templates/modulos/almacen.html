@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avisos, badge %}
+{% block titulo %}Almacén de datos{% endblock %}
+
+{% block contenido %}
+<div class="page-head mb-4">
+    <h1 class="page-title">Almacén de datos</h1>
+    <div class="page-head-actions">
+        <form method="post" action="/almacen/validar" data-lock-on-submit="Validando…"
+              data-confirmar="La validación compara el almacén contra el OLTP y Neo4j y tarda alrededor de un minuto. ¿Ejecutarla?">
+            {{ csrf_campo() }}
+            <button type="submit" class="btn-outline-neutral" {% if en_curso %}disabled{% endif %}>Ejecutar validación</button>
+        </form>
+        <form method="post" action="/costos/recargar" data-lock-on-submit="Recargando…"
+              data-confirmar="La recarga reconstruye el Data Warehouse completo y tarda unos segundos. ¿Continuar?">
+            {{ csrf_campo() }}
+            <button type="submit" class="btn-save" {% if en_curso %}disabled{% endif %}>
+                {{ 'Proceso en curso…' if en_curso else 'Recargar el Data Warehouse' }}
+            </button>
+        </form>
+    </div>
+</div>
+
+{{ avisos(ok, error) }}
+
+<div class="card mb-3">
+    <div class="card-header flex flex-wrap items-center justify-between gap-2">
+        <span>Última validación</span>
+        {% if validacion %}
+        {{ badge('success' if validacion.correctas == validacion.total else 'danger',
+                 validacion.correctas ~ ' de ' ~ validacion.total ~ ' correctas') }}
+        {% endif %}
+    </div>
+    <div class="card-body">
+        {% if not validacion %}
+        <p class="text-sm text-muted">Todavía no hay un registro de validación. Ejecútala con el botón de arriba.</p>
+        {% else %}
+        <p class="text-sm text-muted mb-3">Ejecutada el {{ validacion.fecha or '—' }} · registro en docs/validacion/registro_validacion.md</p>
+        <div class="chip-list mb-3">
+            {% for g in validacion.grupos %}
+            <span class="chip" title="{{ g.correctas }} de {{ g.total }}">
+                {{ g.grupo }} · {{ g.correctas }}/{{ g.total }}
+            </span>
+            {% endfor %}
+        </div>
+        {% if validacion.fallos %}
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Grupo</th><th>Verificación</th><th>Esperado</th><th>Obtenido</th></tr></thead>
+                <tbody>
+                    {% for f in validacion.fallos %}
+                    <tr><td>{{ f.grupo }}</td><td>{{ f.verificacion }}</td><td>{{ f.esperado }}</td><td>{{ f.obtenido }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Historial de cargas</div>
+    {% if sin_dw %}
+    <div class="card-body text-sm text-muted">{{ sin_dw }}</div>
+    {% else %}
+    <div class="table-wrap">
+        <table class="table table-stack">
+            <thead><tr><th>Carga</th><th>Ejecutada</th><th>Fecha de corte</th><th class="text-right">Hechos</th><th>Calidad</th></tr></thead>
+            <tbody>
+                {% for c in cargas %}
+                <tr>
+                    <td class="cell-title font-semibold">#{{ c.carga_id }}{% if loop.first %} {{ badge('success', 'vigente') }}{% endif %}</td>
+                    <td data-label="Ejecutada" class="text-sm whitespace-nowrap">{{ c.ejecutada_en.astimezone().strftime('%d/%m/%Y %H:%M') }}</td>
+                    <td data-label="Corte" class="text-sm">{{ c.fecha_corte.strftime('%d/%m/%Y') }}</td>
+                    <td data-label="Hechos" class="text-right tabular-nums">{{ "{:,}".format(c.filas_hechos) }}</td>
+                    <td data-label="Calidad">
+                        {% if c.resumen %}
+                        <details>
+                            <summary class="text-sm cursor-pointer">{{ c.resumen[0][1] }} · ver detalle</summary>
+                            <dl class="text-xs mt-1 grid gap-1">
+                                {% for etiqueta, valor in c.resumen[1:] %}<div><dt class="inline text-muted">{{ etiqueta }}:</dt> <dd class="inline">{{ valor }}</dd></div>{% endfor %}
+                            </dl>
+                        </details>
+                        {% else %}—{% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-muted text-center py-3">El almacén todavía no se ha cargado.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge %}
+{% block titulo %}{{ titulo }}{% endblock %}
+
+{# Vista previa de cualquier importación (notas, asistencia, matrícula): muestra
+   qué va a cambiar y no escribe nada hasta que se confirma. Con errores no hay
+   botón de confirmar: un archivo a medias deja datos que nadie revisó. #}
+{% block contenido %}
+{% set etiquetas = etiquetas or {"nueva": "Nuevas", "cambio": "Se sobrescriben", "igual": "Sin cambio"} %}
+<div class="page-head mb-4">
+    <div>
+        <h1 class="page-title">{{ titulo }}</h1>
+        <p class="text-sm text-muted">{{ subtitulo }} · {{ archivo }}</p>
+    </div>
+    <div class="page-head-actions">
+        <a class="btn-outline-neutral" href="{{ volver }}">Cancelar</a>
+    </div>
+</div>
+
+<div class="flex flex-wrap gap-2 mb-3">
+    {% if conteo.nueva %}{{ badge('success', conteo.nueva ~ ' · ' ~ etiquetas.nueva) }}{% endif %}
+    {% if conteo.cambio %}{{ badge('warning', conteo.cambio ~ ' · ' ~ etiquetas.cambio) }}{% endif %}
+    {% if conteo.igual %}{{ badge('neutral', conteo.igual ~ ' · ' ~ etiquetas.igual) }}{% endif %}
+    {% if errores %}{{ badge('danger', errores|length ~ ' error(es)') }}{% endif %}
+</div>
+
+{% if errores %}
+<div class="alert alert-danger mb-3" role="alert">
+    <span>
+        El archivo tiene errores y no se puede aplicar. Corrígelos y vuelve a subirlo.
+        <ul class="list-disc ml-5 mt-1">
+            {% for e in errores[:20] %}<li>{{ e }}</li>{% endfor %}
+            {% if errores|length > 20 %}<li>… y {{ errores|length - 20 }} más.</li>{% endif %}
+        </ul>
+    </span>
+</div>
+{% elif not filas %}
+<div class="alert alert-success mb-3" role="alert">
+    <span>El archivo no cambia nada: todo coincide con lo registrado.</span>
+</div>
+{% endif %}
+
+{% if filas %}
+<div class="card mb-3">
+    <div class="card-header">Cambios que se aplicarán</div>
+    <div class="table-wrap table-limited" style="--max-h: 460px;">
+        <table class="table">
+            <thead><tr>{% for c in columnas %}<th>{{ c }}</th>{% endfor %}<th></th></tr></thead>
+            <tbody>
+                {% for tipo, valores in filas %}
+                <tr>
+                    {% for v in valores %}<td>{{ v }}</td>{% endfor %}
+                    <td>{{ badge('warning' if tipo == 'cambio' else 'success', etiquetas[tipo]) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if filas and not errores %}
+<form method="post" action="{{ accion }}" data-lock-on-submit="Aplicando…"
+      {% if conteo.cambio %}data-confirmar="Se van a sobrescribir {{ conteo.cambio }} valor(es) ya registrados. ¿Aplicar la importación?"{% endif %}>
+    {{ csrf_campo() }}
+    {% for nombre, valor in ocultos %}<input type="hidden" name="{{ nombre }}" value="{{ valor }}">{% endfor %}
+    <div class="flex gap-2">
+        <button type="submit" class="btn-save">Aplicar importación</button>
+        <a class="btn-outline-neutral" href="{{ volver }}">Cancelar</a>
+    </div>
+</form>
+{% endif %}
+{% endblock %}
