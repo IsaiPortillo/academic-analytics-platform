@@ -17,25 +17,51 @@
 
 <div class="card mb-3">
     <div class="card-body">
-        <form method="get" action="/admin/{{ catalogo.slug }}" class="filter-bar">
-            {% if catalogo.filtro_periodo %}
-            <div>
-                <label class="field-label" for="periodo_id">Período</label>
-                <select class="select" id="periodo_id" name="periodo_id" onchange="this.form.submit()">
-                    {% for p in periodos %}
-                    <option value="{{ p.periodo_id }}" {% if p.periodo_id == periodo_id %}selected{% endif %}>{{ p.codigo_periodo }}</option>
-                    {% endfor %}
-                </select>
-            </div>
+        <form method="get" action="/admin/{{ catalogo.slug }}" class="filtros-catalogo" data-filtrar-al-cambiar>
+            {% if seleccion.orden %}
+            <input type="hidden" name="orden" value="{{ seleccion.orden }}">
+            {% if seleccion.descendente %}<input type="hidden" name="dir" value="desc">{% endif %}
             {% endif %}
-            <div class="flex-1 min-w-[200px]">
-                <label class="field-label" for="buscar">Buscar</label>
-                <input type="search" class="input" id="buscar" name="buscar" value="{{ buscar }}"
-                       placeholder="{{ 'ID o carnet' if catalogo.slug == 'estudiantes' else 'Código, nombre o ID' }}">
+            <div class="filtros-grid">
+                <div class="filtro-buscar">
+                    <label class="field-label" for="buscar">Buscar</label>
+                    <input type="search" class="input" id="buscar" name="buscar" value="{{ seleccion.buscar }}"
+                           placeholder="{{ 'ID o carnet' if catalogo.slug == 'estudiantes' else 'Código, nombre o ID' }}">
+                </div>
+                {% for f in filtros %}
+                <div>
+                    <label class="field-label" for="f-{{ f.nombre }}">{{ f.etiqueta }}</label>
+                    <select class="select" id="f-{{ f.nombre }}" name="{{ f.nombre }}">
+                        <option value="">Todos</option>
+                        {% for valor, texto in f.opciones %}
+                        <option value="{{ valor }}" {% if valor == f.valor %}selected{% endif %}>{{ texto }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endfor %}
+                <div>
+                    <label class="field-label" for="por_pagina">Filas por página</label>
+                    <select class="select" id="por_pagina" name="por_pagina">
+                        {% for n in por_pagina_opciones %}
+                        <option value="{{ n }}" {% if n == seleccion.por_pagina %}selected{% endif %}>{{ n }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
-            <button type="submit" class="btn-outline-neutral shrink-0">Buscar</button>
-            {% if buscar %}<a class="btn-outline-neutral shrink-0" href="/admin/{{ catalogo.slug }}{{ '?periodo_id=' ~ periodo_id if periodo_id }}">Limpiar</a>{% endif %}
+            <div class="filtros-acciones">
+                <button type="submit" class="btn-save">Aplicar</button>
+                {% if chips %}<a class="btn-outline-neutral" href="{{ limpiar }}">Quitar todos los filtros</a>{% endif %}
+            </div>
         </form>
+        {% if chips %}
+        <div class="chip-list mt-3" aria-label="Filtros activos">
+            {% for c in chips %}
+            <a class="chip chip-quitar" href="{{ c.quitar }}" aria-label="Quitar filtro {{ c.etiqueta }}: {{ c.texto }}">
+                <span class="text-muted">{{ c.etiqueta }}:</span>&nbsp;{{ c.texto }} <span aria-hidden="true">&times;</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
         <div class="toolbar mt-3 pt-3 border-t border-border">
             <span class="text-sm font-semibold">Carga masiva</span>
             <a class="btn-outline-neutral" href="/admin/{{ catalogo.slug }}/plantilla">Descargar plantilla</a>
@@ -52,29 +78,55 @@
 </div>
 
 <div class="card">
-    <div class="card-header">{{ "{:,}".format(total) }} registro(s){% if paginas > 1 %} · página {{ pagina }} de {{ paginas }}{% endif %}</div>
+    <div class="card-header lista-resumen">
+        <span>
+            {{ "{:,}".format(total) }}{% if total != total_catalogo %} de {{ "{:,}".format(total_catalogo) }}{% endif %}
+            registro(s){% if paginas > 1 %} · página {{ pagina }} de {{ paginas }}{% endif %}
+        </span>
+        {% if total %}<a class="btn-descarga" href="/admin/{{ catalogo.slug }}/exportar{{ '?' ~ consulta if consulta }}">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M6 9l4 4 4-4M4 16h12"/></svg>
+            Descargar lista (CSV)
+        </a>{% endif %}
+    </div>
     <div class="table-wrap">
         <table class="table table-stack">
-            <thead><tr>{% for c in cabeceras %}<th>{{ c }}</th>{% endfor %}<th></th></tr></thead>
+            <thead>
+                <tr>
+                    {% for c in columnas %}
+                    <th {% if c.sentido %}aria-sort="{{ 'descending' if c.sentido == 'desc' else 'ascending' }}"{% endif %}>
+                        {% if c.clave %}
+                        <a class="th-orden{% if c.sentido %} is-activa{% endif %}" href="{{ c.url }}">
+                            {{ c.titulo }}<span class="th-flecha" aria-hidden="true">{{ '▼' if c.sentido == 'desc' else '▲' if c.sentido == 'asc' else '↕' }}</span>
+                        </a>
+                        {% else %}{{ c.titulo }}{% endif %}
+                    </th>
+                    {% endfor %}
+                    <th></th>
+                </tr>
+            </thead>
             <tbody>
                 {% for registro_id, valores in filas %}
                 <tr>
                     {% for v in valores %}
-                    <td {% if loop.first %}class="cell-title font-semibold"{% else %}data-label="{{ cabeceras[loop.index0] }}"{% endif %}>{{ v }}</td>
+                    <td {% if loop.first %}class="cell-title font-semibold"{% else %}data-label="{{ columnas[loop.index0].titulo }}"{% endif %}>{{ v }}</td>
                     {% endfor %}
                     <td class="cell-actions"><a class="btn-view" href="/admin/{{ catalogo.slug }}/{{ registro_id }}">Editar</a></td>
                 </tr>
                 {% else %}
-                <tr><td colspan="{{ cabeceras|length + 1 }}" class="text-muted text-center py-3">Sin registros{{ ' para esa búsqueda' if buscar }}.</td></tr>
+                <tr><td colspan="{{ columnas|length + 1 }}" class="text-muted text-center py-3">
+                    Sin registros{{ ' con esos filtros' if chips }}.
+                    {% if chips %}<a href="{{ limpiar }}">Quitar los filtros</a>{% endif %}
+                </td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
     {% if paginas > 1 %}
-    <div class="card-body flex justify-between gap-2 border-t border-border">
-        {% set base = "/admin/" ~ catalogo.slug ~ "?" ~ (consulta ~ "&" if consulta else "") %}
+    <div class="card-body paginador">
+        {% set base = pagina_url ~ ("&" if consulta else "") %}
         {% if pagina > 1 %}<a class="btn-outline-neutral" href="{{ base }}pagina={{ pagina - 1 }}">&larr; Anterior</a>{% else %}<span></span>{% endif %}
-        {% if pagina < paginas %}<a class="btn-outline-neutral" href="{{ base }}pagina={{ pagina + 1 }}">Siguiente &rarr;</a>{% endif %}
+        <span class="text-sm text-muted">Página {{ pagina }} de {{ paginas }}</span>
+        {% if pagina < paginas %}<a class="btn-outline-neutral" href="{{ base }}pagina={{ pagina + 1 }}">Siguiente &rarr;</a>{% else %}<span></span>{% endif %}
     </div>
     {% endif %}
 </div>

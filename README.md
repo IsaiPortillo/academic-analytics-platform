@@ -128,6 +128,10 @@ academic-analytics-platform/
   - [x] Carga masiva desde Excel — notas, asistencia y matrícula: plantilla con la lista de la
     sección, vista previa con errores y cambios fila por fila, y confirmación explícita antes de
     sobrescribir.
+  - [x] Filtros en las listas de Catálogos — además de buscar, cada lista se filtra por lo que le corresponde
+    (departamento, carrera, ciclo del plan, turno, docente, condición, año de ingreso, activo…), se ordena
+    por cualquier columna, elige cuántas filas mostrar (25 a 200), muestra los filtros activos como fichas
+    que se quitan de una en una y descarga en CSV exactamente la lista filtrada (no solo la página).
   - [x] Carga masiva de catálogos — períodos, secciones, materias, docentes, estudiantes, carreras y
     departamentos (Catálogos > cada uno > «Carga masiva»). La plantilla trae la cabecera del
     catálogo, una fila amarilla de ejemplo (arriba de la cabecera: nunca se importa), listas
