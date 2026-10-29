@@ -328,12 +328,14 @@ def _como_se_llena(campo: Campo) -> str:
     return f"{texto} {campo.ayuda}".strip()
 
 
+# Los ejemplos no deben coincidir con datos reales (la sección usa el número 99): copiados debajo de la
+# cabecera tal cual, crean un registro nuevo en vez de actualizar uno existente.
 # Fila de ejemplo de cada plantilla. Las referencias (período, materia, carrera…) no se fijan
 # aquí: se toma la primera de las que existen en la base, para que el ejemplo sea válido.
 EJEMPLOS = {
     "periodos": {"codigo_periodo": "2027-I", "anio": 2027, "ciclo_romano": "I", "fecha_inicio": "2027-02-01",
                  "fecha_fin": "2027-06-30", "activo": "No"},
-    "secciones": {"numero_seccion": 1, "turno": "MATUTINO", "aula": "A-12", "cupo_maximo": 40},
+    "secciones": {"numero_seccion": 99, "turno": "MATUTINO", "aula": "A-12", "cupo_maximo": 40},
     "materias": {"codigo_materia": "MAT101", "nombre": "Matemática I", "unidades_valorativas": 4, "ciclo_plan": 1,
                  "activo": "Sí"},
     "docentes": {"codigo_docente": "DOC-021", "escalafon": "HORA CLASE", "activo": "Sí"},
