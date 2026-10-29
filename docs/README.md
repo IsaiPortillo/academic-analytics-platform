@@ -7,6 +7,7 @@ Este directorio guarda los entregables escritos del proyecto, separados del cód
 | [`memoria/`](memoria/) | El documento académico, bajo la estructura de 21 capítulos exigida |
 | [`diagramas/`](diagramas/) | Diagramas del modelo operacional y del modelo dimensional |
 | [`recorrido_del_sistema.md`](recorrido_del_sistema.md) | Cómo probar el sistema completo y guion de defensa |
+| [`analisis/`](analisis/) | Análisis descriptivo y exploratorio, con sus resultados e interpretación |
 
 ## Calendario de entregas
 
