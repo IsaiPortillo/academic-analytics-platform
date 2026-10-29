@@ -61,7 +61,7 @@
 
 {% if filas and not errores %}
 <form method="post" action="{{ accion }}" data-lock-on-submit="Aplicando…"
-      {% if conteo.cambio %}data-confirmar="Se van a sobrescribir {{ conteo.cambio }} valor(es) ya registrados. ¿Aplicar la importación?"{% endif %}>
+      {% if conteo.cambio %}data-confirmar="Se van a sobrescribir {{ conteo.cambio }} valor(es) ya registrados. ¿Aplicar la importación?" data-confirmar-boton="Aplicar importación"{% endif %}>
     {{ csrf_campo() }}
     {% for nombre, valor in ocultos %}<input type="hidden" name="{{ nombre }}" value="{{ valor }}">{% endfor %}
     <div class="flex gap-2">

@@ -100,12 +100,12 @@
                             </details>
                             {% if not es_yo %}
                             <form method="post" action="/usuarios/{{ c.usuario_id }}/restablecer"
-                                  data-confirmar="Se generará una contraseña temporal para «{{ c.username }}» y se cerrarán sus sesiones abiertas. ¿Continuar?">
+                                  data-confirmar="Se generará una contraseña temporal para «{{ c.username }}» y se cerrarán sus sesiones abiertas. ¿Continuar?" data-confirmar-boton="Restablecer" data-confirmar-peligro>
                                 {{ csrf_campo() }}
                                 <button type="submit" class="btn-outline-neutral">Restablecer contraseña</button>
                             </form>
                             <form method="post" action="/usuarios/{{ c.usuario_id }}/estado"
-                                  {% if c.activo %}data-confirmar="«{{ c.username }}» no podrá entrar y su sesión abierta se cerrará. ¿Desactivar?"{% endif %}>
+                                  {% if c.activo %}data-confirmar="«{{ c.username }}» no podrá entrar y su sesión abierta se cerrará. ¿Desactivar?" data-confirmar-boton="Desactivar" data-confirmar-peligro{% endif %}>
                                 {{ csrf_campo() }}
                                 <input type="hidden" name="activo" value="{{ 'false' if c.activo else 'true' }}">
                                 <button type="submit" class="{{ 'btn-destructive' if c.activo else 'btn-save' }}">

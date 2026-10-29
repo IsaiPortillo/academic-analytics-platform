@@ -113,7 +113,8 @@
 
         <div class="filter-bar mb-3">
             <form method="post" action="/costos/recargar"
-                  onsubmit="return confirm('La recarga reconstruye el Data Warehouse completo y tarda unos segundos. ¿Continuar?');">
+                  data-confirmar="La recarga reconstruye el Data Warehouse completo y tarda unos segundos. ¿Continuar?"
+                  data-confirmar-boton="Recargar">
                 {{ csrf_campo() }}
                 <button type="submit" class="btn-save" {% if carga_en_curso %}disabled{% endif %}>
                     {{ 'Recarga en curso…' if carga_en_curso else 'Recargar el Data Warehouse' }}
