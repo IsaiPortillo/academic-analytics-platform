@@ -1,5 +1,10 @@
 # Recorrido del sistema
 
+> **Nota sobre las cifras.** Este recorrido se escribió con la primera versión de los datos de prueba (una sola
+> carrera, 16 materias, 1 500 estudiantes). Los datos actuales se parecen a la FMO-UES (8 departamentos, 12 carreras,
+> ~2 300 estudiantes; la malla del grafo es el plan completo de Sistemas Informáticos, 45 materias), así que los
+> números concretos de abajo cambian al cargarlos; el método y las pantallas son los mismos.
+
 Guía para probar el proyecto completo de punta a punta y entender qué hace cada pieza. Cada comando
 viene con la salida real que produjo el 30 de septiembre de 2026; si lo que te sale difiere mucho,
 algo está distinto en tu entorno y vale la pena averiguar qué.

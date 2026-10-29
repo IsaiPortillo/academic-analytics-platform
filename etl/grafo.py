@@ -19,7 +19,7 @@ from neo4j import Session
 # Una materia es cuello de botella si reprobarla bloquea, directa o
 # indirectamente, al menos a un cuarto del resto del pensum. Se usa una
 # proporción y no un número absoluto para que el criterio siga teniendo sentido
-# si la malla crece más allá de las 16 materias del tronco actual.
+# si la malla crece más allá de las 45 materias del plan actual de Sistemas Informáticos.
 UMBRAL_CUELLO_BOTELLA = 0.25
 
 # Un solo recorrido por materia para cada métrica. Los caminos de longitud

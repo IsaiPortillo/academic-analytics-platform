@@ -104,7 +104,11 @@ academic-analytics-platform/
 
 ### Fase 1: Base de Datos Operacional y Scripts de Datos
 - [x] **1.1:** Definición del DDL operacional OLTP (PostgreSQL 17), esquemas, PK/FK, checks, roles y disparadores de integridad.
-- [x] **1.2:** Generador de datos sintéticos realistas con Python (`Faker` + inserción por lotes masiva ~100k+ registros).
+- [x] **1.2:** Generador de datos sintéticos con Python que se parecen a la FMO-UES: 8 departamentos, 12 carreras con su
+  plan de estudios (523 asignaturas), 105 docentes, ~2 300 estudiantes que avanzan por su plan con prerrequisitos,
+  dos ciclos al año de cuatro módulos cada uno, evaluaciones por módulo (cada docente arma las suyas), notas y
+  asistencia (~0.5 M de filas). Todo es inventado: ver `scripts/generator/catalogo_ues.py` para lo que es público y lo
+  que no.
 - [x] **1.3:** Modelado y carga del grafo de la malla curricular en Neo4j (Cypher: asignaturas y relaciones de prerrequisitos).
 - [x] **1.4:** Pruebas de rendimiento y optimización con `EXPLAIN ANALYZE` (documentación comparativa antes/después de índices).
 
@@ -252,7 +256,7 @@ esta guía los invoca como `python -m …`).
 ### 4. Poblar con datos sintéticos (Fase 1.2)
 
 ```bash
-python scripts/generator/02_generador_datos_sinteticos.py
+python scripts/generator/02_generador_datos_sinteticos.py   # con --reiniciar reemplaza lo transaccional anterior
 python database/nosql/03_cargar_grafo_neo4j.py   # grafo curricular en Neo4j
 ```
 
@@ -432,7 +436,7 @@ python -m etl.carga                 # lleva las relaciones de la malla de Neo4j 
 ( cd backend && python -m unittest discover -s tests -v )   # 34 pruebas de la red, sin base de datos
 ```
 
-Pantalla **Red curricular** (`/red-curricular`, mismo menú, solo coordinador): las 16 materias y sus
+Pantalla **Red curricular** (`/red-curricular`, mismo menú, solo coordinador): las 45 materias del plan de Sistemas Informáticos (la única carrera con malla en el grafo) y sus
 relaciones de prerrequisito como red interactiva (elegir una materia resalta lo que bloquea y lo que
 hay que aprobar antes), el reporte de materias cuello de botella y el cruce del costo de reprobación
 con la posición de cada materia en la malla, con la lectura en texto de cada pieza. La malla se

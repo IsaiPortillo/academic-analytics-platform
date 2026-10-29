@@ -25,7 +25,7 @@ Authorization is resolved in the database, not in application code: the app alwa
 - Deployed via Docker Compose: PostgreSQL 17 (`academico_postgres`) and Neo4j 5.x (`academico_neo4j`); first boot auto-runs `database/oltp/*.sql` in alphabetical order.
 - Backend: FastAPI + Jinja2 + Tailwind CSS v4, run with `uvicorn app.main:app --reload`, served at `http://localhost:8000` (API docs at `/api/docs`).
 - Session middleware authenticates users; every DB transaction executes `SET LOCAL ROLE` before touching data.
-- Synthetic data generated with Faker (`scripts/generator/02_generador_datos_sinteticos.py`, ~100k+ rows) and loaded into the Neo4j curriculum graph (`database/nosql/03_cargar_grafo_neo4j.py`).
+- Synthetic data simulated to resemble the FMO-UES (`scripts/generator/`: 8 departments, 12 careers, 2 cycles a year with 4 modules each, ~0.5M rows) and loaded into the Neo4j curriculum graph (`database/nosql/03_cargar_grafo_neo4j.py`).
 - ETL (`etl/`) and the data warehouse (`dw_academico`) are built (Fase 3). The executive view exists twice over the same warehouse queries and KPI definitions: inside the FastAPI app (`/vista-ejecutiva`, coordinator session required) and as a standalone Streamlit app in `dashboard/` (SCRUM-44, no login, bound to 127.0.0.1 only). Both read only the warehouse through the read-only role `rol_dashboard`. The curriculum network (`/red-curricular`, Fase 4.3) is real too: its relationships travel from Neo4j to the warehouse through the ETL (`bridge_prerrequisito`), so the screen needs no graph credentials. `/dashboard` (strategic overview) and `/analitica-olap` (ROLLUP/CUBE over `fact_inscripcion`) were illustrative mockups and are now real, coordinator-only screens on the same warehouse; the predictive pieces of the old mockups (dropout alerts) were not rebuilt because the project's analytic scope is descriptive and diagnostic only. The Streamlit dashboard can be published at `/analitica/` behind nginx with the web app's own session (coordinator only).
 - Five-phase roadmap: (1) operational DB + synthetic data + curriculum graph — done; (2) transactional CRUD system (matrícula, calificaciones, asistencia, reportes) — done; (3) ETL + data warehouse — done; (4) BI dashboard inside the web app (cost KPIs, diagnostic risk patterns, curriculum network viz) — in progress (executive view 4.1, diagnostic analysis 4.2 and curriculum network 4.3 done); (5) academic memoir/thesis writeup + defense prep — pending.
 - The final deliverable must also satisfy the university's 21-chapter thesis-report format (UES-FMO guidelines) and a live jury defense demonstrating the security model documented in the README.
@@ -34,7 +34,7 @@ Authorization is resolved in the database, not in application code: the app alwa
 
 - Confirmed: matrícula, calificaciones, asistencia, and reportes modules (Fase 2.2) are scaffolded as routers but largely placeholder (`placeholder.html`) pending full CRUD implementation.
 - Confirmed: DB-enforced RBAC is the security mechanism — authorization logic must never move into application code.
-- Confirmed: all data is synthetic (Faker-generated) — real student PII must never enter the system.
+- Confirmed: all data is synthetic (simulated, nothing is a real person) — real student PII must never enter the system.
 - Confirmed: the analytic scope is **descriptive and diagnostic only** (the first two Gartner levels). Predictive and prescriptive analytics are explicitly out of scope per the course requirements, so risk features identify patterns in observed historical data — answering "why did this happen" — and never forecast who will drop out or auto-recommend interventions. Wording matters here: "early warning" and "prediction" describe work the project is not allowed to deliver.
 - Open/undecided: exact scope and UI of the future student-facing surface (read-only grades/attendance access has been raised, not designed).
 - Open/undecided: production hosting/infrastructure target for real institutional use beyond local Docker Compose.
@@ -45,7 +45,7 @@ Project name: "Plataforma de Gestión Académica y Analítica de Rendimiento Est
 
 ## Evidence on Hand
 
-No real user data, testimonials, or case studies exist and none should be fabricated — all current data is synthetic (Faker-generated academic records, ~100k+ rows). No production deployment history yet.
+No real user data, testimonials, or case studies exist and none should be fabricated — all current data is synthetic (simulated academic records, ~0.5M rows). No production deployment history yet.
 
 ## Product Principles
 
