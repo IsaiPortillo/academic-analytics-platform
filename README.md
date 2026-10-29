@@ -548,6 +548,19 @@ directorio equivocado. Los comandos de `etl.*` y `dashboard/` van desde la **ra�
 Los scripts del primer arranque aún no terminaron. Usa `docker compose up -d --wait` o espera
 a que `docker compose ps` muestre `healthy` en los dos contenedores.
 
+**`relation "…" does not exist` en una pantalla que a un compañero sí le funciona**
+Tu contenedor se creó antes de que alguien agregara un script DDL nuevo, y los scripts de
+`database/oltp/` **solo se ejecutan en el primer arranque** sobre un volumen vacío. No hace falta
+borrar nada ni averiguar cuál falta:
+
+```bash
+./scripts/aplicar_ddl_pendiente.sh --revisar   # qué falta, sin tocar nada
+./scripts/aplicar_ddl_pendiente.sh             # aplicar lo que falte
+```
+
+Si aplicó algo del Data Warehouse, recárgalo después con `python -m etl.carga`. Conviene correrlo
+cada vez que traigas cambios de `develop`.
+
 **`-bash: source: .venv/bin/activate: No such file` o `The term 'source' is not recognized`**
 En Windows el entorno virtual vive en `.venv/Scripts/`, no en `.venv/bin/`, y `source` solo
 existe en Git Bash/WSL. Abre **Git Bash** y usa `source .venv/Scripts/activate`.
