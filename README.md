@@ -416,7 +416,7 @@ limita a `SELECT` sobre `dw_academico`.
 
 ```bash
 python -m etl.carga                 # el DW necesita database/oltp/12_dw_diagnostico.sql
-python -m etl.validar_dw            # 88 verificaciones entre capas + registro para la memoria
+python -m etl.validar_dw            # 99 verificaciones entre capas + registro para la memoria
 ```
 
 Pantalla **Análisis diagnóstico** (mismo menú, solo coordinador): matriz de correlaciones,
