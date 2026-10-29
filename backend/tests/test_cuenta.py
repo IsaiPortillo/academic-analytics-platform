@@ -58,7 +58,6 @@ class TestPantallaMiCuenta(unittest.TestCase):
         self.db.scalar.return_value = SimpleNamespace(
             ultimo_acceso=datetime(2026, 10, 29, 17, 55, tzinfo=timezone.utc), password_cambiado_en=None,
             creado_en=datetime(2026, 9, 1, 15, 0, tzinfo=timezone.utc))
-        self.db.get.return_value = SimpleNamespace(codigo_docente="DOC-014")
         self.peticion = SimpleNamespace(session={"csrf": "t"}, url=SimpleNamespace(path="/cuenta"))
 
     def _pagina(self, usuario=None, sesion_extra=None):
@@ -74,7 +73,6 @@ class TestPantallaMiCuenta(unittest.TestCase):
         self.assertIn("Mi cuenta", html)
         self.assertIn('value="Ana María López"', html)
         self.assertIn("ana.lopez", html)
-        self.assertIn("DOC-014", html)
         self.assertIn("29/10/2026 11:55", html)          # último acceso, en hora local
         self.assertIn("01/09/2026 09:00", html)          # cuenta creada
         self.assertIn("Nunca desde que se creó", html)   # contraseña sin cambios
@@ -99,11 +97,16 @@ class TestPantallaMiCuenta(unittest.TestCase):
         for texto in ("SET LOCAL ROLE", "PostgreSQL 17", "Neo4j GraphDB", "Docker Compose", "rol_docente"):
             self.assertNotIn(texto, html, texto)
 
-    def test_un_coordinador_no_ve_codigo_de_docente(self):
-        self.db.get.return_value = None
-        html = self._pagina(_usuario(rol_db="rol_coordinador", docente_id=None))
-        self.assertNotIn("Código de docente", html)
-        self.assertIn("Coordinador", html)
+    def test_no_consulta_la_tabla_docentes_porque_el_rol_docente_no_tiene_permiso(self):
+        # En producción rol_docente no puede leer `docentes` («permission denied»): la pantalla
+        # solo lee la fila de la cuenta, en `usuarios`, y nunca pide un Docente.
+        self._pagina()
+        self.db.get.assert_not_called()
+        self.db.scalar.assert_called_once()
+        self.assertEqual(self.db.scalars.call_count + self.db.execute.call_count, 0)
+
+    def test_un_coordinador_ve_su_rol(self):
+        self.assertIn("Coordinador", self._pagina(_usuario(rol_db="rol_coordinador", docente_id=None)))
 
     def test_con_contrasena_temporal_avisa_que_hay_que_cambiarla(self):
         self.assertNotIn("contraseña temporal", self._pagina())

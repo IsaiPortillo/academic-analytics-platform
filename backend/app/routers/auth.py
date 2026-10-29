@@ -36,9 +36,12 @@ def mostrar_login(request: Request, siguiente: str | None = None):
         return RedirectResponse(destino, status_code=303)
     # modo_demo controla si el login expone accesos rápidos con credenciales
     # reales precargadas — ver la nota en config.py. Apagado por defecto.
+    # Sin caché: con «atrás» el navegador mostraba un formulario viejo, con un token
+    # CSRF que la sesión nueva ya no reconoce (403 «el formulario caducó»).
     return templates.TemplateResponse(
         request, "login.html",
         {"error": None, "modo_demo": settings.modo_demo, "siguiente": destino},
+        headers={"Cache-Control": "no-store"},
     )
 
 

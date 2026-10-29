@@ -25,9 +25,6 @@
 
                 <dl class="cuenta-datos">
                     <div><dt>Usuario</dt><dd>{{ usuario.username }}</dd></div>
-                    {% if docente %}
-                    <div><dt>Código de docente</dt><dd>{{ docente.codigo_docente }}</dd></div>
-                    {% endif %}
                     <div><dt>Último acceso</dt><dd>{{ ultimo_acceso or "—" }}</dd></div>
                     <div><dt>Contraseña cambiada</dt><dd>{{ password_cambiado or "Nunca desde que se creó" }}</dd></div>
                     <div><dt>Cuenta creada</dt><dd>{{ creada or "—" }}</dd></div>
