@@ -28,6 +28,15 @@ MATERIAS = CATALOGOS["materias"]
 PERIODOS = CATALOGOS["periodos"]
 SECCIONES = CATALOGOS["secciones"]
 ESTUDIANTES = CATALOGOS["estudiantes"]
+# Lo que ofrece la base en las pruebas de la plantilla (la hoja Referencia y el ejemplo salen de aquí).
+LISTAS_FK = {
+    "carrera_id": [(1, "SIS · Ingeniería en Sistemas"), (2, "ADM · Administración")],
+    "periodo_id": [(7, "2027-I")],
+    "materia_id": [(11, "MAT101 · Matemática I")],
+    "docente_id": [(5, "DOC-1 · Titular")],
+    "departamento_id": [(3, "DCC · Ciencias de la Computación")],
+}
+REFS_TODAS = {nombre: {e.split(" · ")[0].upper(): i for i, e in lista} for nombre, lista in LISTAS_FK.items()}
 REFS = {"carrera_id": {"SIS": 1, "ADM": 2}, "periodo_id": {"2026-I": 7}, "materia_id": {"MAT101": 11},
         "docente_id": {"DOC-1": 5}}
 
@@ -245,8 +254,8 @@ class TestAplicarCarga(unittest.TestCase):
 class TestPlantilla(unittest.TestCase):
     def _libro(self, catalogo):
         from openpyxl import load_workbook
-        campos = tuple(replace(c, fk=lambda db: [(1, "SIS · Ingeniería en Sistemas"), (2, "ADM · Administración")])
-                       if c.tipo == "fk" else c for c in catalogo.campos)
+        campos = tuple(replace(c, fk=lambda db, n=c.nombre: LISTAS_FK[n]) if c.tipo == "fk" else c
+                       for c in catalogo.campos)
         contenido = carga.construir_plantilla(mock.Mock(), replace(catalogo, campos=campos))
         return load_workbook(io.BytesIO(contenido))
 
@@ -278,6 +287,29 @@ class TestPlantilla(unittest.TestCase):
         self.assertIn("Número entero de 1 a 10", guia["UV"][2])
         self.assertIn("hoja Referencia", guia["Carrera"][2])
         self.assertEqual(guia["Activo"][1], "No")
+
+    def test_la_fila_de_ejemplo_va_arriba_de_la_cabecera_y_no_se_importa(self):
+        for slug, catalogo in CATALOGOS.items():
+            hoja = self._libro(catalogo)["Datos"]
+            ejemplo = [c.value for c in hoja[3]][:len(catalogo.campos)]
+            self.assertTrue(all(v not in (None, "") for v in ejemplo), f"{slug}: ejemplo incompleto {ejemplo}")
+            filas = [list(f) for f in hoja.iter_rows(values_only=True) if any(c is not None for c in f)]
+            cambios, errores = carga.analizar(catalogo, filas, REFS_TODAS, {})
+            self.assertEqual((cambios, errores), ([], []), slug)
+
+    def test_el_ejemplo_es_valido_si_se_escribe_debajo_de_la_cabecera(self):
+        # Lo que el ejemplo enseña tiene que funcionar de verdad para cada catálogo.
+        for slug, catalogo in CATALOGOS.items():
+            hoja = self._libro(catalogo)["Datos"]
+            ejemplo = [c.value for c in hoja[3]][:len(catalogo.campos)]
+            filas = [list(f) for f in hoja.iter_rows(values_only=True, min_row=4) if any(c is not None for c in f)]
+            cambios, errores = carga.analizar(catalogo, filas + [ejemplo], REFS_TODAS, {})
+            self.assertEqual((len(cambios), errores), (1, []), f"{slug}: {errores}")
+
+    def test_la_guia_trae_una_columna_de_ejemplo(self):
+        guia = {f[0]: f for f in self._libro(MATERIAS)["Guía"].iter_rows(values_only=True)}
+        self.assertEqual(guia["Campo"][3], "Ejemplo")
+        self.assertEqual((guia["Código"][3], guia["UV"][3], guia["Carrera"][3]), ("MAT101", 4, "SIS"))
 
     def test_todos_los_catalogos_tienen_clave_natural_y_plantilla(self):
         for slug, catalogo in CATALOGOS.items():
