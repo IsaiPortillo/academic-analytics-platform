@@ -251,12 +251,13 @@ def ver_cuenta(
     db: Session = Depends(get_db),
 ):
     ok, error = tomar_aviso(request)
+    # Solo su propia fila de usuarios: el rol docente no tiene permiso sobre `docentes`
+    # (por eso aquí no se muestra el código de docente).
     registro = db.scalar(select(Usuario).where(Usuario.usuario_id == usuario.usuario_id))
-    docente = db.get(Docente, usuario.docente_id) if usuario.docente_id else None
     return templates.TemplateResponse(request, "modulos/cuenta.html", {
         "usuario": usuario, "ok": ok, "error": error, "longitud_minima": LONGITUD_MINIMA,
         "obligatorio": bool(request.session.get(CLAVE_CAMBIO_OBLIGATORIO)),
-        "docente": docente, "largo_nombre": LARGO_NOMBRE,
+        "largo_nombre": LARGO_NOMBRE,
         "ultimo_acceso": hora_local(getattr(registro, "ultimo_acceso", None)),
         "password_cambiado": hora_local(getattr(registro, "password_cambiado_en", None)),
         "creada": hora_local(getattr(registro, "creado_en", None)),
