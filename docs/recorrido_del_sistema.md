@@ -289,7 +289,73 @@ auditoria`. El rastro solo lo escribe el trigger.
 
 ---
 
-## 7. Guion de defensa, 10 minutos
+## 7. Ensayo de la defensa: lista de verificación
+
+La **demostración funcional vale el 25 %** de la nota de la defensa, y el **dominio técnico otro
+25 %**. Juntos son la mitad. Lo que más probablemente los ponga en riesgo no es que el sistema no
+funcione —funciona— sino que el entorno de quien demuestra no esté al día: contenedores parados,
+scripts DDL que no se reejecutan sobre un volumen existente, variables nuevas que faltan en el
+`.env`. Eso pasó varias veces durante el desarrollo.
+
+**Cada integrante hace este ensayo completo en su propia máquina, al menos un día antes.** No el
+mismo día.
+
+### Antes de empezar
+
+- [ ] `git pull` de `develop`, para tener el último código.
+- [ ] Comparar el `.env` con `.env.example`: si el equipo agregó variables, faltan las tuyas.
+      `comm -13 <(grep -oE '^[A-Z_]+=' .env | sort -u) <(grep -oE '^[A-Z_]+=' .env.example | sort -u)`
+- [ ] `docker compose up -d` y esperar a que los dos contenedores digan `healthy`.
+- [ ] `./scripts/aplicar_ddl_pendiente.sh` — aplica los scripts que le falten a tu base.
+- [ ] `python -m etl.carga` si el paso anterior tocó el Data Warehouse.
+
+### El sistema responde
+
+- [ ] `python -m etl.verificar_conexiones` — las tres comprobaciones en verde.
+- [ ] `python -m etl.validar_dw` — todas las verificaciones correctas, sin ninguna fallida.
+- [ ] `uvicorn app.main:app` desde `backend/` y entrar como `coordinador`.
+- [ ] Abrir **cada** pantalla del menú. Ninguna debe dar 500: matrícula, calificaciones,
+      asistencia, reportes, costos, vista ejecutiva, análisis diagnóstico, red curricular,
+      dashboard estratégico y cubo OLAP.
+- [ ] Entrar como `docente` y comprobar que matrícula y reportes devuelven 403.
+- [ ] `streamlit run dashboard/app.py` y que cargue con datos.
+
+### Las demostraciones que se van a pedir
+
+- [ ] **La seguridad**: `SET ROLE rol_docente` y un `DELETE` sobre `inscripciones`. Tiene que
+      fallar con `permission denied`, y hay que saber explicar que lo niega el motor.
+- [ ] **El ETL**: correr `python -m etl.verificar_conexiones` y explicar qué demuestra cada línea,
+      sobre todo la tercera.
+- [ ] **La auditoría**: cambiar una nota como `rol_docente`, revertirla como `rol_coordinador` y
+      mostrar la bitácora con cada cambio atribuido a su rol.
+- [ ] **Los costos**: editar el costo por unidad valorativa, recargar el DW con el botón y ver la
+      cifra cambiada en la vista ejecutiva. Cierra el ciclo completo en vivo.
+- [ ] **El grafo**: la consulta de cuellos de botella en el Neo4j Browser.
+
+> Ojo con los reportes: el período más reciente **no tiene asistencias registradas** y se ve vacío.
+> Para demostrar, usar `?periodo_id=1`. Si no, parece que el sistema está roto.
+
+### Lo que cada uno tiene que poder responder
+
+El docente pregunta a cualquiera del grupo, no a quien escribió la parte. Estas son las que más se
+repiten, y la respuesta larga está en las secciones anteriores de este documento:
+
+- [ ] ¿Por qué la autorización está en el motor y no en el código?
+- [ ] ¿Por qué `SET LOCAL ROLE` y no `SET ROLE`?
+- [ ] ¿Por qué Neo4j y no MongoDB? ¿Y por qué no un `WITH RECURSIVE` en PostgreSQL?
+- [ ] ¿Por qué esquema estrella y no Data Vault?
+- [ ] ¿De dónde sale el costo por unidad valorativa?
+- [ ] ¿Por qué el proyecto no incluye analítica predictiva?
+- [ ] ¿Por qué la correlación entre asistencia y nota es casi cero?
+
+### Antes de cerrar la máquina
+
+- [ ] Dejar los contenedores **corriendo**, no parados.
+- [ ] Anotar qué falló durante el ensayo y arreglarlo ese mismo día.
+
+---
+
+## 8. Guion de defensa, 10 minutos
 
 Un orden que cuenta la historia completa sin perderse en detalles:
 
