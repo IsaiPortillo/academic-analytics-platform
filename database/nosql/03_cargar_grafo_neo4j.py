@@ -2,14 +2,30 @@
 UNIVERSIDAD DE EL SALVADOR - FACULTAD MULTIDISCIPLINARIA ORIENTAL
 ESPECIALIZACIÓN EN BD & BI 2026
 FASE 1 - PUNTO 1.3: AUTOMATIZACIÓN DE CARGA EN NEO4J
+
+Carga la malla curricular de Ingeniería de Sistemas Informáticos (el plan completo, 45
+asignaturas en 10 ciclos) como grafo: un nodo por asignatura y una relación
+(A)-[:REQUIERE_APROBADA]->(B) cuando para cursar A hay que haber aprobado B. Los datos
+salen de scripts/generator/catalogo_ues.py, el mismo catálogo con el que el generador
+llena la base relacional, así que ambos coinciden.
+
+    python database/nosql/03_cargar_grafo_neo4j.py              # agrega o actualiza
+    python database/nosql/03_cargar_grafo_neo4j.py --reiniciar  # deja el grafo igual al plan
+
+--reiniciar borra del grafo las asignaturas y relaciones que no estén en el plan (por
+ejemplo, las que alguien agregó desde «Malla curricular» en la aplicación).
 """
 
+import argparse
 import os
 import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "generator"))
+import catalogo_ues as cat  # noqa: E402
 
 # Credenciales desde el archivo .env de la raíz del proyecto (ver .env.example)
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
@@ -18,59 +34,38 @@ NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 
-if not NEO4J_PASSWORD:
-    sys.exit("ERROR: NEO4J_PASSWORD no está definida. Copia .env.example a .env y complétalo.")
-
 MATERIAS_DATA = [
-    {"codigo": "MAT115", "nombre": "Matemática I", "uv": 4, "ciclo": 1, "area": "Ciencias Básicas"},
-    {"codigo": "PRG115", "nombre": "Programación I", "uv": 4, "ciclo": 1, "area": "Desarrollo de Software"},
-    {"codigo": "ACA115", "nombre": "Álgebra Vectorial y Matrices", "uv": 4, "ciclo": 1, "area": "Ciencias Básicas"},
-    {"codigo": "MAT215", "nombre": "Matemática II", "uv": 4, "ciclo": 2, "area": "Ciencias Básicas"},
-    {"codigo": "PRG215", "nombre": "Programación II", "uv": 4, "ciclo": 2, "area": "Desarrollo de Software"},
-    {"codigo": "BAD115", "nombre": "Bases de Datos I", "uv": 4, "ciclo": 3, "area": "Gestión de Datos"},
-    {"codigo": "PRG315", "nombre": "Programación III", "uv": 4, "ciclo": 3, "area": "Desarrollo de Software"},
-    {"codigo": "MAT315", "nombre": "Matemática III", "uv": 4, "ciclo": 3, "area": "Ciencias Básicas"},
-    {"codigo": "BAD215", "nombre": "Bases de Datos II", "uv": 4, "ciclo": 4, "area": "Gestión de Datos"},
-    {"codigo": "ADS115", "nombre": "Análisis y Diseño de Sistemas I", "uv": 4, "ciclo": 4, "area": "Ingeniería de Software"},
-    {"codigo": "SIF115", "nombre": "Sistemas de Información", "uv": 4, "ciclo": 5, "area": "Ingeniería de Software"},
-    {"codigo": "ADS215", "nombre": "Análisis y Diseño de Sistemas II", "uv": 4, "ciclo": 5, "area": "Ingeniería de Software"},
-    {"codigo": "DWB115", "nombre": "Diseño Web y Aplicaciones", "uv": 4, "ciclo": 6, "area": "Desarrollo de Software"},
-    {"codigo": "ARC115", "nombre": "Arquitectura de Computadoras", "uv": 4, "ciclo": 6, "area": "Hardware y Redes"},
-    {"codigo": "IAI115", "nombre": "Inteligencia Artificial", "uv": 4, "ciclo": 7, "area": "Ciencia de Datos e IA"},
-    {"codigo": "BIN115", "nombre": "Inteligencia de Negocios", "uv": 4, "ciclo": 8, "area": "Ciencia de Datos e IA"}
+    {"codigo": m.codigo, "nombre": m.nombre, "uv": m.uv, "ciclo": m.ciclo, "area": m.area}
+    for m in cat.ISI.materias
 ]
 
 PRERREQUISITOS_DATA = [
     # (Materia_Destino, Materia_Prerrequisito)
-    ("MAT215", "MAT115"),
-    ("PRG215", "PRG115"),
-    ("MAT315", "MAT215"),
-    ("PRG315", "PRG215"),
-    ("BAD115", "PRG115"),
-    ("BAD215", "BAD115"),
-    ("ADS115", "PRG215"),
-    ("SIF115", "ADS115"),
-    ("SIF115", "BAD115"),
-    ("ADS215", "ADS115"),
-    ("DWB115", "PRG315"),
-    ("ARC115", "ACA115"),
-    ("IAI115", "PRG315"),
-    ("IAI115", "MAT315"),
-    ("BIN115", "BAD215"),
-    ("BIN115", "SIF115")
+    (m.codigo, requisito) for m in cat.ISI.materias for requisito in m.prerrequisitos
 ]
 
-def cargar_grafo():
+
+def cargar_grafo(reiniciar: bool = False) -> None:
+    if not NEO4J_PASSWORD:
+        sys.exit("ERROR: NEO4J_PASSWORD no está definida. Copia .env.example a .env y complétalo.")
     driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
-    
+
     with driver.session() as session:
-        print("[1/4] Creando restricciones...")
+        print("[1/5] Creando restricciones...")
         session.run("""
             CREATE CONSTRAINT uq_materia_codigo IF NOT EXISTS
             FOR (m:Materia) REQUIRE m.codigo IS UNIQUE;
         """)
 
-        print("[2/4] Sembrando nodos de materias...")
+        if reiniciar:
+            print("[2/5] Quitando lo que no está en el plan...")
+            session.run("MATCH (m:Materia) WHERE NOT m.codigo IN $codigos DETACH DELETE m",
+                        codigos=[m["codigo"] for m in MATERIAS_DATA])
+            session.run("MATCH ()-[r:REQUIERE_APROBADA]->() DELETE r")
+        else:
+            print("[2/5] (sin --reiniciar: se conserva lo que ya había)")
+
+        print("[3/5] Sembrando nodos de materias...")
         session.run("""
             UNWIND $materias AS m
             MERGE (mat:Materia {codigo: m.codigo})
@@ -80,29 +75,35 @@ def cargar_grafo():
                 mat.area = m.area;
         """, materias=MATERIAS_DATA)
 
-        print("[3/4] Creando relaciones :REQUIERE_APROBADA...")
+        print("[4/5] Creando relaciones :REQUIERE_APROBADA...")
         session.run("""
             UNWIND $prerrequisitos AS p
             MATCH (origen:Materia {codigo: p[0]})
             MATCH (requisito:Materia {codigo: p[1]})
             MERGE (origen)-[:REQUIERE_APROBADA]->(requisito);
-        """, prerrequisitos=PRERREQUISITOS_DATA)
+        """, prerrequisitos=[list(p) for p in PRERREQUISITOS_DATA])
 
-        print("[4/4] Verificando métricas del grafo...")
+        print("[5/5] Verificando métricas del grafo...")
         result = session.run("""
-            MATCH (n:Materia) 
-            OPTIONAL MATCH (n)<-[r:REQUIERE_APROBADA]-() 
+            MATCH (n:Materia)
+            OPTIONAL MATCH (n)<-[r:REQUIERE_APROBADA]-()
             RETURN count(DISTINCT n) AS total_materias, count(r) AS total_dependencias;
         """).single()
-        
-        print(f"\nGrafo cargado exitosamente:")
+
+        print("\nGrafo cargado exitosamente:")
         print(f" - Total Asignaturas (Nodos): {result['total_materias']}")
         print(f" - Total Relaciones de Dependencia: {result['total_dependencias']}")
 
     driver.close()
 
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Carga la malla de Sistemas Informáticos en Neo4j.")
+    parser.add_argument("--reiniciar", action="store_true",
+                        help="deja el grafo igual al plan (borra lo que no esté en él)")
+    argumentos = parser.parse_args()
     try:
-        cargar_grafo()
+        cargar_grafo(argumentos.reiniciar)
     except Exception as e:
         print(f"Error al conectar o ejecutar en Neo4j: {e}", file=sys.stderr)
+        sys.exit(1)

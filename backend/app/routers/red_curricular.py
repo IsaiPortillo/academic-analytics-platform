@@ -67,6 +67,8 @@ def red_curricular(
     # El diagnóstico mira el historial: por defecto, todos los períodos.
     codigos = periodos["codigo_periodo"].tolist()
     sel_periodos = (periodo,) if periodo in codigos else ()
+    # La red es la de las carreras que tienen malla en el grafo; las demás no tienen qué dibujar.
+    carreras = carreras[carreras["codigo_carrera"].isin(set(materias["codigo_carrera"]))]
     departamentos = (carreras[["codigo_departamento", "nombre_departamento"]]
                      .drop_duplicates().to_dict("records"))
     if departamento not in {d["codigo_departamento"] for d in departamentos}:

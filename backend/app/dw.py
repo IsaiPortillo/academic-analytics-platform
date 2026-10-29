@@ -369,13 +369,20 @@ def estudiantes_con_patron(filtros: Filtros, limite: int = 50) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def malla() -> pd.DataFrame:
-    """Nodos de la malla con las métricas de grafo calculadas en Neo4j."""
+    """Nodos de la malla con las métricas de grafo calculadas en Neo4j.
+
+    Solo las materias que están en el grafo: la malla de Neo4j es la de una carrera
+    (Ingeniería de Sistemas Informáticos); las materias de las demás carreras están en el
+    almacén para el resto del análisis, pero no tienen red que dibujar."""
     return _leer("""
-        SELECT codigo_materia, nombre_materia, ciclo_plan, unidades_valorativas, area,
-               en_grafo, dependientes_directos, dependientes_indirectos,
-               dependientes_totales, longitud_cascada, indice_bloqueo, es_cuello_botella
-        FROM dw_academico.dim_materia
-        ORDER BY ciclo_plan, codigo_materia
+        SELECT m.codigo_materia, m.nombre_materia, m.ciclo_plan, m.unidades_valorativas, m.area,
+               m.en_grafo, m.dependientes_directos, m.dependientes_indirectos,
+               m.dependientes_totales, m.longitud_cascada, m.indice_bloqueo, m.es_cuello_botella,
+               c.codigo_carrera
+        FROM dw_academico.dim_materia m
+        JOIN dw_academico.dim_carrera c ON c.carrera_key = m.carrera_key
+        WHERE m.en_grafo
+        ORDER BY m.ciclo_plan, m.codigo_materia
     """)
 
 

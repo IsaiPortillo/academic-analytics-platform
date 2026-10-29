@@ -1,337 +1,243 @@
 """
 UNIVERSIDAD DE EL SALVADOR - FACULTAD MULTIDISCIPLINARIA ORIENTAL
 ESPECIALIZACIÓN EN BD & BI 2026
-FASE 1 - PUNTO 1.2: GENERACIÓN DE DATOS SINTÉTICOS REALISTAS (OLTP)
+FASE 1 - PUNTO 1.2: GENERACIÓN DE DATOS SINTÉTICOS (OLTP)
+
+Puebla la base operacional con datos que se parecen a los de la FMO-UES: ocho
+departamentos, doce carreras con su plan de estudios, docentes, estudiantes que
+avanzan por su plan, secciones por ciclo, evaluaciones (un parcial corto por módulo en
+la mayoría), notas y asistencia. Dos ciclos al año y cuatro módulos dentro de cada uno.
+Todo es sintético: ningún dato corresponde a una persona real. Ver catalogo_ues.py (qué
+es público y qué es inventado) y simulacion_ues.py (cómo se simula).
+
+Uso (desde la raíz del proyecto, con el .env completo):
+
+    python scripts/generator/02_generador_datos_sinteticos.py                 # base vacía
+    python scripts/generator/02_generador_datos_sinteticos.py --reiniciar     # reemplaza lo anterior
+
+--reiniciar borra lo transaccional (estudiantes, secciones, evaluaciones, inscripciones,
+notas, asistencia) y lo vuelve a generar. Conserva los catálogos que ya existían (los
+docentes DOC-101 a DOC-120, con sus cuentas de usuario, y las materias del plan de
+Sistemas), las cuentas de usuario, los costos y las bitácoras de auditoría. Después hay
+que recargar el almacén de datos (python -m etl.carga) y, si cambió la malla, el grafo
+(python database/nosql/03_cargar_grafo_neo4j.py --reiniciar).
 """
 
-import hashlib
+import argparse
 import os
 import random
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, time
 from pathlib import Path
+
 import psycopg2
-from psycopg2.extras import execute_values
-from faker import Faker
 from dotenv import load_dotenv
-import numpy as np
+from psycopg2.extras import execute_values
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import catalogo_ues as cat  # noqa: E402
+import simulacion_ues as sim  # noqa: E402
 
 # Credenciales desde el archivo .env de la raíz del proyecto (ver .env.example)
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
-DB_CONFIG = {
-    "dbname": os.getenv("POSTGRES_DB", "academico_db"),
-    "user": os.getenv("POSTGRES_USER", "postgres"),
-    "password": os.getenv("POSTGRES_PASSWORD"),
-    "host": os.getenv("POSTGRES_HOST", "localhost"),
-    "port": int(os.getenv("POSTGRES_PORT", 5432))
-}
+SEMILLA = 42
+TABLAS_TRANSACCIONALES = ("calificaciones", "asistencias", "inscripciones", "evaluaciones", "secciones")
 
-if not DB_CONFIG["password"]:
-    sys.exit("ERROR: POSTGRES_PASSWORD no está definida. Copia .env.example a .env y complétalo.")
 
-fake = Faker('es_ES')
-random.seed(42)
-np.random.seed(42)
+def configuracion() -> dict:
+    return {
+        "dbname": os.getenv("POSTGRES_DB", "academico_db"),
+        "user": os.getenv("POSTGRES_USER", "postgres"),
+        "password": os.getenv("POSTGRES_PASSWORD"),
+        "host": os.getenv("POSTGRES_HOST", "localhost"),
+        "port": int(os.getenv("POSTGRES_PORT", 5432)),
+    }
 
-# Parámetros de volumen
-NUM_ESTUDIANTES = 1500
-ANIO_INICIAL = 2022
-ANIO_FINAL = 2025
 
-def get_connection():
-    conn = psycopg2.connect(**DB_CONFIG)
-    conn.autocommit = False
-    return conn
+def preparar_catalogos(cur) -> dict:
+    """Departamentos, carreras, materias, docentes y períodos. Idempotente: actualiza lo que ya
+    existía y agrega lo que falta. Devuelve los identificadores que necesita la carga."""
+    print("[1/5] Catálogos: departamentos, carreras, materias, docentes y ciclos...")
+    execute_values(cur, """INSERT INTO academico_oltp.departamentos (codigo_departamento, nombre) VALUES %s
+                           ON CONFLICT (codigo_departamento) DO UPDATE SET nombre = EXCLUDED.nombre""",
+                   cat.DEPARTAMENTOS)
+    cur.execute("SELECT codigo_departamento, departamento_id FROM academico_oltp.departamentos")
+    depto_id = dict(cur.fetchall())
 
-def generar_datos_base(cursor):
-    print("[1/5] Insertando Departamentos, Carreras y Materias...")
-    
-    # 1. Departamentos
-    deptos = [
-        ('DIA', 'Departamento de Ingeniería y Arquitectura'),
-        ('DCE', 'Departamento de Ciencias Económicas'),
-        ('DCN', 'Departamento de Ciencias Naturales y Matemática')
-    ]
-    execute_values(
-        cursor,
-        "INSERT INTO academico_oltp.departamentos (codigo_departamento, nombre) VALUES %s ON CONFLICT DO NOTHING;",
-        deptos
-    )
-    
-    cursor.execute("SELECT departamento_id FROM academico_oltp.departamentos WHERE codigo_departamento = 'DIA'")
-    depto_dia_id = cursor.fetchone()[0]
+    execute_values(cur, """INSERT INTO academico_oltp.carreras
+                               (codigo_carrera, nombre, departamento_id, plan_anio, total_uv_carrera) VALUES %s
+                           ON CONFLICT (codigo_carrera) DO UPDATE SET
+                               nombre = EXCLUDED.nombre, departamento_id = EXCLUDED.departamento_id,
+                               plan_anio = EXCLUDED.plan_anio, total_uv_carrera = EXCLUDED.total_uv_carrera,
+                               activo = TRUE""",
+                   [(c.codigo, c.nombre, depto_id[c.departamento], c.plan_anio, c.total_uv) for c in cat.CARRERAS])
+    cur.execute("SELECT codigo_carrera, carrera_id FROM academico_oltp.carreras")
+    carrera_id = dict(cur.fetchall())
 
-    # 2. Carrera de referencia
-    cursor.execute("""
-        INSERT INTO academico_oltp.carreras (codigo_carrera, nombre, departamento_id, plan_anio, total_uv_carrera)
-        VALUES ('I10515', 'Ingeniería de Sistemas Informáticos', %s, 2020, 175)
-        ON CONFLICT (codigo_carrera) DO UPDATE SET nombre = EXCLUDED.nombre
-        RETURNING carrera_id;
-    """, (depto_dia_id,))
-    carrera_id = cursor.fetchone()[0]
+    execute_values(cur, """INSERT INTO academico_oltp.materias
+                               (codigo_materia, nombre, unidades_valorativas, ciclo_plan, carrera_id) VALUES %s
+                           ON CONFLICT (codigo_materia) DO UPDATE SET
+                               nombre = EXCLUDED.nombre, unidades_valorativas = EXCLUDED.unidades_valorativas,
+                               ciclo_plan = EXCLUDED.ciclo_plan, carrera_id = EXCLUDED.carrera_id, activo = TRUE""",
+                   [(m.codigo, m.nombre, m.uv, m.ciclo, carrera_id[c.codigo]) for c in cat.CARRERAS for m in c.materias])
+    cur.execute("SELECT codigo_materia, materia_id FROM academico_oltp.materias")
+    materia_id = dict(cur.fetchall())
 
-    # 3. Materias del Pensum (Tronco principal para grafo posterior en Neo4j)
-    materias = [
-        # (codigo, nombre, uv, ciclo_plan, carrera_id)
-        ('MAT115', 'Matemática I', 4, 1, carrera_id),
-        ('PRG115', 'Programación I', 4, 1, carrera_id),
-        ('ACA115', 'Álgebra Vectorial y Matrices', 4, 1, carrera_id),
-        ('MAT215', 'Matemática II', 4, 2, carrera_id),
-        ('PRG215', 'Programación II', 4, 2, carrera_id),
-        ('BAD115', 'Bases de Datos I', 4, 3, carrera_id),
-        ('PRG315', 'Programación III', 4, 3, carrera_id),
-        ('MAT315', 'Matemática III', 4, 3, carrera_id),
-        ('BAD215', 'Bases de Datos II', 4, 4, carrera_id),
-        ('ADS115', 'Análisis y Diseño de Sistemas I', 4, 4, carrera_id),
-        ('SIF115', 'Sistemas de Información', 4, 5, carrera_id),
-        ('ADS215', 'Análisis y Diseño de Sistemas II', 4, 5, carrera_id),
-        ('DWB115', 'Diseño Web y Aplicaciones', 4, 6, carrera_id),
-        ('ARC115', 'Arquitectura de Computadoras', 4, 6, carrera_id),
-        ('IAI115', 'Inteligencia Artificial', 4, 7, carrera_id),
-        ('BIN115', 'Inteligencia de Negocios', 4, 8, carrera_id)
-    ]
-    execute_values(
-        cursor,
-        """INSERT INTO academico_oltp.materias (codigo_materia, nombre, unidades_valorativas, ciclo_plan, carrera_id)
-           VALUES %s ON CONFLICT (codigo_materia) DO NOTHING;""",
-        materias
-    )
+    rng = random.Random(SEMILLA)
+    docentes = []
+    for departamento, codigos in sim.numeracion_de_docentes().items():
+        for codigo in codigos:
+            escalafon = rng.choices(cat.ESCALAFONES, weights=cat.PESO_ESCALAFON)[0]
+            docentes.append((codigo, escalafon, depto_id[departamento]))
+    # Los que ya existen se dejan como están (hay cuentas ligadas a ellos).
+    execute_values(cur, """INSERT INTO academico_oltp.docentes (codigo_docente, escalafon, departamento_id) VALUES %s
+                           ON CONFLICT (codigo_docente) DO NOTHING""", docentes)
+    cur.execute("SELECT codigo_docente, docente_id FROM academico_oltp.docentes")
+    docente_id = dict(cur.fetchall())
 
-    # 4. Docentes
-    docentes = [
-        (f"DOC-{100 + i}", random.choice(['TITULAR', 'ADJUNTO', 'AUXILIAR', 'HORA CLASE']), depto_dia_id)
-        for i in range(1, 21)
-    ]
-    execute_values(
-        cursor,
-        """INSERT INTO academico_oltp.docentes (codigo_docente, escalafon, departamento_id)
-           VALUES %s ON CONFLICT (codigo_docente) DO NOTHING;""",
-        docentes
-    )
+    periodos = cat.periodos(cat.ANIO_INICIAL, cat.ANIO_FINAL)
+    execute_values(cur, """INSERT INTO academico_oltp.periodos_academicos
+                               (codigo_periodo, anio, ciclo_romano, fecha_inicio, fecha_fin, activo) VALUES %s
+                           ON CONFLICT (codigo_periodo) DO UPDATE SET
+                               fecha_inicio = EXCLUDED.fecha_inicio, fecha_fin = EXCLUDED.fecha_fin""",
+                   [(codigo, anio, ciclo, inicio, fin, False) for codigo, anio, ciclo, inicio, fin in periodos])
+    cur.execute("UPDATE academico_oltp.periodos_academicos SET activo = (codigo_periodo = %s)", (cat.CICLO_VIGENTE,))
+    cur.execute("SELECT codigo_periodo, periodo_id FROM academico_oltp.periodos_academicos")
+    periodo_id = dict(cur.fetchall())
+    # Los ciclos nuevos reciben el mismo supuesto de costo que los demás (script 08): el
+    # costo por UV real se registra en Costos institucionales.
+    cur.execute("""INSERT INTO academico_oltp.costos_uv (periodo_id, costo_por_uv, moneda, fuente)
+                   SELECT p.periodo_id, 25.00, 'USD',
+                          'SUPUESTO PARAMETRICO - pendiente de sustituir por cifra presupuestaria oficial'
+                   FROM academico_oltp.periodos_academicos p ON CONFLICT (periodo_id) DO NOTHING""")
+    return {"carrera": carrera_id, "materia": materia_id, "docente": docente_id, "periodo": periodo_id}
 
-    # 5. Periodos Académicos
-    periodos = []
-    for anio in range(ANIO_INICIAL, ANIO_FINAL + 1):
-        periodos.append((f"{anio}-I", anio, 'I', date(anio, 2, 1), date(anio, 6, 25), False))
-        periodos.append((f"{anio}-II", anio, 'II', date(anio, 8, 1), date(anio, 12, 15), False))
-    execute_values(
-        cursor,
-        """INSERT INTO academico_oltp.periodos_academicos 
-           (codigo_periodo, anio, ciclo_romano, fecha_inicio, fecha_fin, activo)
-           VALUES %s ON CONFLICT (codigo_periodo) DO NOTHING;""",
-        periodos
-    )
 
-    return carrera_id
+def hay_datos(cur) -> bool:
+    cur.execute("SELECT EXISTS (SELECT 1 FROM academico_oltp.estudiantes) OR "
+                "EXISTS (SELECT 1 FROM academico_oltp.inscripciones)")
+    return cur.fetchone()[0]
 
-def generar_estudiantes(cursor, carrera_id):
-    print(f"[2/5] Generando {NUM_ESTUDIANTES} estudiantes con carnet anonimizado (SHA-256)...")
-    estudiantes = []
-    for i in range(1, NUM_ESTUDIANTES + 1):
-        raw_carnet = f"US{random.randint(20, 25)}{i:05d}"
-        carnet_hash = hashlib.sha256(raw_carnet.encode()).hexdigest()
-        anio_ing = random.choice([2021, 2022, 2023, 2024])
-        trabaja = random.random() < 0.28  # 28% de probabilidad de trabajar
-        condicion = random.choices(
-            ['REGULAR', 'CONDICIONAL', 'RETIRADO'],
-            weights=[0.82, 0.13, 0.05],
-            k=1
-        )[0]
-        estudiantes.append((carnet_hash, anio_ing, carrera_id, trabaja, condicion, True))
 
-    execute_values(
-        cursor,
-        """INSERT INTO academico_oltp.estudiantes 
-           (carnet_hash, anio_ingreso, carrera_id, trabaja, condicion_academica, activo)
-           VALUES %s ON CONFLICT (carnet_hash) DO NOTHING;""",
-        estudiantes
-    )
+def apagar_disparadores(cur) -> None:
+    """Se apagan los disparadores de usuario (bitácora de notas, bloqueo de actas, ponderación)
+    mientras dura la carga: no son cambios de personas, llenarían la bitácora y las actas cerradas
+    rechazarían sus propias evaluaciones. Se vuelven a encender al final, en la misma transacción."""
+    for tabla in TABLAS_TRANSACCIONALES:
+        cur.execute(f"ALTER TABLE academico_oltp.{tabla} DISABLE TRIGGER USER")
 
-def generar_secciones_y_evaluaciones(cursor):
-    print("[3/5] Ofertando Secciones y configurando Evaluaciones ponderadas...")
-    cursor.execute("SELECT materia_id FROM academico_oltp.materias WHERE activo = TRUE")
-    materia_ids = [r[0] for r in cursor.fetchall()]
 
-    cursor.execute("SELECT docente_id FROM academico_oltp.docentes WHERE activo = TRUE")
-    docente_ids = [r[0] for r in cursor.fetchall()]
+def reiniciar(cur) -> None:
+    """Borra lo transaccional (con los disparadores ya apagados)."""
+    print("      Borrando datos transaccionales anteriores...")
+    for tabla in (*TABLAS_TRANSACCIONALES, "estudiantes"):
+        cur.execute(f"DELETE FROM academico_oltp.{tabla}")
 
-    cursor.execute("SELECT periodo_id, fecha_inicio FROM academico_oltp.periodos_academicos")
-    periodos = cursor.fetchall()
 
-    secciones_params = []
-    for periodo_id, _ in periodos:
-        for mat_id in materia_ids:
-            num_secciones = random.choices([1, 2, 3], weights=[0.6, 0.3, 0.1])[0]
-            for sec_num in range(1, num_secciones + 1):
-                doc_id = random.choice(docente_ids)
-                turno = random.choice(['MATUTINO', 'VESPERTINO', 'NOCTURNO'])
-                aula = f"Lab-C{random.randint(1, 4)}" if 'PRG' in str(mat_id) else f"Edif-B{random.randint(101, 205)}"
-                secciones_params.append((mat_id, doc_id, periodo_id, sec_num, turno, aula, 45))
+def _ids(cur, tabla: str, columna: str, cantidad: int) -> list[int]:
+    if not cantidad:
+        return []
+    cur.execute(f"SELECT nextval(pg_get_serial_sequence('academico_oltp.{tabla}', '{columna}')) "
+                "FROM generate_series(1, %s)", (cantidad,))
+    return sorted(r[0] for r in cur.fetchall())
 
-    execute_values(
-        cursor,
-        """INSERT INTO academico_oltp.secciones 
-           (materia_id, docente_id, periodo_id, numero_seccion, turno, aula, cupo_maximo)
-           VALUES %s ON CONFLICT DO NOTHING;""",
-        secciones_params
-    )
 
-    # Evaluaciones estándar por sección (Exactamente 100% de ponderación)
-    cursor.execute("""
-        SELECT s.seccion_id, s.periodo_id 
-        FROM academico_oltp.secciones s
-        LEFT JOIN academico_oltp.evaluaciones e ON s.seccion_id = e.seccion_id
-        WHERE e.evaluacion_id IS NULL
-    """)
-    secciones = cursor.fetchall()
+def _a_hora(dia: date, hora: int = 9) -> datetime:
+    return datetime.combine(dia, time(hora, 0))
 
-    eval_params = []
-    for sec_id, _ in secciones:
-        base_dias = date(2023, 3, 1)  # Referencial
-        eval_params.extend([
-            (sec_id, 'Evaluación Parcial 1', 25.00, base_dias + timedelta(days=30)),
-            (sec_id, 'Laboratorio Práctico 1', 20.00, base_dias + timedelta(days=50)),
-            (sec_id, 'Evaluación Parcial 2', 25.00, base_dias + timedelta(days=80)),
-            (sec_id, 'Proyecto Integrador Final', 30.00, base_dias + timedelta(days=110))
-        ])
 
-    execute_values(
-        cursor,
-        """INSERT INTO academico_oltp.evaluaciones (seccion_id, nombre_evaluacion, porcentaje, fecha_evaluacion)
-           VALUES %s;""",
-        eval_params
-    )
+def cargar(cur, r: dict, ids: dict, hoy: date) -> None:
+    print(f"[2/5] Estudiantes ({len(r['estudiantes']):,}) con carnet anonimizado...")
+    id_estudiante = _ids(cur, "estudiantes", "estudiante_id", len(r["estudiantes"]))
+    execute_values(cur, """INSERT INTO academico_oltp.estudiantes
+                               (estudiante_id, carnet_hash, anio_ingreso, carrera_id, trabaja, condicion_academica, activo)
+                           VALUES %s""",
+                   [(id_estudiante[i], e["hash"], e["anio_ingreso"], ids["carrera"][e["carrera"]], e["trabaja"],
+                     e["condicion"], e["activo"]) for i, e in enumerate(r["estudiantes"])], page_size=5000)
 
-def generar_matricula_y_calificaciones(cursor):
-    print("[4/5] Simulando inscripciones masivas y calificaciones...")
-    cursor.execute("SELECT estudiante_id, trabaja FROM academico_oltp.estudiantes")
-    estudiantes = cursor.fetchall()
+    print(f"[3/5] Secciones ({len(r['secciones']):,}) y evaluaciones ({len(r['evaluaciones']):,})...")
+    id_seccion = _ids(cur, "secciones", "seccion_id", len(r["secciones"]))
+    execute_values(cur, """INSERT INTO academico_oltp.secciones
+                               (seccion_id, materia_id, docente_id, periodo_id, numero_seccion, turno, aula, cupo_maximo,
+                                acta_cerrada) VALUES %s""",
+                   [(id_seccion[i], ids["materia"][s["materia"]], ids["docente"][s["docente"]],
+                     ids["periodo"][s["periodo"]], s["numero"], s["turno"], s["aula"], s["cupo"], s["cerrada"])
+                    for i, s in enumerate(r["secciones"])], page_size=5000)
+    id_evaluacion = _ids(cur, "evaluaciones", "evaluacion_id", len(r["evaluaciones"]))
+    execute_values(cur, """INSERT INTO academico_oltp.evaluaciones
+                               (evaluacion_id, seccion_id, nombre_evaluacion, porcentaje, fecha_evaluacion) VALUES %s""",
+                   [(id_evaluacion[i], id_seccion[s], nombre, porcentaje, fecha)
+                    for i, (s, nombre, porcentaje, fecha) in enumerate(r["evaluaciones"])], page_size=5000)
 
-    cursor.execute("SELECT periodo_id FROM academico_oltp.periodos_academicos ORDER BY anio, ciclo_romano")
-    periodo_ids = [r[0] for r in cursor.fetchall()]
+    print(f"[4/5] Inscripciones ({len(r['inscripciones']):,}) y calificaciones ({len(r['calificaciones']):,})...")
+    id_inscripcion = _ids(cur, "inscripciones", "inscripcion_id", len(r["inscripciones"]))
+    execute_values(cur, """INSERT INTO academico_oltp.inscripciones
+                               (inscripcion_id, estudiante_id, seccion_id, fecha_inscripcion, numero_intento,
+                                estado_inscripcion, motivo_retiro, fecha_retiro) VALUES %s""",
+                   [(id_inscripcion[i], id_estudiante[x["estudiante"]], id_seccion[x["seccion"]],
+                     _a_hora(x["fecha_inscripcion"]), x["intento"], x["estado"], x["motivo"],
+                     _a_hora(x["fecha_retiro"]) if x["fecha_retiro"] else None)
+                    for i, x in enumerate(r["inscripciones"])], page_size=5000)
+    fechas = [e[3] for e in r["evaluaciones"]]
+    execute_values(cur, """INSERT INTO academico_oltp.calificaciones (inscripcion_id, evaluacion_id, nota, fecha_registro)
+                           VALUES %s""",
+                   [(id_inscripcion[i], id_evaluacion[e], nota, _a_hora(min(fechas[e], hoy), 15))
+                    for i, e, nota in r["calificaciones"]], page_size=10000)
 
-    for per_id in periodo_ids:
-        cursor.execute("SELECT seccion_id FROM academico_oltp.secciones WHERE periodo_id = %s", (per_id,))
-        secciones_disponibles = [r[0] for r in cursor.fetchall()]
-        if not secciones_disponibles:
-            continue
+    print(f"[5/5] Asistencia ({len(r['asistencias']):,} registros)...")
+    execute_values(cur, """INSERT INTO academico_oltp.asistencias (inscripcion_id, fecha_sesion, estado_asistencia)
+                           VALUES %s""",
+                   [(id_inscripcion[i], dia, estado) for i, dia, estado in r["asistencias"]], page_size=10000)
 
-        inscripciones_batch = []
-        # Seleccionar subconjunto de estudiantes activos en este ciclo
-        estudiantes_ciclo = random.sample(estudiantes, k=int(len(estudiantes) * 0.75))
 
-        for est_id, trabaja in estudiantes_ciclo:
-            # Si trabaja, suele inscribir menos materias
-            carga = random.randint(2, 4) if trabaja else random.randint(4, 5)
-            carga = min(carga, len(secciones_disponibles))
-            sec_elegidas = random.sample(secciones_disponibles, k=carga)
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Genera los datos de prueba de la FMO-UES.")
+    parser.add_argument("--reiniciar", action="store_true", help="borra y regenera lo transaccional")
+    parser.add_argument("--hoy", type=date.fromisoformat, default=date.today(),
+                        help="fecha de referencia (AAAA-MM-DD): lo posterior no tiene notas ni asistencia")
+    args = parser.parse_args()
 
-            for sec_id in sec_elegidas:
-                intento = random.choices([1, 2, 3], weights=[0.85, 0.12, 0.03])[0]
-                estado = random.choices(['INSCRITO', 'FINALIZADO', 'RETIRADO'], weights=[0.05, 0.90, 0.05])[0]
-                inscripciones_batch.append((est_id, sec_id, intento, estado))
+    config = configuracion()
+    if not config["password"]:
+        sys.exit("ERROR: POSTGRES_PASSWORD no está definida. Copia .env.example a .env y complétalo.")
 
-        execute_values(
-            cursor,
-            """INSERT INTO academico_oltp.inscripciones (estudiante_id, seccion_id, numero_intento, estado_inscripcion)
-               VALUES %s ON CONFLICT (estudiante_id, seccion_id) DO NOTHING;""",
-            inscripciones_batch
-        )
-
-    # Inserción de notas y asistencias sobre las inscripciones generadas
-    print("[5/5] Generando registros de calificaciones y sesiones de asistencia...")
-    cursor.execute("""
-        SELECT i.inscripcion_id, e.evaluacion_id, est.trabaja, i.numero_intento
-        FROM academico_oltp.inscripciones i
-        JOIN academico_oltp.secciones s ON i.seccion_id = s.seccion_id
-        JOIN academico_oltp.evaluaciones e ON s.seccion_id = e.seccion_id
-        JOIN academico_oltp.estudiantes est ON i.estudiante_id = est.estudiante_id
-        WHERE i.estado_inscripcion = 'FINALIZADO';
-    """)
-    registros_eval = cursor.fetchall()
-
-    calificaciones_batch = []
-    for insc_id, eval_id, trabaja, intento in registros_eval:
-        # Generación realista con distribución Beta/Normal centrada en el sistema salvadoreño (0 a 10)
-        # Media de aprobación = 6.0
-        media = 6.8
-        if trabaja:
-            media -= 0.6  # Penalización promedio por restricciones de tiempo
-        if intento > 1:
-            media -= 0.4
-
-        nota_raw = np.random.normal(loc=media, scale=1.7)
-        nota = float(np.clip(round(nota_raw, 2), 0.00, 10.00))
-        calificaciones_batch.append((insc_id, eval_id, nota))
-
-        # Inserción en bloques de 15,000 para optimizar el búfer de psycopg2
-        if len(calificaciones_batch) >= 15000:
-            execute_values(
-                cursor,
-                """INSERT INTO academico_oltp.calificaciones (inscripcion_id, evaluacion_id, nota)
-                   VALUES %s ON CONFLICT DO NOTHING;""",
-                calificaciones_batch
-            )
-            calificaciones_batch.clear()
-
-    if calificaciones_batch:
-        execute_values(
-            cursor,
-            """INSERT INTO academico_oltp.calificaciones (inscripcion_id, evaluacion_id, nota)
-               VALUES %s ON CONFLICT DO NOTHING;""",
-            calificaciones_batch
-        )
-
-    # Inserción de asistencias sintéticas
-    cursor.execute("""
-        SELECT inscripcion_id, estado_inscripcion 
-        FROM academico_oltp.inscripciones 
-        WHERE estado_inscripcion = 'FINALIZADO' LIMIT 12000;
-    """)
-    inscripciones_asist = cursor.fetchall()
-    
-    asistencias_batch = []
-    fecha_base = date(2024, 2, 15)
-    for insc_id, _ in inscripciones_asist:
-        # 10 sesiones representativas por ciclo
-        for dia in range(1, 11):
-            fecha_sesion = fecha_base + timedelta(days=dia * 7)
-            estado = random.choices(['PRESENTE', 'AUSENTE', 'JUSTIFICADO'], weights=[0.82, 0.14, 0.04])[0]
-            asistencias_batch.append((insc_id, fecha_sesion, estado))
-
-    execute_values(
-        cursor,
-        """INSERT INTO academico_oltp.asistencias (inscripcion_id, fecha_sesion, estado_asistencia)
-           VALUES %s ON CONFLICT DO NOTHING;""",
-        asistencias_batch
-    )
-
-def main():
-    conn = get_connection()
+    conexion = psycopg2.connect(**config)
+    conexion.autocommit = False
     try:
-        with conn.cursor() as cur:
-            carrera_id = generar_datos_base(cur)
-            generar_estudiantes(cur, carrera_id)
-            generar_secciones_y_evaluaciones(cur)
-            generar_matricula_y_calificaciones(cur)
-            
-            conn.commit()
-            print("\n Población completada con éxito:")
-            cur.execute("SELECT COUNT(*) FROM academico_oltp.estudiantes;")
-            print(f" - Estudiantes: {cur.fetchone()[0]:,}")
-            cur.execute("SELECT COUNT(*) FROM academico_oltp.inscripciones;")
-            print(f" - Inscripciones: {cur.fetchone()[0]:,}")
-            cur.execute("SELECT COUNT(*) FROM academico_oltp.calificaciones;")
-            print(f" - Calificaciones: {cur.fetchone()[0]:,}")
-            cur.execute("SELECT COUNT(*) FROM academico_oltp.asistencias;")
-            print(f" - Registros de Asistencia: {cur.fetchone()[0]:,}")
-    except Exception as e:
-        conn.rollback()
-        print(f"\n Error durante la ejecución del script: {e}")
+        with conexion.cursor() as cur:
+            if hay_datos(cur) and not args.reiniciar:
+                sys.exit("La base ya tiene estudiantes e inscripciones. Para reemplazarlos con datos nuevos "
+                         "usa --reiniciar (borra solo lo transaccional).")
+            ids = preparar_catalogos(cur)
+            apagar_disparadores(cur)
+            if args.reiniciar:
+                reiniciar(cur)
+            resultado = sim.simular(args.hoy, SEMILLA, os.getenv("CARNET_CLAVE") or None)
+            cargar(cur, resultado, ids, args.hoy)
+            for tabla in TABLAS_TRANSACCIONALES:
+                cur.execute(f"ALTER TABLE academico_oltp.{tabla} ENABLE TRIGGER USER")
+            for tabla in (*TABLAS_TRANSACCIONALES, "estudiantes", "materias", "docentes"):
+                cur.execute(f"ANALYZE academico_oltp.{tabla}")
+        conexion.commit()
+        with conexion.cursor() as cur:
+            print("\nPoblación completada. En la base:")
+            for etiqueta, tabla in (("Departamentos", "departamentos"), ("Carreras", "carreras"), ("Materias", "materias"),
+                                    ("Docentes", "docentes"), ("Estudiantes", "estudiantes"),
+                                    ("Secciones", "secciones"), ("Evaluaciones", "evaluaciones"),
+                                    ("Inscripciones", "inscripciones"), ("Calificaciones", "calificaciones"),
+                                    ("Asistencias", "asistencias")):
+                cur.execute(f"SELECT COUNT(*) FROM academico_oltp.{tabla}")
+                print(f" - {etiqueta}: {cur.fetchone()[0]:,}")
+        print("\nSiguiente: recarga el almacén (python -m etl.carga) y, si cambió la malla, el grafo "
+              "(python database/nosql/03_cargar_grafo_neo4j.py --reiniciar).")
+    except Exception as exc:
+        conexion.rollback()
+        print(f"\nError durante la ejecución del script: {exc}")
         raise
     finally:
-        conn.close()
+        conexion.close()
+
 
 if __name__ == "__main__":
     main()
