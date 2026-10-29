@@ -126,7 +126,7 @@ def listar(
     total_catalogo = db.scalar(select(func.count()).select_from(catalogo.modelo))
     paginas = max(ceil(total / seleccion.por_pagina), 1)
     pagina = min(seleccion.pagina, paginas)
-    registros = db.scalars(consulta.order_by(*fl.clausulas_de_orden(catalogo, seleccion))
+    registros = db.scalars(consulta.order_by(*fl.clausulas_de_orden(catalogo, seleccion, fl.colacion(db)))
                            .offset((pagina - 1) * seleccion.por_pagina).limit(seleccion.por_pagina)).all()
     columnas, filas = _tabla(db, catalogo, registros)
     base = f"/admin/{slug}"
@@ -158,7 +158,7 @@ def exportar(request: Request, slug: str, usuario: UsuarioSesion = Depends(COORD
     catalogo = _catalogo(slug)
     seleccion = fl.leer(catalogo, request.query_params, _por_defecto(db, catalogo))
     consulta = _consulta_filtrada(db, catalogo, seleccion)
-    registros = db.scalars(consulta.order_by(*fl.clausulas_de_orden(catalogo, seleccion))
+    registros = db.scalars(consulta.order_by(*fl.clausulas_de_orden(catalogo, seleccion, fl.colacion(db)))
                            .limit(LIMITE_EXPORTACION)).all()
     columnas, filas = _tabla(db, catalogo, registros)
     salida = io.StringIO()

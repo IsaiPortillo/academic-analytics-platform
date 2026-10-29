@@ -126,6 +126,37 @@ class TestOrden(unittest.TestCase):
         self.assertEqual(self._orden(ESTUDIANTES, orden="id", dir="desc")[0], "estudiantes.estudiante_id DESC")
 
 
+class TestOrdenConAcentos(unittest.TestCase):
+    def setUp(self):
+        fl._colacion_disponible = None
+        self.addCleanup(setattr, fl, "_colacion_disponible", None)
+
+    def test_el_texto_se_ordena_con_la_colacion_en_espanol_para_que_alvebra_no_quede_despues_de_zoologia(self):
+        seleccion = fl.leer(MATERIAS, {"orden": "nombre"})
+        sql = str(fl.clausulas_de_orden(MATERIAS, seleccion, "es-x-icu")[0].compile(compile_kwargs={"literal_binds": True}))
+        self.assertIn('COLLATE "es-x-icu"', sql)
+
+    def test_los_numeros_no_llevan_colacion(self):
+        seleccion = fl.leer(MATERIAS, {"orden": "unidades_valorativas"})
+        sql = str(fl.clausulas_de_orden(MATERIAS, seleccion, "es-x-icu")[0].compile(compile_kwargs={"literal_binds": True}))
+        self.assertNotIn("COLLATE", sql)
+
+    def test_sin_colacion_se_ordena_como_siempre(self):
+        seleccion = fl.leer(MATERIAS, {"orden": "nombre"})
+        sql = str(fl.clausulas_de_orden(MATERIAS, seleccion)[0].compile(compile_kwargs={"literal_binds": True}))
+        self.assertNotIn("COLLATE", sql)
+
+    def test_la_colacion_solo_se_usa_si_la_base_la_tiene_y_se_consulta_una_vez(self):
+        db = mock.Mock()
+        db.scalar.return_value = True
+        self.assertEqual(fl.colacion(db), "es-x-icu")
+        self.assertEqual(fl.colacion(db), "es-x-icu")
+        self.assertEqual(db.scalar.call_count, 1)
+        fl._colacion_disponible = None
+        db.scalar.return_value = False
+        self.assertIsNone(fl.colacion(db))
+
+
 class TestEnlaces(unittest.TestCase):
     def test_la_url_conserva_lo_pedido_y_permite_quitar_o_cambiar(self):
         s = fl.leer(MATERIAS, {"buscar": "mat", "carrera_id": "3", "orden": "nombre", "dir": "desc", "por_pagina": "100"})
