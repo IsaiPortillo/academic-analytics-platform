@@ -37,6 +37,7 @@
 <body>
 
 {% if usuario %}
+{% from "_macros.html" import iniciales %}
 {% set modulos_operativos = [
     ("/matricula", "Matrícula & Prerrequisitos", "matricula", usuario.es_coordinador),
     ("/calificaciones", "Portal Docente & Notas", "calificaciones", true),
@@ -74,10 +75,13 @@
             </div>
 
             {# Solo cajón (< 1024px): ahí la barra superior no tiene lugar para el nombre. #}
-            <div class="sidebar-user">
-                <div class="sidebar-user-name">{{ usuario.nombre_completo }}</div>
-                <span class="badge-role">{{ usuario.rol_legible }}</span>
-            </div>
+            <a class="sidebar-user" href="/cuenta">
+                <span class="avatar" aria-hidden="true">{{ iniciales(usuario.nombre_completo) }}</span>
+                <span class="sidebar-user-texto">
+                    <span class="sidebar-user-name">{{ usuario.nombre_completo }}</span>
+                    <span class="badge-role">{{ usuario.rol_legible }}</span>
+                </span>
+            </a>
 
             <div class="sidebar-section-label">Inteligencia institucional</div>
             {% for href, etiqueta, clave, visible in modulos_inteligencia %}
@@ -142,12 +146,6 @@
             {% endfor %}
             {% endif %}
         </div>
-
-        <div class="sidebar-footer">
-            <span class="telemetry-badge"><span class="dot"></span>PostgreSQL 17 · OLTP</span>
-            <span class="telemetry-badge"><span class="dot"></span>Neo4j GraphDB</span>
-            <span class="telemetry-badge" style="color: var(--color-muted);">Docker Compose · dev</span>
-        </div>
     </aside>
 
     <div class="app-main">
@@ -157,10 +155,6 @@
                     <path fill-rule="evenodd" clip-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm1 4a1 1 0 100 2h12a1 1 0 100-2H4z" />
                 </svg>
             </button>
-
-            <span class="telemetry-badge">
-                <span class="dot"></span>SET LOCAL ROLE: {{ usuario.rol_db }}
-            </span>
 
             <div style="flex:1;"></div>
 
@@ -173,11 +167,14 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M17 11.5A7 7 0 018.5 3a7 7 0 108.5 8.5z" />
                 </svg>
             </button>
-            <span class="text-sm" style="color: var(--color-muted);">
-                {{ usuario.nombre_completo }}
-                <span class="badge-role ml-1">{{ usuario.rol_legible }}</span>
-            </span>
-            <a href="/cuenta/contrasena" class="btn-nav-action">Mi contraseña</a>
+            <a href="/cuenta" class="topbar-cuenta{% if request.url.path.startswith('/cuenta') %} is-active{% endif %}"
+               aria-label="Mi cuenta: {{ usuario.nombre_completo }}, {{ usuario.rol_legible }}">
+                <span class="avatar" aria-hidden="true">{{ iniciales(usuario.nombre_completo) }}</span>
+                <span class="topbar-cuenta-texto">
+                    <span class="topbar-cuenta-nombre">{{ usuario.nombre_completo }}</span>
+                    <span class="topbar-cuenta-rol">{{ usuario.rol_legible }}</span>
+                </span>
+            </a>
             <form method="post" action="/logout" class="contents">
                 {{ csrf_campo() }}
                 <button type="submit" class="btn-nav-action">Salir</button>

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avisos, iniciales %}
+{% block titulo %}Mi cuenta{% endblock %}
+
+{% block contenido %}
+<div class="cuenta">
+    <div class="mb-4">
+        <h1 class="page-title">Mi cuenta</h1>
+        <p class="text-sm text-muted mt-1">Tus datos, tu contraseña y cómo ves el sistema.</p>
+    </div>
+
+    {{ avisos(ok, error) }}
+    {% if obligatorio %}
+    <div class="alert alert-warning mb-3" role="status">
+        <span>Estás usando una contraseña temporal. Cámbiala para seguir usando el sistema.</span>
+    </div>
+    {% endif %}
+
+    <div class="cuenta-grid">
+        <aside class="card cuenta-resumen" aria-label="Resumen de la cuenta">
+            <div class="card-body">
+                <div class="cuenta-avatar" aria-hidden="true">{{ iniciales(usuario.nombre_completo) }}</div>
+                <p class="cuenta-nombre">{{ usuario.nombre_completo }}</p>
+                <span class="badge-role">{{ usuario.rol_legible }}</span>
+
+                <dl class="cuenta-datos">
+                    <div><dt>Usuario</dt><dd>{{ usuario.username }}</dd></div>
+                    {% if docente %}
+                    <div><dt>Código de docente</dt><dd>{{ docente.codigo_docente }}</dd></div>
+                    {% endif %}
+                    <div><dt>Último acceso</dt><dd>{{ ultimo_acceso or "—" }}</dd></div>
+                    <div><dt>Contraseña cambiada</dt><dd>{{ password_cambiado or "Nunca desde que se creó" }}</dd></div>
+                    <div><dt>Cuenta creada</dt><dd>{{ creada or "—" }}</dd></div>
+                </dl>
+
+                <p class="cuenta-nota">
+                    Por seguridad la sesión se cierra tras {{ inactividad_minutos }} minutos sin actividad,
+                    o a las {{ duracion_horas }} horas aunque la uses.
+                </p>
+            </div>
+        </aside>
+
+        <div class="cuenta-pila">
+            <section class="card" aria-labelledby="t-perfil">
+                <div class="card-header"><h2 id="t-perfil">Datos personales</h2></div>
+                <div class="card-body">
+                    <form method="post" action="/cuenta/perfil" class="grid gap-3" data-lock-on-submit="Guardando…">
+                        {{ csrf_campo() }}
+                        <div>
+                            <label class="field-label" for="nombre_completo">Nombre completo</label>
+                            <input class="input" type="text" id="nombre_completo" name="nombre_completo" required
+                                   value="{{ usuario.nombre_completo }}" minlength="{{ largo_nombre[0] }}"
+                                   maxlength="{{ largo_nombre[1] }}" autocomplete="name">
+                            <p class="text-xs text-muted mt-1">Así te ven en la barra superior y en el resto del sistema.</p>
+                        </div>
+                        <p class="text-xs text-muted">Tu usuario y tu rol los administra la coordinación académica.</p>
+                        <div><button type="submit" class="btn-save">Guardar cambios</button></div>
+                    </form>
+                </div>
+            </section>
+
+            <section class="card{% if obligatorio %} card-pending{% endif %}" id="contrasena" aria-labelledby="t-clave">
+                <div class="card-header"><h2 id="t-clave">Contraseña</h2></div>
+                <div class="card-body">
+                    <form method="post" action="/cuenta/contrasena" class="grid gap-3" data-lock-on-submit="Guardando…">
+                        {{ csrf_campo() }}
+                        <input type="text" name="username" value="{{ usuario.username }}" autocomplete="username" hidden>
+                        <div>
+                            <label class="field-label" for="actual">Contraseña actual</label>
+                            <input class="input" type="password" id="actual" name="actual" required autocomplete="current-password">
+                        </div>
+                        <div class="cuenta-par">
+                            <div>
+                                <label class="field-label" for="nueva">Nueva contraseña</label>
+                                <input class="input" type="password" id="nueva" name="nueva" required
+                                       minlength="{{ longitud_minima }}" autocomplete="new-password" aria-describedby="regla-clave">
+                            </div>
+                            <div>
+                                <label class="field-label" for="confirmar">Repite la nueva contraseña</label>
+                                <input class="input" type="password" id="confirmar" name="confirmar" required
+                                       minlength="{{ longitud_minima }}" autocomplete="new-password">
+                            </div>
+                        </div>
+                        <p class="text-xs text-muted" id="regla-clave">
+                            Al menos {{ longitud_minima }} caracteres, con letras y números, sin tu nombre de usuario.
+                            Al cambiarla se cierran las demás sesiones abiertas.
+                        </p>
+                        <div><button type="submit" class="btn-save">Cambiar contraseña</button></div>
+                    </form>
+                </div>
+            </section>
+
+            <section class="card" aria-labelledby="t-tema">
+                <div class="card-header"><h2 id="t-tema">Apariencia</h2></div>
+                <div class="card-body">
+                    <div class="seg" role="group" aria-labelledby="t-tema" data-tema-opciones>
+                        <button type="button" class="seg-opcion" data-tema="auto" aria-pressed="true">Automático</button>
+                        <button type="button" class="seg-opcion" data-tema="light" aria-pressed="false">Claro</button>
+                        <button type="button" class="seg-opcion" data-tema="dark" aria-pressed="false">Oscuro</button>
+                    </div>
+                    <p class="text-xs text-muted mt-2">Automático sigue el modo de tu dispositivo. Se guarda solo en este navegador.</p>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}

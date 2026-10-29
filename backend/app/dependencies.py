@@ -31,7 +31,7 @@ CLAVE_ACTIVIDAD = "ultima_actividad"
 CLAVE_HUELLA = "huella"
 CLAVE_CAMBIO_OBLIGATORIO = "debe_cambiar_password"
 # Rutas permitidas mientras la contraseña temporal no se haya cambiado.
-RUTAS_SIN_CAMBIO = ("/cuenta/contrasena", "/logout")
+RUTAS_SIN_CAMBIO = ("/cuenta", "/cuenta/contrasena", "/cuenta/perfil", "/logout")
 
 
 def huella_password(password_hash: str) -> str:
@@ -105,7 +105,7 @@ def usuario_actual(request: Request) -> UsuarioSesion:
         raise HTTPException(
             status_code=status.HTTP_303_SEE_OTHER,
             detail="Cambio de contraseña requerido",
-            headers={"Location": "/cuenta/contrasena"},
+            headers={"Location": "/cuenta"},
         )
     return usuario
 

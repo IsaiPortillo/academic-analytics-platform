@@ -146,7 +146,7 @@ def procesar_login(
     db.execute(text("SELECT academico_oltp.registrar_acceso(:u)"), {"u": usuario.usuario_id})
     if usuario.debe_cambiar_password:
         request.session[CLAVE_CAMBIO_OBLIGATORIO] = True
-        return RedirectResponse("/cuenta/contrasena", status_code=303)
+        return RedirectResponse("/cuenta", status_code=303)
 
     return RedirectResponse(destino, status_code=303)
 

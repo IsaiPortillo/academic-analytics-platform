@@ -45,7 +45,7 @@ def _verificar(peticion):
 FORM = {"content-type": "application/x-www-form-urlencoded"}
 
 RUTAS_POST = [
-    "/login", "/logout", "/cuenta/contrasena",
+    "/login", "/logout", "/cuenta/contrasena", "/cuenta/perfil",
     "/matricula/inscribir", "/matricula/retirar/1", "/matricula/importar", "/matricula/importar/confirmar",
     "/calificaciones/evaluaciones", "/calificaciones/registrar", "/calificaciones/evaluaciones/1/editar",
     "/calificaciones/evaluaciones/1/eliminar", "/calificaciones/importar", "/calificaciones/importar/confirmar",
@@ -280,7 +280,7 @@ class TestLoginConLimite(unittest.TestCase):
         db.scalar.return_value = usuario
         sesion = {}
         r = auth.procesar_login(_request_login(sesion=sesion), "beto", "Temporal2026x", "/asistencia", db)
-        self.assertEqual(r.headers["location"], "/cuenta/contrasena")
+        self.assertEqual(r.headers["location"], "/cuenta")
         self.assertTrue(sesion["debe_cambiar_password"])
 
 
