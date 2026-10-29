@@ -1681,6 +1681,61 @@
     }
   }
 
+  /* Filtros de las listas de Catálogos */
+  .filtros-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 0.75rem;
+    align-items: end;
+  }
+  .filtro-buscar {
+    grid-column: 1 / -1;
+  }
+  @media (min-width: 900px) {
+    .filtro-buscar {
+      grid-column: span 2;
+    }
+  }
+  .filtros-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.875rem;
+  }
+  .lista-resumen {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .th-orden {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: inherit;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .th-orden:hover,
+  .th-orden.is-activa {
+    color: var(--color-brand);
+  }
+  .th-flecha {
+    font-size: 0.625rem;
+    opacity: 0.45;
+  }
+  .th-orden.is-activa .th-flecha {
+    opacity: 1;
+  }
+  .paginador {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    border-top: 1px solid var(--color-border);
+  }
+
   /* Diálogo de confirmación (reemplaza el confirm() del navegador). */
   .dialogo {
     width: min(26rem, calc(100vw - 2rem));

@@ -723,6 +723,14 @@ document.querySelectorAll("form[data-confirmar-sobrescritura]").forEach((formula
   }, true);
 });
 
+// Filtros que se aplican al elegir: un formulario con data-filtrar-al-cambiar se envía cuando
+// cambia uno de sus selectores (el campo de búsqueda sigue necesitando Enter o «Aplicar»).
+document.querySelectorAll("form[data-filtrar-al-cambiar]").forEach((formulario) => {
+  formulario.addEventListener("change", (evento) => {
+    if (evento.target.tagName === "SELECT") formulario.requestSubmit();
+  });
+});
+
 // Candado de doble clic genérico — deshabilita cualquier submit marcado
 // data-lock-on-submit apenas se envía, para que una escritura no idempotente
 // (crear evaluación, registrar asistencia) no viaje dos veces por un doble
