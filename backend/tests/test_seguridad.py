@@ -54,6 +54,7 @@ RUTAS_POST = [
     "/costos/recargar", "/costos/1",
     "/usuarios", "/usuarios/1/editar", "/usuarios/1/estado", "/usuarios/1/restablecer",
     "/admin/materias/nuevo", "/admin/materias/1", "/admin/materias/1/eliminar",
+    "/admin/materias/importar", "/admin/materias/importar/confirmar",
     "/admin/malla/agregar", "/admin/malla/quitar", "/admin/malla/sincronizar",
     "/admin/metas/tasa_reprobacion", "/almacen/validar",
 ]

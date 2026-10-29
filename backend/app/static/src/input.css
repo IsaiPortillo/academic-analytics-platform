@@ -1623,6 +1623,64 @@
     font-weight: 800;
   }
 
+  /* Costos: una tarjeta por período, con los campos apilados en teléfono y en una
+     sola fila cuando el contenedor es ancho. */
+  .costo-lista {
+    display: grid;
+    padding-block: 0.25rem;
+  }
+  .costo-fila {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.75rem;
+    padding-block: 1.125rem;
+    border-top: 1px solid var(--color-border);
+  }
+  .costo-fila:first-child {
+    border-top: 0;
+  }
+  .costo-cabeza {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .costo-periodo {
+    font-family: var(--font-display);
+    font-size: 1.0625rem;
+    font-weight: 800;
+  }
+  .costo-fuente,
+  .costo-accion {
+    grid-column: 1 / -1;
+  }
+  .costo-accion .btn-save {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+  @container (min-width: 46rem) {
+    .costo-fila {
+      grid-template-columns: 7rem 7rem 6rem minmax(0, 1fr) auto;
+      align-items: end;
+    }
+    .costo-cabeza {
+      grid-column: auto;
+      align-self: center;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.25rem;
+    }
+    .costo-fuente,
+    .costo-accion {
+      grid-column: auto;
+    }
+    .costo-accion .btn-save {
+      width: auto;
+      min-height: 0;
+    }
+  }
+
   /* Diálogo de confirmación (reemplaza el confirm() del navegador). */
   .dialogo {
     width: min(26rem, calc(100vw - 2rem));
@@ -2309,13 +2367,38 @@
   .login-pane {
     padding: 2rem;
   }
+  .login-cabecera {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.625rem;
+    margin-bottom: 1.5rem;
+  }
+  .login-cabecera .topbar-brand {
+    flex-direction: column;
+    gap: 0.625rem;
+    font-size: 1.25rem;
+  }
+  .login-cabecera .topbar-brand-mark {
+    width: 3rem;
+    height: 3rem;
+    border-radius: var(--radius-md);
+  }
+  .login-institucion {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--color-muted);
+  }
   @media (max-width: 639px) {
+    /* Centrada también en vertical, con un poco más de aire abajo para que el
+       teclado del teléfono no la tape de golpe. */
     .login-shell {
-      padding: 0.75rem;
-      align-items: flex-start;
+      padding: 1rem 1rem 3.5rem;
+      padding-bottom: max(3.5rem, env(safe-area-inset-bottom));
     }
     .login-pane {
-      padding: 1.25rem;
+      padding: 1.5rem 1.25rem;
     }
   }
 

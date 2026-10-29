@@ -38,69 +38,41 @@
 
 <div class="card">
     <div class="card-header">Período académico</div>
-    <div class="card-body">
-        <div class="table-wrap">
-            <table class="table table-stack">
-                <thead>
-                    <tr>
-                        <th>Período</th>
-                        <th>Costo por UV</th>
-                        <th>Moneda</th>
-                        <th>Fuente de la cifra</th>
-                        <th class="text-right">Guardar</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for fila in filas %}
-                    {% set p = fila.periodo %}
-                    {% set c = fila.costo %}
-                    <tr>
-                        <form method="post" action="/costos/{{ p.periodo_id }}">
-                            <td class="cell-title" data-label="Período">
-                                {{ csrf_campo() }}
-                                {{ p.codigo_periodo }}
-                                {% if p.activo %}<span class="badge-success">activo</span>{% endif %}
-                            </td>
-                            <td data-label="Costo por UV">
-                                <label class="sr-only" for="costo-{{ p.periodo_id }}">
-                                    Costo por unidad valorativa en {{ p.codigo_periodo }}
-                                </label>
-                                <input class="input" type="number" step="0.01" min="0.01"
-                                       id="costo-{{ p.periodo_id }}" name="costo_por_uv" required
-                                       value="{{ '%.2f'|format(c.costo_por_uv) if c else '' }}"
-                                       placeholder="0.00">
-                            </td>
-                            <td data-label="Moneda">
-                                <label class="sr-only" for="moneda-{{ p.periodo_id }}">Moneda</label>
-                                <select class="select" id="moneda-{{ p.periodo_id }}" name="moneda">
-                                    {% for m in monedas %}
-                                    <option value="{{ m }}" {% if c and c.moneda == m %}selected{% endif %}>{{ m }}</option>
-                                    {% endfor %}
-                                </select>
-                            </td>
-                            <td data-label="Fuente">
-                                <label class="sr-only" for="fuente-{{ p.periodo_id }}">
-                                    Fuente de la cifra para {{ p.codigo_periodo }}
-                                </label>
-                                <input class="input" type="text" id="fuente-{{ p.periodo_id }}"
-                                       name="fuente" required maxlength="200"
-                                       value="{{ c.fuente if c else '' }}"
-                                       placeholder="Acuerdo presupuestario, documento y año">
-                                {% if fila.es_supuesto %}
-                                <span class="badge-warning">supuesto</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-right cell-actions" data-label="">
-                                <button type="submit" class="btn-save">
-                                    {{ 'Actualizar' if c else 'Registrar' }}
-                                </button>
-                            </td>
-                        </form>
-                    </tr>
+    <div class="card-body costo-lista">
+        {% for fila in filas %}
+        {% set p = fila.periodo %}
+        {% set c = fila.costo %}
+        <form method="post" action="/costos/{{ p.periodo_id }}" class="costo-fila" data-lock-on-submit="Guardando…">
+            {{ csrf_campo() }}
+            <div class="costo-cabeza">
+                <span class="costo-periodo">{{ p.codigo_periodo }}</span>
+                {% if p.activo %}<span class="badge-success">activo</span>{% endif %}
+                {% if fila.es_supuesto %}<span class="badge-warning">supuesto</span>{% endif %}
+            </div>
+            <div class="costo-uv">
+                <label class="field-label" for="costo-{{ p.periodo_id }}">Costo por UV</label>
+                <input class="input" type="number" step="0.01" min="0.01" inputmode="decimal"
+                       id="costo-{{ p.periodo_id }}" name="costo_por_uv" required
+                       value="{{ '%.2f'|format(c.costo_por_uv) if c else '' }}" placeholder="0.00">
+            </div>
+            <div class="costo-moneda">
+                <label class="field-label" for="moneda-{{ p.periodo_id }}">Moneda</label>
+                <select class="select" id="moneda-{{ p.periodo_id }}" name="moneda">
+                    {% for m in monedas %}
+                    <option value="{{ m }}" {% if c and c.moneda == m %}selected{% endif %}>{{ m }}</option>
                     {% endfor %}
-                </tbody>
-            </table>
-        </div>
+                </select>
+            </div>
+            <div class="costo-fuente">
+                <label class="field-label" for="fuente-{{ p.periodo_id }}">Fuente de la cifra</label>
+                <input class="input" type="text" id="fuente-{{ p.periodo_id }}" name="fuente" required maxlength="200"
+                       value="{{ c.fuente if c else '' }}" placeholder="Acuerdo presupuestario, documento y año">
+            </div>
+            <div class="costo-accion">
+                <button type="submit" class="btn-save">{{ 'Actualizar' if c else 'Registrar' }}</button>
+            </div>
+        </form>
+        {% endfor %}
     </div>
 </div>
 

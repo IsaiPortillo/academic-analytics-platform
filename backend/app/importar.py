@@ -134,14 +134,17 @@ def vacio(valor: Any) -> bool:
 
 
 def plantilla_xlsx(titulo: str, instrucciones: str, cabeceras: list[str], filas: list[list[Any]],
-                   validaciones: Optional[dict[int, tuple]] = None, anchos: Optional[list[int]] = None) -> bytes:
+                   validaciones: Optional[dict[int, tuple]] = None, anchos: Optional[list[int]] = None,
+                   hojas_extra: Optional[dict[str, list[list[Any]]]] = None) -> bytes:
     """Plantilla para llenar y volver a subir.
 
     Fila 1 título, fila 2 instrucciones, fila 4 cabecera, datos desde la 5. La
     columna A (el identificador) va en gris: el sistema la usa para ubicar cada
     fila y no se debe cambiar. `validaciones` restringe lo que Excel deja
     escribir en una columna: {índice: ("decimal", mínimo, máximo)} o
-    {índice: ("lista", [valores])}.
+    {índice: ("lista", [valores])}. `hojas_extra` agrega hojas de consulta
+    ({nombre: filas}, la primera fila es la cabecera): guía de campos, códigos
+    válidos… El sistema solo lee la primera hoja.
     """
     from openpyxl import Workbook  # noqa: PLC0415
     from openpyxl.styles import Border, Font, PatternFill, Side  # noqa: PLC0415
@@ -186,6 +189,18 @@ def plantilla_xlsx(titulo: str, instrucciones: str, cabeceras: list[str], filas:
         dv.showErrorMessage = True
         hoja.add_data_validation(dv)
         dv.add(f"{letra}{fila_cabecera + 1}:{letra}{ultima + 200}")
+
+    for nombre, contenido in (hojas_extra or {}).items():
+        consulta = libro.create_sheet(nombre[:31])
+        for i, fila in enumerate(contenido, start=1):
+            for j, valor in enumerate(fila, start=1):
+                celda = consulta.cell(row=i, column=j, value=valor)
+                if i == 1:
+                    celda.font = Font(bold=True)
+                    celda.border = borde
+        for j in range(1, max((len(f) for f in contenido), default=1) + 1):
+            largo = max((len(str(f[j - 1])) for f in contenido if len(f) >= j and f[j - 1] is not None), default=10)
+            consulta.column_dimensions[get_column_letter(j)].width = min(max(largo + 2, 12), 60)
 
     salida = io.BytesIO()
     libro.save(salida)
