@@ -3,9 +3,17 @@
 Cada catálogo declara qué se puede filtrar (departamento, carrera, ciclo del plan, turno,
 condición…). De ahí salen los selectores de la pantalla, la lectura segura de la URL y la
 consulta: un valor que no corresponde a ninguna opción se ignora (no rompe nada ni se
-interpola en el SQL: siempre va como parámetro). Los filtros que dependen de otra tabla
-(por ejemplo el departamento de una materia, que viene de su carrera) se escriben como
-subconsulta y no como unión, así se pueden combinar en cualquier orden.
+interpola en el SQL: siempre va como parámetro).
+
+Filtros en cascada: las opciones de cada selector son solo las que existen en los registros
+que dejan los DEMÁS filtros (y la búsqueda), con cuántos hay de cada una. Elegir un
+departamento deja en «Carrera» solo las carreras de ese departamento; elegir una carrera
+deja en «Departamento» el suyo; elegir un turno deja en «Docente» a quienes dan clases en ese
+turno. Si cambiar un filtro deja sin sentido a otro ya elegido (la carrera de otro
+departamento), ese se quita y se avisa.
+
+Cada filtro es una expresión SQL por registro: una columna, o una subconsulta cuando el dato
+vive en otra tabla (el departamento de una materia viene de su carrera).
 """
 
 from __future__ import annotations
@@ -14,7 +22,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Optional
 from urllib.parse import urlencode
 
-from sqlalchemy import collate, select, text
+from sqlalchemy import collate, func, literal_column, select, text
 from sqlalchemy.orm import Session
 
 from .catalogos import CARRERAS, DEPARTAMENTOS, DOCENTES, PERIODOS, Catalogo
@@ -23,6 +31,7 @@ from .models import Carrera, Docente, Estudiante, Materia, PeriodoAcademico, Sec
 POR_PAGINA_OPCIONES = (25, 50, 100, 200)
 POR_PAGINA = 50
 SI_NO = (("1", "Sí"), ("0", "No"))
+MAX_PASADAS = 4
 
 
 @dataclass(frozen=True)
@@ -30,30 +39,26 @@ class Filtro:
     nombre: str                                   # parámetro de la URL
     etiqueta: str
     tipo: str                                     # fk | valores | opcion | bool
-    columna: Any = None                           # columna del modelo (si el filtro es directo)
-    sub: Optional[Callable[[int], Any]] = None    # condición ya armada (si depende de otra tabla)
+    expresion: Any = None                         # columna o subconsulta escalar por registro
     valores: tuple = ()                           # tipo opcion: los permitidos
     cargar: Optional[Callable[[Session], list]] = None   # tipo fk: [(id, texto)]
 
 
-def _carreras_del_departamento(departamento_id: int):
-    return select(Carrera.carrera_id).where(Carrera.departamento_id == departamento_id)
+def _departamento_de(columna_carrera):
+    return select(Carrera.departamento_id).where(Carrera.carrera_id == columna_carrera).scalar_subquery()
 
 
-def _departamento(columna_carrera):
-    return lambda valor: columna_carrera.in_(_carreras_del_departamento(valor))
+def _depto_de_la_materia(columna_materia):
+    return (select(Carrera.departamento_id).join(Materia, Materia.carrera_id == Carrera.carrera_id)
+            .where(Materia.materia_id == columna_materia).scalar_subquery())
 
 
-def _materias_de_carrera(carrera_id: int):
-    return select(Materia.materia_id).where(Materia.carrera_id == carrera_id)
+def _carrera_de_la_materia(columna_materia):
+    return select(Materia.carrera_id).where(Materia.materia_id == columna_materia).scalar_subquery()
 
 
-def _materias_del_departamento(departamento_id: int):
-    return select(Materia.materia_id).where(Materia.carrera_id.in_(_carreras_del_departamento(departamento_id)))
-
-
-def _depto(columna=None, sub=None):
-    return Filtro("departamento_id", "Departamento", "fk", columna=columna, sub=sub, cargar=DEPARTAMENTOS)
+def _depto(expresion):
+    return Filtro("departamento_id", "Departamento", "fk", expresion, cargar=DEPARTAMENTOS)
 
 
 def _activo(columna, etiqueta="Activo"):
@@ -68,14 +73,13 @@ FILTROS: dict[str, tuple[Filtro, ...]] = {
     ),
     "secciones": (
         Filtro("periodo_id", "Período", "fk", Seccion.periodo_id, cargar=PERIODOS),
-        _depto(sub=lambda v: Seccion.materia_id.in_(_materias_del_departamento(v))),
-        Filtro("carrera_id", "Carrera", "fk", sub=lambda v: Seccion.materia_id.in_(_materias_de_carrera(v)),
-               cargar=CARRERAS),
+        _depto(_depto_de_la_materia(Seccion.materia_id)),
+        Filtro("carrera_id", "Carrera", "fk", _carrera_de_la_materia(Seccion.materia_id), cargar=CARRERAS),
         Filtro("docente_id", "Docente", "fk", Seccion.docente_id, cargar=DOCENTES),
         Filtro("turno", "Turno", "opcion", Seccion.turno, valores=("MATUTINO", "VESPERTINO", "NOCTURNO")),
     ),
     "materias": (
-        _depto(sub=_departamento(Materia.carrera_id)),
+        _depto(_departamento_de(Materia.carrera_id)),
         Filtro("carrera_id", "Carrera", "fk", Materia.carrera_id, cargar=CARRERAS),
         Filtro("ciclo_plan", "Ciclo del plan", "valores", Materia.ciclo_plan),
         _activo(Materia.activo),
@@ -87,7 +91,7 @@ FILTROS: dict[str, tuple[Filtro, ...]] = {
         _activo(Docente.activo),
     ),
     "estudiantes": (
-        _depto(sub=_departamento(Estudiante.carrera_id)),
+        _depto(_departamento_de(Estudiante.carrera_id)),
         Filtro("carrera_id", "Carrera", "fk", Estudiante.carrera_id, cargar=CARRERAS),
         Filtro("anio_ingreso", "Año de ingreso", "valores", Estudiante.anio_ingreso),
         Filtro("condicion_academica", "Condición", "opcion", Estudiante.condicion_academica,
@@ -107,17 +111,15 @@ def filtros_de(catalogo: Catalogo) -> tuple[Filtro, ...]:
     return FILTROS.get(catalogo.slug, ())
 
 
-def opciones(db: Session, filtro: Filtro) -> list[tuple[str, str]]:
-    """[(valor para la URL, texto)] de un filtro. Para «valores» se leen los que de verdad existen."""
+def _etiquetas(db: Session, filtro: Filtro) -> dict[str, str]:
+    """valor de la URL -> texto, de TODAS las opciones posibles (sin mirar los demás filtros)."""
     if filtro.tipo == "fk":
-        return [(str(i), texto) for i, texto in filtro.cargar(db)]
-    if filtro.tipo == "valores":
-        columna = filtro.columna
-        return [(str(v), str(v)) for v in db.scalars(select(columna).distinct().order_by(columna)).all()
-                if v is not None]
+        return {str(i): texto for i, texto in filtro.cargar(db)}
     if filtro.tipo == "bool":
-        return list(SI_NO)
-    return [(v, v.capitalize()) for v in filtro.valores]
+        return dict(SI_NO)
+    if filtro.tipo == "opcion":
+        return {v: v.capitalize() for v in filtro.valores}
+    return {}
 
 
 def condicion(filtro: Filtro, crudo: str):
@@ -126,13 +128,10 @@ def condicion(filtro: Filtro, crudo: str):
     if not crudo:
         return None
     if filtro.tipo in ("fk", "valores"):
-        if not crudo.lstrip("-").isdigit():
-            return None
-        numero = int(crudo)
-        return filtro.sub(numero) if filtro.sub else filtro.columna == numero
+        return filtro.expresion == int(crudo) if crudo.lstrip("-").isdigit() else None
     if filtro.tipo == "bool":
-        return filtro.columna.is_(True) if crudo == "1" else filtro.columna.is_(False) if crudo == "0" else None
-    return filtro.columna == crudo if crudo in filtro.valores else None
+        return filtro.expresion.is_(True) if crudo == "1" else filtro.expresion.is_(False) if crudo == "0" else None
+    return filtro.expresion == crudo if crudo in filtro.valores else None
 
 
 @dataclass
@@ -180,6 +179,59 @@ def aplicar(consulta, catalogo: Catalogo, seleccion: Seleccion):
         if crudo is not None:
             consulta = consulta.where(condicion(filtro, crudo))
     return consulta
+
+
+def contar_por_valor(db: Session, catalogo: Catalogo, filtro: Filtro, seleccion: "Seleccion", busqueda) -> dict[str, int]:
+    """Cuántos registros hay de cada valor de `filtro` entre los que cumplen la búsqueda y todos los
+    DEMÁS filtros (el propio no cuenta: así se ven las alternativas, no solo lo ya elegido)."""
+    valor = filtro.expresion.label("valor")
+    consulta = select(valor, func.count().label("n")).select_from(catalogo.modelo)
+    if busqueda is not None:
+        consulta = consulta.where(busqueda)
+    for otro in filtros_de(catalogo):
+        crudo = seleccion.filtros.get(otro.nombre)
+        if otro.nombre != filtro.nombre and crudo is not None:
+            consulta = consulta.where(condicion(otro, crudo))
+    return {(str(v) if not isinstance(v, bool) else ("1" if v else "0")): n
+            for v, n in db.execute(consulta.group_by(literal_column("valor"))).all() if v is not None}
+
+
+def reconciliar(db: Session, catalogo: Catalogo, seleccion: "Seleccion", busqueda=None, *,
+                contar=contar_por_valor) -> list[str]:
+    """Quita de la selección los filtros que ya no tienen ningún registro con los demás (la carrera de otro
+    departamento, tras cambiar el departamento). Devuelve las etiquetas de los que quitó.
+
+    Si dos filtros chocan se quita el más específico: se revisan de atrás hacia adelante, y en cada catálogo
+    el orden va de lo general (departamento) a lo particular (carrera, docente, turno)."""
+    quitados: list[str] = []
+    for _ in range(MAX_PASADAS):
+        cambio = False
+        for filtro in reversed(filtros_de(catalogo)):
+            valor = seleccion.filtros.get(filtro.nombre)
+            if valor is not None and not contar(db, catalogo, filtro, seleccion, busqueda).get(valor):
+                del seleccion.filtros[filtro.nombre]
+                quitados.append(filtro.etiqueta)
+                cambio = True
+        if not cambio:
+            break
+    return quitados
+
+
+def facetas(db: Session, catalogo: Catalogo, seleccion: "Seleccion", busqueda=None, *,
+            contar=contar_por_valor) -> list[dict]:
+    """Los selectores de la pantalla: cada uno con sus opciones disponibles y cuántos registros trae cada una."""
+    resultado = []
+    for filtro in filtros_de(catalogo):
+        cuentas = contar(db, catalogo, filtro, seleccion, busqueda)
+        etiquetas = _etiquetas(db, filtro)
+        if filtro.tipo in ("fk", "bool", "opcion"):
+            orden = list(etiquetas)
+        else:
+            orden = sorted(cuentas, key=lambda v: int(v))
+        opciones = [(v, f"{etiquetas.get(v, v)} ({cuentas[v]:,})") for v in orden if cuentas.get(v)]
+        resultado.append({"nombre": filtro.nombre, "etiqueta": filtro.etiqueta, "opciones": opciones,
+                          "valor": seleccion.filtros.get(filtro.nombre, ""), "total": sum(cuentas.values())})
+    return resultado
 
 
 COLACION_ES = "es-x-icu"
@@ -244,7 +296,7 @@ def chips(db: Session, catalogo: Catalogo, seleccion: Seleccion, base: str, con_
         valor = seleccion.filtros.get(filtro.nombre)
         if valor is None:
             continue
-        texto = dict(opciones(db, filtro)).get(valor, valor)
+        texto = _etiquetas(db, filtro).get(valor, valor)
         consulta = consulta_url(seleccion, quitar=(filtro.nombre,))
         if filtro.nombre in con_defecto:
             consulta = (consulta + "&" if consulta else "") + f"{filtro.nombre}="
