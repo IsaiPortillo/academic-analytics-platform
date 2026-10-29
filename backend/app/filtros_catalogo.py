@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Optional
 from urllib.parse import urlencode
 
-from sqlalchemy import select
+from sqlalchemy import collate, select, text
 from sqlalchemy.orm import Session
 
 from .catalogos import CARRERAS, DEPARTAMENTOS, DOCENTES, PERIODOS, Catalogo
@@ -182,11 +182,28 @@ def aplicar(consulta, catalogo: Catalogo, seleccion: Seleccion):
     return consulta
 
 
-def clausulas_de_orden(catalogo: Catalogo, seleccion: Seleccion):
+COLACION_ES = "es-x-icu"
+_colacion_disponible: Optional[bool] = None
+
+
+def colacion(db: Session) -> Optional[str]:
+    """La colación en español de ICU, si la base la tiene. La base de datos ordena por bytes
+    (la imagen de PostgreSQL no trae la configuración regional): sin esto «Álgebra» queda después de
+    «Zoología». Se consulta una vez; si no existe, se ordena como siempre en vez de fallar."""
+    global _colacion_disponible
+    if _colacion_disponible is None:
+        _colacion_disponible = bool(db.scalar(
+            text("SELECT EXISTS (SELECT 1 FROM pg_collation WHERE collname = :c)"), {"c": COLACION_ES}))
+    return COLACION_ES if _colacion_disponible else None
+
+
+def clausulas_de_orden(catalogo: Catalogo, seleccion: Seleccion, colacion_texto: Optional[str] = None):
     if not seleccion.orden:
         return list(catalogo.orden)
     modelo = catalogo.modelo
     columna = modelo.__mapper__.primary_key[0] if seleccion.orden == "id" else getattr(modelo, seleccion.orden)
+    if colacion_texto and getattr(columna.type, "python_type", None) is str:
+        columna = collate(columna, colacion_texto)
     principal = columna.desc() if seleccion.descendente else columna.asc()
     return [principal, modelo.__mapper__.primary_key[0].asc()]
 
