@@ -9,7 +9,7 @@
         <h1 class="page-title">{{ catalogo.titulo }}</h1>
     </div>
     <div class="page-head-actions">
-        <a class="btn-save" href="/admin/{{ catalogo.slug }}/nuevo">Nuevo {{ catalogo.singular }}</a>
+        <a class="btn-save" href="/admin/{{ catalogo.slug }}/nuevo">{{ 'Nueva' if catalogo.femenino else 'Nuevo' }} {{ catalogo.singular }}</a>
     </div>
 </div>
 
@@ -36,6 +36,18 @@
             <button type="submit" class="btn-outline-neutral shrink-0">Buscar</button>
             {% if buscar %}<a class="btn-outline-neutral shrink-0" href="/admin/{{ catalogo.slug }}{{ '?periodo_id=' ~ periodo_id if periodo_id }}">Limpiar</a>{% endif %}
         </form>
+        <div class="toolbar mt-3 pt-3 border-t border-border">
+            <span class="text-sm font-semibold">Carga masiva</span>
+            <a class="btn-outline-neutral" href="/admin/{{ catalogo.slug }}/plantilla">Descargar plantilla</a>
+            <form method="post" action="/admin/{{ catalogo.slug }}/importar" enctype="multipart/form-data"
+                  class="toolbar-upload" data-lock-on-submit="Leyendo…">
+                {{ csrf_campo() }}
+                <label class="sr-only" for="archivo-carga">Archivo de {{ catalogo.titulo|lower }}</label>
+                <input type="file" id="archivo-carga" name="archivo" class="input-file" required
+                       accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv">
+                <button type="submit" class="btn-outline-neutral">Revisar archivo</button>
+            </form>
+        </div>
     </div>
 </div>
 

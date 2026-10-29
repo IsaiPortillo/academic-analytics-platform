@@ -7,20 +7,23 @@ son ON DELETE RESTRICT): un estudiante con inscripciones o una materia con
 secciones no se borra, se desactiva, y así el historial queda intacto.
 """
 
+from datetime import date
 from math import ceil
 from typing import Optional
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
+from .. import carga_catalogos as carga
 from ..avisos import redirigir, tomar_aviso
 from ..catalogos import (CATALOGOS, Catalogo, aplicar, hash_carnet, leer_formulario, valor_para_formulario,
                          valor_para_lista)
 from ..database import get_db
 from ..dependencies import UsuarioSesion, requiere_rol
+from ..importar import TIPO_XLSX, ErrorArchivo, leer_filas
 from ..models import Estudiante, PeriodoAcademico, Seccion
 from ..templating import templates
 
@@ -116,6 +119,79 @@ def listar(
         "buscar": texto, "periodos": periodos, "periodo_id": periodo_id,
         "consulta": urlencode(filtros),
     })
+
+
+# La carga masiva va antes de las rutas /{slug}/{registro_id}: «plantilla» e «importar» no son un id.
+
+@router.get("/{slug}/plantilla")
+def descargar_plantilla(slug: str, usuario: UsuarioSesion = Depends(COORDINADOR), db: Session = Depends(get_db)):
+    catalogo = _catalogo(slug)
+    return Response(carga.construir_plantilla(db, catalogo), media_type=TIPO_XLSX, headers={
+        "Content-Disposition": f'attachment; filename="plantilla_{catalogo.slug}.xlsx"',
+        "Cache-Control": "no-store"})
+
+
+def _mostrar(campo, texto: str, etiquetas_fk: dict) -> str:
+    if campo.nombre == "carnet":
+        return "Anonimizado"
+    if campo.tipo == "bool":
+        return "Sí" if texto == "on" else "No"
+    if campo.tipo == "fk" and texto:
+        return carga.codigo_de_referencia(etiquetas_fk.get(campo.nombre, {}).get(int(texto), texto))
+    if campo.tipo == "fecha" and texto:
+        return f"{date.fromisoformat(texto):%d/%m/%Y}"
+    return texto or "—"
+
+
+@router.post("/{slug}/importar")
+async def importar(request: Request, slug: str, archivo: UploadFile = File(...),
+                   usuario: UsuarioSesion = Depends(COORDINADOR), db: Session = Depends(get_db)):
+    catalogo = _catalogo(slug)
+    destino = f"/admin/{slug}"
+    try:
+        filas = await leer_filas(archivo)
+        existentes = carga.cargar_existentes(
+            db, catalogo, carga.carnets_del_archivo(filas) if catalogo.slug == "estudiantes" else None)
+        cambios, errores = carga.analizar(catalogo, filas, carga.cargar_refs(db, catalogo), existentes)
+    except ErrorArchivo as exc:
+        return redirigir(request, destino, error=str(exc))
+    etiquetas_fk = _etiquetas_fk(db, catalogo)
+    pendientes = [c for c in cambios if c.tipo != "igual"]
+    return templates.TemplateResponse(request, "modulos/importar_vista_previa.html", {
+        "usuario": usuario,
+        "titulo": f"Carga masiva · {catalogo.titulo}",
+        "subtitulo": f"{len(cambios):,} fila(s) leída(s)",
+        "archivo": archivo.filename,
+        "columnas": ["Fila"] + carga.cabeceras(catalogo) + ["Qué cambia"],
+        "filas": [(c.tipo, [c.fila] + [_mostrar(campo, c.formulario.get(campo.nombre, ""), etiquetas_fk)
+                                       for campo in catalogo.campos]
+                           + [", ".join(c.diferencias) if c.tipo == "cambio" else "—"]) for c in pendientes],
+        "conteo": {t: sum(1 for c in cambios if c.tipo == t) for t in ("nueva", "cambio", "igual")},
+        "etiquetas": {"nueva": "Se crean", "cambio": "Se actualizan", "igual": "Sin cambios"},
+        "errores": errores,
+        "accion": f"{destino}/importar/confirmar",
+        "ocultos": [("datos", carga.empaquetar(catalogo, cambios))],
+        "volver": destino,
+    })
+
+
+@router.post("/{slug}/importar/confirmar")
+def confirmar_importacion(request: Request, slug: str, datos: str = Form(...),
+                          usuario: UsuarioSesion = Depends(COORDINADOR), db: Session = Depends(get_db)):
+    catalogo = _catalogo(slug)
+    destino = f"/admin/{slug}"
+    try:
+        cambios = carga.leer_carga(catalogo, datos)
+        carga.aplicar_carga(db, catalogo, cambios)
+    except carga.ErrorCarga as exc:
+        return redirigir(request, destino, error=str(exc))
+    except DBAPIError as exc:
+        fila = getattr(exc, "fila", None)
+        return redirigir(request, destino, error=(f"Fila {fila}: " if fila else "") + mensaje_bd(exc, catalogo)
+                         + " No se aplicó ningún cambio.")
+    creados = sum(1 for c in cambios if c.tipo == "nueva")
+    return redirigir(request, destino, ok=f"Carga masiva de {catalogo.titulo.lower()} aplicada: "
+                                          f"{creados} nuevo(s) y {len(cambios) - creados} actualizado(s).")
 
 
 def _formulario(request, usuario, db, catalogo, registro, valores=None, errores=None, status_code=200):

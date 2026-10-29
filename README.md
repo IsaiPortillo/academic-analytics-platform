@@ -124,6 +124,13 @@ academic-analytics-platform/
   - [x] Carga masiva desde Excel — notas, asistencia y matrícula: plantilla con la lista de la
     sección, vista previa con errores y cambios fila por fila, y confirmación explícita antes de
     sobrescribir.
+  - [x] Carga masiva de catálogos — períodos, secciones, materias, docentes, estudiantes, carreras y
+    departamentos (Catálogos > cada uno > «Carga masiva»). La plantilla trae la cabecera del
+    catálogo, listas desplegables, una hoja «Guía» (qué escribir en cada campo) y una hoja
+    «Referencia» con los códigos válidos: en el archivo se escribe el código (`MAT101`, `SIS`),
+    nunca el número interno. Si el registro ya existe (mismo código; en estudiantes, mismo carnet)
+    se actualiza, si no se crea. Hasta 1 000 filas por archivo; con un solo error no se aplica
+    nada y la confirmación aplica todo o nada. El carnet no viaja ni se guarda: solo su hash.
   - [x] Cierre de acta — el docente cierra la sección cuando las evaluaciones suman 100 % y no
     falta ninguna nota; desde ahí el motor bloquea cambios. Solo el coordinador la reabre, con motivo.
   - [x] Administración (solo coordinador) — períodos, secciones, materias, docentes, estudiantes,
