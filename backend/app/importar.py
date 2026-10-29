@@ -135,7 +135,8 @@ def vacio(valor: Any) -> bool:
 
 def plantilla_xlsx(titulo: str, instrucciones: str, cabeceras: list[str], filas: list[list[Any]],
                    validaciones: Optional[dict[int, tuple]] = None, anchos: Optional[list[int]] = None,
-                   hojas_extra: Optional[dict[str, list[list[Any]]]] = None) -> bytes:
+                   hojas_extra: Optional[dict[str, list[list[Any]]]] = None,
+                   ejemplo: Optional[list[Any]] = None) -> bytes:
     """Plantilla para llenar y volver a subir.
 
     Fila 1 título, fila 2 instrucciones, fila 4 cabecera, datos desde la 5. La
@@ -144,7 +145,9 @@ def plantilla_xlsx(titulo: str, instrucciones: str, cabeceras: list[str], filas:
     escribir en una columna: {índice: ("decimal", mínimo, máximo)} o
     {índice: ("lista", [valores])}. `hojas_extra` agrega hojas de consulta
     ({nombre: filas}, la primera fila es la cabecera): guía de campos, códigos
-    válidos… El sistema solo lee la primera hoja.
+    válidos… El sistema solo lee la primera hoja. `ejemplo` es una fila de muestra
+    que va en la fila 3, ARRIBA de la cabecera: se ve cómo se llena, pero el
+    sistema empieza a leer debajo de la cabecera, así que nunca se importa.
     """
     from openpyxl import Workbook  # noqa: PLC0415
     from openpyxl.styles import Border, Font, PatternFill, Side  # noqa: PLC0415
@@ -175,6 +178,15 @@ def plantilla_xlsx(titulo: str, instrucciones: str, cabeceras: list[str], filas:
             if j == 1:
                 celda.fill = gris
     hoja.freeze_panes = f"B{fila_cabecera + 1}"
+    if ejemplo:
+        muestra = PatternFill("solid", fgColor="FFF6DB")
+        for j, valor in enumerate(ejemplo, start=1):
+            celda = hoja.cell(row=3, column=j, value=valor)
+            celda.font = Font(italic=True, color="7A6A3A")
+            celda.fill = muestra
+        nota = hoja.cell(row=3, column=len(ejemplo) + 1,
+                         value="← Ejemplo, no se importa. Escribe tus datos debajo de la cabecera.")
+        nota.font = Font(italic=True, size=9, color="7A6A3A")
 
     ultima = fila_cabecera + max(len(filas), 1)
     for indice, regla in (validaciones or {}).items():

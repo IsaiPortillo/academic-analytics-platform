@@ -328,6 +328,36 @@ def _como_se_llena(campo: Campo) -> str:
     return f"{texto} {campo.ayuda}".strip()
 
 
+# Fila de ejemplo de cada plantilla. Las referencias (período, materia, carrera…) no se fijan
+# aquí: se toma la primera de las que existen en la base, para que el ejemplo sea válido.
+EJEMPLOS = {
+    "periodos": {"codigo_periodo": "2027-I", "anio": 2027, "ciclo_romano": "I", "fecha_inicio": "2027-02-01",
+                 "fecha_fin": "2027-06-30", "activo": "No"},
+    "secciones": {"numero_seccion": 1, "turno": "MATUTINO", "aula": "A-12", "cupo_maximo": 40},
+    "materias": {"codigo_materia": "MAT101", "nombre": "Matemática I", "unidades_valorativas": 4, "ciclo_plan": 1,
+                 "activo": "Sí"},
+    "docentes": {"codigo_docente": "DOC-021", "escalafon": "HORA CLASE", "activo": "Sí"},
+    "estudiantes": {"carnet": "AB26001", "anio_ingreso": 2026, "trabaja": "No", "condicion_academica": "REGULAR",
+                    "activo": "Sí"},
+    "carreras": {"codigo_carrera": "ISI", "nombre": "Ingeniería en Sistemas Informáticos", "plan_anio": 2024,
+                 "total_uv_carrera": 190, "activo": "Sí"},
+    "departamentos": {"codigo_departamento": "DCC", "nombre": "Departamento de Ciencias de la Computación"},
+}
+
+
+def _fila_ejemplo(catalogo: Catalogo, referencias: dict) -> list:
+    """Valores de ejemplo en el orden de las columnas. referencias: {campo_fk: [«CÓD · nombre», …]}."""
+    base = EJEMPLOS[catalogo.slug]
+    fila = []
+    for campo in catalogo.campos:
+        if campo.tipo == "fk":
+            opciones = referencias.get(campo.nombre) or []
+            fila.append(codigo_de_referencia(opciones[0]) if opciones else "CÓDIGO")
+        else:
+            fila.append(base.get(campo.nombre, ""))
+    return fila
+
+
 def construir_plantilla(db: Session, catalogo: Catalogo) -> bytes:
     """Excel con la cabecera del catálogo, validaciones de lista y las hojas Guía y Referencia."""
     from .importar import plantilla_xlsx  # noqa: PLC0415
@@ -341,10 +371,14 @@ def construir_plantilla(db: Session, catalogo: Catalogo) -> bytes:
         elif campo.tipo == "entero" and campo.minimo is not None and campo.maximo is not None:
             validaciones[indice] = ("decimal", campo.minimo, campo.maximo)
 
-    guia = [["Campo", "Obligatorio", "Qué escribir"]] + [
-        [c.etiqueta, "Sí" if c.requerido and c.tipo != "bool" else "No", _como_se_llena(c)] for c in catalogo.campos]
-    hojas = {"Guía": guia}
     columnas_fk = [(c.etiqueta, [etiqueta for _, etiqueta in c.fk(db)]) for c in catalogo.campos if c.tipo == "fk"]
+    referencias = {c.nombre: valores for c, (_, valores) in
+                   zip([c for c in catalogo.campos if c.tipo == "fk"], columnas_fk)}
+    ejemplo = _fila_ejemplo(catalogo, referencias)
+    guia = [["Campo", "Obligatorio", "Qué escribir", "Ejemplo"]] + [
+        [c.etiqueta, "Sí" if c.requerido and c.tipo != "bool" else "No", _como_se_llena(c), valor]
+        for c, valor in zip(catalogo.campos, ejemplo)]
+    hojas = {"Guía": guia}
     if columnas_fk:
         alto = max(len(valores) for _, valores in columnas_fk)
         hojas["Referencia"] = [[nombre for nombre, _ in columnas_fk]] + [
@@ -353,7 +387,8 @@ def construir_plantilla(db: Session, catalogo: Catalogo) -> bytes:
     clave = " + ".join(c.etiqueta for c in catalogo.campos if c.nombre in CLAVE_NATURAL[catalogo.slug]) or "Carnet"
     return plantilla_xlsx(
         f"Carga masiva · {catalogo.titulo}",
-        f"Una fila por {catalogo.singular}. Si ya existe uno con el mismo {clave}, la fila lo actualiza; si no, lo "
-        f"crea. No cambies la cabecera. Dudas: hojas «Guía»" + (" y «Referencia»." if columnas_fk else "."),
-        cabeceras(catalogo), [], validaciones=validaciones, hojas_extra=hojas,
+        f"Una fila por {catalogo.singular}, debajo de la cabecera (la fila amarilla es solo un ejemplo). Si ya existe "
+        f"un registro con el mismo {clave}, la fila lo actualiza; si no, crea uno nuevo. No cambies la cabecera. "
+        "Dudas: hojas «Guía»" + (" y «Referencia»." if columnas_fk else "."),
+        cabeceras(catalogo), [], validaciones=validaciones, hojas_extra=hojas, ejemplo=ejemplo,
         anchos=[max(len(c.etiqueta) + 6, 16) for c in catalogo.campos])

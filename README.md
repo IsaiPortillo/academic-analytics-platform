@@ -126,7 +126,8 @@ academic-analytics-platform/
     sobrescribir.
   - [x] Carga masiva de catálogos — períodos, secciones, materias, docentes, estudiantes, carreras y
     departamentos (Catálogos > cada uno > «Carga masiva»). La plantilla trae la cabecera del
-    catálogo, listas desplegables, una hoja «Guía» (qué escribir en cada campo) y una hoja
+    catálogo, una fila amarilla de ejemplo (arriba de la cabecera: nunca se importa), listas
+    desplegables, una hoja «Guía» (qué escribir en cada campo, con ejemplo) y una hoja
     «Referencia» con los códigos válidos: en el archivo se escribe el código (`MAT101`, `SIS`),
     nunca el número interno. Si el registro ya existe (mismo código; en estudiantes, mismo carnet)
     se actualiza, si no se crea. Hasta 1 000 filas por archivo; con un solo error no se aplica
