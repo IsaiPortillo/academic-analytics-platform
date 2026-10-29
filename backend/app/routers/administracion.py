@@ -13,7 +13,7 @@ from datetime import date
 from math import ceil
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import false, func, or_, select, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
@@ -74,18 +74,25 @@ def inicio(request: Request, usuario: UsuarioSesion = Depends(COORDINADOR), db: 
 LIMITE_EXPORTACION = 20000
 
 
+def _busqueda(catalogo: Catalogo, texto: str):
+    """La condición de la búsqueda por texto, o None si no se buscó nada."""
+    if not texto:
+        return None
+    condiciones = [getattr(catalogo.modelo, a).ilike(f"%{texto}%") for a in catalogo.busqueda]
+    if texto.isdigit():
+        condiciones.append(_clave(catalogo) == int(texto))
+    if catalogo.slug == "estudiantes":
+        # Por carnet: se compara su hash; el carnet no se guarda ni se registra.
+        condiciones.append(Estudiante.carnet_hash == hash_carnet(texto))
+    return or_(*condiciones) if condiciones else false()
+
+
 def _consulta_filtrada(db: Session, catalogo: Catalogo, seleccion: fl.Seleccion):
     """Todos los registros del catálogo que cumplen la búsqueda y los filtros elegidos."""
     consulta = select(catalogo.modelo)
-    texto = seleccion.buscar
-    if texto:
-        condiciones = [getattr(catalogo.modelo, a).ilike(f"%{texto}%") for a in catalogo.busqueda]
-        if texto.isdigit():
-            condiciones.append(_clave(catalogo) == int(texto))
-        if catalogo.slug == "estudiantes":
-            # Por carnet: se compara su hash; el carnet no se guarda ni se registra.
-            condiciones.append(Estudiante.carnet_hash == hash_carnet(texto))
-        consulta = consulta.where(or_(*condiciones)) if condiciones else consulta.where(False)
+    busqueda = _busqueda(catalogo, seleccion.buscar)
+    if busqueda is not None:
+        consulta = consulta.where(busqueda)
     return fl.aplicar(consulta, catalogo, seleccion)
 
 
@@ -121,6 +128,8 @@ def listar(
     ok, error = tomar_aviso(request)
     por_defecto = _por_defecto(db, catalogo)
     seleccion = fl.leer(catalogo, request.query_params, por_defecto)
+    busqueda = _busqueda(catalogo, seleccion.buscar)
+    quitados = fl.reconciliar(db, catalogo, seleccion, busqueda)
     consulta = _consulta_filtrada(db, catalogo, seleccion)
     total = db.scalar(select(func.count()).select_from(consulta.subquery()))
     total_catalogo = db.scalar(select(func.count()).select_from(catalogo.modelo))
@@ -138,12 +147,11 @@ def listar(
         columna["sentido"] = ("desc" if seleccion.descendente else "asc") if activa else None
         columna["url"] = f"{base}?" + fl.consulta_url(
             seleccion, orden=clave, dir="desc" if activa and not seleccion.descendente else "")
-    filtros = [{"nombre": f.nombre, "etiqueta": f.etiqueta, "opciones": fl.opciones(db, f),
-                "valor": seleccion.filtros.get(f.nombre, "")} for f in fl.filtros_de(catalogo)]
+    filtros = fl.facetas(db, catalogo, seleccion, busqueda)
     return templates.TemplateResponse(request, "modulos/admin_lista.html", {
         "usuario": usuario, "catalogo": catalogo, "ok": ok, "error": error,
         "columnas": columnas, "filas": filas, "total": total, "total_catalogo": total_catalogo,
-        "pagina": pagina, "paginas": paginas, "seleccion": seleccion, "filtros": filtros,
+        "pagina": pagina, "paginas": paginas, "seleccion": seleccion, "filtros": filtros, "quitados": quitados,
         "chips": fl.chips(db, catalogo, seleccion, base, tuple(por_defecto)),
         "limpiar": base + "?" + "&".join(f"{n}=" for n in por_defecto),
         "consulta": fl.consulta_url(seleccion), "pagina_url": base + "?" + fl.consulta_url(seleccion),
@@ -157,6 +165,7 @@ def exportar(request: Request, slug: str, usuario: UsuarioSesion = Depends(COORD
     """La lista tal como está filtrada y ordenada, completa (no solo la página), en CSV."""
     catalogo = _catalogo(slug)
     seleccion = fl.leer(catalogo, request.query_params, _por_defecto(db, catalogo))
+    fl.reconciliar(db, catalogo, seleccion, _busqueda(catalogo, seleccion.buscar))
     consulta = _consulta_filtrada(db, catalogo, seleccion)
     registros = db.scalars(consulta.order_by(*fl.clausulas_de_orden(catalogo, seleccion, fl.colacion(db)))
                            .limit(LIMITE_EXPORTACION)).all()

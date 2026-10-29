@@ -132,6 +132,10 @@ academic-analytics-platform/
     (departamento, carrera, ciclo del plan, turno, docente, condición, año de ingreso, activo…), se ordena
     por cualquier columna, elige cuántas filas mostrar (25 a 200), muestra los filtros activos como fichas
     que se quitan de una en una y descarga en CSV exactamente la lista filtrada (no solo la página).
+    Los filtros son en cascada: cada selector ofrece solo lo que existe con los demás filtros, con cuántos
+    registros hay de cada opción (elegir un departamento deja en «Carrera» solo las suyas; elegir una carrera
+    deja su departamento; un turno deja los docentes que dan clase en él). Si cambiar un filtro deja sin
+    sentido a otro ya elegido, se quita ese y se avisa.
   - [x] Carga masiva de catálogos — períodos, secciones, materias, docentes, estudiantes, carreras y
     departamentos (Catálogos > cada uno > «Carga masiva»). La plantilla trae la cabecera del
     catálogo, una fila amarilla de ejemplo (arriba de la cabecera: nunca se importa), listas
