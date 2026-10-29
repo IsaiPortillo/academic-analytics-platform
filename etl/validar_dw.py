@@ -306,8 +306,12 @@ def validar_indicadores():
         app = ind.calcular(dw.totales(dw.Filtros((periodo,))))
         for fila in grupo.itertuples():
             esperado = getattr(app, fila.codigo)
-            if esperado is not None and fila.valor is not None and \
-                    abs(float(fila.valor) - float(esperado)) <= 1e-6 * max(1.0, abs(float(esperado))):
+            sin_valor_vista = fila.valor is None or fila.valor != fila.valor    # NULL o NaN
+            if esperado is None or sin_valor_vista:
+                # Un ciclo en curso todavía no tiene inscripciones cerradas: ninguna de las dos
+                # partes puede calcular el indicador, y que ambas lo digan es coincidir.
+                coinciden += esperado is None and sin_valor_vista
+            elif abs(float(fila.valor) - float(esperado)) <= 1e-6 * max(1.0, abs(float(esperado))):
                 coinciden += 1
     registrar("Indicadores", "Vista de cálculo del DW = fórmulas de la app (KPI × período)", len(vista), coinciden)
     distintos = dw._leer("""
@@ -322,10 +326,14 @@ def validar_indicadores():
 def validar_area(s):
     with sesion_grafo() as g:
         grafo = {r["codigo"]: r["area"] for r in g.run("MATCH (m:Materia) RETURN m.codigo AS codigo, m.area AS area")}
-    dw_ = dict(s.execute(text("SELECT codigo_materia, area FROM dw_academico.dim_materia")).all())
-    coinciden = sum(1 for c, a in dw_.items() if grafo.get(c) == a)
-    registrar("Cruce relacional-grafo", "Materias del DW con el área que registra Neo4j",
-              len(dw_), coinciden)
+    filas = s.execute(text("SELECT codigo_materia, area, en_grafo FROM dw_academico.dim_materia")).all()
+    # La malla del grafo es la de una carrera: las materias de las demás están en el DW sin nodo.
+    en_malla = [(c, a) for c, a, en in filas if en]
+    fuera = [a for _, a, en in filas if not en]
+    registrar("Cruce relacional-grafo", "Materias de la malla con el área que registra Neo4j",
+              len(en_malla), sum(1 for c, a in en_malla if grafo.get(c) == a))
+    registrar("Cruce relacional-grafo", "Materias sin nodo en el grafo rotuladas «Sin área en la malla»",
+              len(fuera), sum(1 for a in fuera if a == "Sin área en la malla"))
 
 
 # ---------------------------------------------------------------------------
