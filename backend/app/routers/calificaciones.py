@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 from ..avisos import redirigir, tomar_aviso
 from ..database import get_db
 from ..dependencies import UsuarioSesion, requiere_rol
+from ..fechas_periodo import periodo_de, problema_fecha
 from ..importar import (TIPO_XLSX, ErrorArchivo, como_entero, como_nota, leer_filas, normalizar,
                         plantilla_xlsx, ubicar_cabecera, vacio)
 from ..models import Calificacion, Estudiante, Evaluacion, Inscripcion, Materia, PeriodoAcademico, Seccion
@@ -216,6 +217,7 @@ def inicio_calificaciones(
             "secciones": secciones,
             "seccion_id": seccion_id,
             "seccion": seccion,
+            "periodo": periodo_de(db, seccion) if seccion else None,
             "materia": materia,
             "evaluaciones": evaluaciones,
             "ponderacion_usada": ponderacion_usada,
@@ -251,6 +253,9 @@ def crear_evaluacion(
     nombre_evaluacion = nombre_evaluacion.strip()
     if not nombre_evaluacion:
         return redirigir(request, destino, error="El nombre de la evaluación es obligatorio")
+    problema = problema_fecha(periodo_de(db, seccion), fecha_evaluacion, permitir_futura=True)
+    if problema:
+        return redirigir(request, destino, error=problema)
 
     try:
         db.add(
@@ -370,6 +375,12 @@ def editar_evaluacion(
     nombre_evaluacion = nombre_evaluacion.strip()
     if not nombre_evaluacion:
         return redirigir(request, destino, error="El nombre de la evaluación es obligatorio")
+    # Solo si se cambia la fecha: no se bloquea editar el nombre de una evaluación antigua.
+    if fecha_evaluacion != evaluacion.fecha_evaluacion:
+        seccion = db.get(Seccion, evaluacion.seccion_id)
+        problema = problema_fecha(periodo_de(db, seccion), fecha_evaluacion, permitir_futura=True)
+        if problema:
+            return redirigir(request, destino, error=problema)
     try:
         evaluacion.nombre_evaluacion = nombre_evaluacion
         evaluacion.porcentaje = porcentaje

@@ -758,3 +758,63 @@ document.querySelectorAll("[data-descarga]").forEach((enlace) => {
     }, 3000);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Campo de fecha de los filtros (macro campo_fecha): texto dd/mm/aaaa con barras
+// automáticas y un botón que abre el calendario nativo. El servidor acepta
+// también ddmmaaaa y aaaa-mm-dd; si no entiende la fecha, la ignora y lo avisa.
+function fechaIso(texto) {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(texto.trim());
+  if (!m) return "";
+  const [d, mes, a] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const f = new Date(a, mes - 1, d);
+  if (f.getFullYear() !== a || f.getMonth() !== mes - 1 || f.getDate() !== d) return "";
+  return `${a}-${String(mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+document.querySelectorAll("[data-campo-fecha]").forEach((campo) => {
+  const texto = campo.querySelector('input[type="text"]');
+  const nativo = campo.querySelector('input[type="date"]');
+  const boton = campo.querySelector("[data-abrir-calendario]");
+  if (!texto || !nativo || !boton) return;
+
+  texto.addEventListener("input", (evento) => {
+    // Barras automáticas al escribir dígitos de corrido (01022025 → 01/02/2025).
+    // Si la persona escribe sus propias barras (1/2/2025) o un guion (aaaa-mm-dd),
+    // se respeta lo que escribe. Solo con el cursor al final, para no moverlo.
+    if (texto.value === "") delete texto.dataset.manual;
+    if (evento.data === "/" || evento.data === "-") texto.dataset.manual = "1";
+    if (texto.dataset.manual || evento.inputType !== "insertText") return;
+    if (!/^[\d/]*$/.test(texto.value) || texto.selectionStart !== texto.value.length) return;
+    const d = texto.value.replace(/\//g, "").slice(0, 8);
+    if (d.length >= 4 && Number(d.slice(2, 4)) > 12) {
+      // «2025…»: no es dd/mm (no hay mes 25), es un año; se deja escribir aaaa-mm-dd.
+      texto.value = d;
+      texto.dataset.manual = "1";
+      return;
+    }
+    texto.value = d.length > 4 ? `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`
+      : d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
+  });
+  texto.addEventListener("change", () => {
+    nativo.value = fechaIso(texto.value);
+    texto.classList.remove("is-invalid");
+    texto.removeAttribute("aria-invalid");
+  });
+
+  boton.addEventListener("click", () => {
+    nativo.value = fechaIso(texto.value);
+    try {
+      nativo.showPicker();      // requiere el clic del usuario: lo es
+    } catch {
+      nativo.focus();
+      nativo.click();
+    }
+  });
+  nativo.addEventListener("change", () => {
+    if (!nativo.value) return;
+    const [a, m, d] = nativo.value.split("-");
+    texto.value = `${d}/${m}/${a}`;
+    texto.classList.remove("is-invalid");
+    texto.removeAttribute("aria-invalid");
+  });
+});

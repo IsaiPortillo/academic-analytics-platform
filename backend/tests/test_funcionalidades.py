@@ -119,6 +119,87 @@ class TestImportarAsistencia(unittest.TestCase):
         for esperado in ("es futura", "«ayer» no es válida", "«TARDE»", "se repite"):
             self.assertIn(esperado, texto)
 
+    def test_fechas_fuera_del_ciclo(self):
+        periodo = SimpleNamespace(codigo_periodo="2022-I", fecha_inicio=date(2022, 2, 1), fecha_fin=date(2022, 6, 25))
+        cambios, errores = analizar_importacion_asistencia([
+            ["ID estudiante", "Fecha", "Estado"],
+            [1, "2022-03-10", "PRESENTE"],
+            [2, "2024-03-10", "PRESENTE"],      # dos años después del ciclo
+            [2, "2022-01-31", "AUSENTE"],       # un día antes del inicio
+        ], _roster((100, 1), (101, 2)), {}, periodo)
+        self.assertEqual([c["fecha"] for c in cambios], [date(2022, 3, 10)])
+        self.assertEqual(len(errores), 2)
+        self.assertIn("fuera del ciclo 2022-I (01/02/2022 a 25/06/2022)", errores[0])
+
+
+class TestFechaDeFiltro(unittest.TestCase):
+    # Antes el filtro era <input type="date">: en Edge, escribir la fecha solo
+    # funcionaba con el clic justo en «dd»; si no, el navegador bloqueaba «Generar».
+    def test_formatos_que_escribe_una_persona(self):
+        for texto in ("01/03/2025", "1/3/2025", "01032025", "2025-03-01", "01-03-2025", "01.03.2025", " 01/03/2025 "):
+            self.assertEqual(importar.fecha_de_filtro(texto), (date(2025, 3, 1), None), texto)
+
+    def test_vacio_no_es_error(self):
+        self.assertEqual(importar.fecha_de_filtro(""), (None, None))
+        self.assertEqual(importar.fecha_de_filtro(None), (None, None))
+
+    def test_lo_que_no_es_fecha_se_devuelve_para_avisar(self):
+        for texto in ("31/02/2025", "99/99/9999", "abc", "01/03/25", "20/25-03-01", "01/01/0001"):
+            self.assertEqual(importar.fecha_de_filtro(texto), (None, texto.strip()), texto)
+
+    def test_el_reporte_ignora_la_fecha_mala_y_la_anota(self):
+        from app.routers.reporte_personalizado import _parametros
+        p = _parametros(desde="31/02/2025", hasta="15/03/2025", tema="asistencia", dimension="mes", desglose=None,
+                        metrica=None, periodo_id=None, materia_id=None, docente_id=None, turno=None,
+                        grafica="lineas", orden="natural", carrera_id=None)
+        self.assertEqual((p.desde, p.hasta), (None, date(2025, 3, 15)))
+        self.assertEqual(p.fechas_invalidas, {"desde": "31/02/2025"})
+
+
+class TestFechasDelPeriodo(unittest.TestCase):
+    def setUp(self):
+        from app.fechas_periodo import problema_fecha
+        self.problema = problema_fecha
+        hoy = date.today()
+        self.cerrado = SimpleNamespace(codigo_periodo="2022-I", fecha_inicio=date(2022, 2, 1),
+                                       fecha_fin=date(2022, 6, 25))
+        self.en_curso = SimpleNamespace(codigo_periodo="EN-CURSO", fecha_inicio=hoy - timedelta(days=30),
+                                        fecha_fin=hoy + timedelta(days=60))
+
+    def test_dentro_del_ciclo_y_bordes(self):
+        for fecha in (date(2022, 2, 1), date(2022, 4, 1), date(2022, 6, 25)):
+            self.assertIsNone(self.problema(self.cerrado, fecha, permitir_futura=False), fecha)
+
+    def test_fuera_del_ciclo(self):
+        self.assertIn("fuera del ciclo", self.problema(self.cerrado, date(2024, 3, 1), permitir_futura=True))
+
+    def test_asistencia_futura_no_pero_evaluacion_programada_si(self):
+        futura = date.today() + timedelta(days=10)
+        self.assertIn("es futura", self.problema(self.en_curso, futura, permitir_futura=False))
+        self.assertIsNone(self.problema(self.en_curso, futura, permitir_futura=True))
+
+
+class TestEscalaDeGraficas(unittest.TestCase):
+    def test_divisiones_redondas(self):
+        casos = {(0.82, "porcentaje"): 1.0, (0.14, "porcentaje"): 0.16, (0.05, "porcentaje"): 0.08,
+                 (7.3, "decimal"): 10.0, (36704, "entero"): 40000, (1234, "entero"): 1600, (0, "entero"): 1.0}
+        for (maximo, tipo), tope in casos.items():
+            self.assertAlmostEqual(exportar.tope_eje(maximo, tipo), tope, msg=(maximo, tipo))
+
+    def test_un_porcentaje_nunca_pasa_de_100(self):
+        self.assertEqual(exportar.tope_eje(0.99, "porcentaje"), 1.0)
+
+    def test_marcas_sin_ceros_de_relleno(self):
+        self.assertEqual([t for _, t in graficas._marcas_y(0, 1.0, "porcentaje")],
+                         ["0 %", "25 %", "50 %", "75 %", "100 %"])
+        self.assertEqual([t for _, t in graficas._marcas_y(0, 10.0, "decimal")], ["0", "2.5", "5", "7.5", "10"])
+
+    def test_cada_porcentaje_explica_su_calculo(self):
+        for clave_tema, tema in rp.TEMAS.items():
+            for clave, metrica in tema.metricas.items():
+                if metrica.tipo == "porcentaje":
+                    self.assertIn("÷", metrica.ayuda, (clave_tema, clave))
+
 
 class TestMatriculaMasiva(unittest.TestCase):
     def test_cupo_reactivacion_y_ya_matriculados(self):
@@ -271,6 +352,69 @@ class TestReportePersonalizado(unittest.TestCase):
         self.assertEqual(reporte.grafico.columnas, [1, 2])
         self.assertEqual(resumen["series"], 2)
 
+    def test_la_carrera_tambien_va_ligada(self):
+        db = mock.Mock()
+        db.execute.return_value.mappings.return_value.all.return_value = []
+        rp.consultar(db, rp.Parametros(carrera_id=7).normalizar())
+        self.assertIn("m.carrera_id = :carrera_id", str(db.execute.call_args.args[0]))
+        self.assertEqual(db.execute.call_args.args[1], {"carrera_id": 7})
+
+    def test_cada_tema_y_agrupacion_arma_su_sql(self):
+        # Ninguna dimensión deja un {fecha} sin reemplazar ni rompe el formato.
+        for tema in rp.TEMAS:
+            for dim in rp.dimensiones_de(tema):
+                for desglose in (None, "turno"):
+                    db = mock.Mock()
+                    db.execute.return_value.mappings.return_value.all.return_value = []
+                    rp.consultar(db, rp.Parametros(tema=tema, dimension=dim, desglose=desglose).normalizar())
+                    sql = str(db.execute.call_args.args[0])
+                    self.assertNotIn("{", sql, (tema, dim))
+
+    def test_las_dimensiones_estan_en_una_seccion_del_menu(self):
+        for tema in rp.TEMAS:
+            agrupadas = [k for _, lista in rp.dimensiones_agrupadas(tema) for k, _ in lista]
+            self.assertEqual(sorted(agrupadas), sorted(rp.dimensiones_de(tema)), tema)
+
+
+class TestIdeasDeReportes(unittest.TestCase):
+    def test_cada_idea_es_valida_tal_cual(self):
+        # Si la lista blanca corrigiera algo, la idea mostraría otro reporte del que describe.
+        for idea in rp.IDEAS:
+            p = rp.Parametros(**idea.config).normalizar()
+            for clave, valor in idea.config.items():
+                self.assertEqual(getattr(p, clave), valor, (idea.clave, clave))
+
+    def test_cada_idea_se_reconoce_como_ella_misma(self):
+        self.assertEqual(len(rp.IDEAS_POR_CLAVE), len(rp.IDEAS))
+        for idea in rp.IDEAS:
+            self.assertIs(rp.idea_de(rp.Parametros(**idea.config).normalizar()), idea)
+
+    def test_cambiar_la_grafica_deja_de_ser_la_idea(self):
+        idea = rp.IDEAS_POR_CLAVE["asistencia_mes"]
+        p = rp.Parametros(**{**idea.config, "grafica": "columnas"}).normalizar()
+        self.assertIsNone(rp.idea_de(p))
+
+    def test_los_filtros_no_cambian_la_idea(self):
+        idea = rp.IDEAS_POR_CLAVE["retiros_motivo"]
+        p = rp.Parametros(**idea.config, periodo_id=3, desde=date(2025, 1, 1)).normalizar()
+        self.assertIs(rp.idea_de(p), idea)
+
+    def test_los_pasos_describen_el_formulario(self):
+        pasos = dict(rp.IDEAS_POR_CLAVE["asistencia_turno_periodo"].pasos())
+        self.assertEqual(pasos, {"Tema": "Asistencia", "Agrupar por": "Período", "Comparar por": "Turno",
+                                 "Métrica": "Asistencia", "Gráfica": "Columnas"})
+
+    def test_toda_idea_explica_que_responde_y_como_leerla(self):
+        for idea in rp.IDEAS:
+            self.assertTrue(idea.pregunta.endswith("?"), idea.clave)
+            self.assertGreater(len(idea.lectura), 60, idea.clave)
+            self.assertIn(idea.categoria, rp.CATEGORIAS_IDEAS)
+
+    def test_los_atajos_son_las_ideas_destacadas(self):
+        self.assertEqual([t for t, _, _ in rp.ATAJOS],
+                         ["Asistencia por mes", "Asistencia por turno y período", "Notas por materia",
+                          "Retiros por motivo"])
+
 
 class TestGraficas(unittest.TestCase):
     def test_lineas_con_hueco_y_texto_escapado(self):
@@ -305,6 +449,20 @@ class TestExportarConGrafica(unittest.TestCase):
         con = exportar.a_pdf_bytes(self._reporte(exportar.Grafico("lineas", "Asistencia", "porcentaje", [1])))
         self.assertTrue(con.startswith(b"%PDF-"))
         self.assertGreater(len(con), len(sin))
+
+    def test_muchas_barras_caben_en_la_pagina(self):
+        # Antes: 40 barras horizontales medían 600 pt y la página horizontal deja
+        # ~515 → reportlab LayoutError y un 500 al descargar el PDF.
+        for n_columnas in (3, 8):                 # 8 columnas → página horizontal
+            for series in ([1], [1, 2]):          # una serie, o varias con leyenda
+                columnas = [exportar.Columna("g", "Sección")] + [
+                    exportar.Columna(f"c{i}", f"M{i}", "porcentaje") for i in range(1, n_columnas)]
+                filas = [[f"MAT{i:03d} s1 · 2024-I"] + [0.1 + i / 1000] * (n_columnas - 1) for i in range(194)]
+                reporte = exportar.Reporte("R", "r", columnas, filas, [],
+                                           exportar.Grafico("barras", "Ausencias", "porcentaje", series))
+                with self.subTest(columnas=n_columnas, series=len(series)):
+                    pdf = exportar.a_pdf_bytes(reporte)
+                    self.assertTrue(pdf.startswith(b"%PDF-"))
 
     def test_tipos_de_fecha(self):
         from datetime import datetime, timezone

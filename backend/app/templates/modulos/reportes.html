@@ -18,9 +18,10 @@
 <div class="card mb-4">
     <div class="card-header">Reporte personalizado</div>
     <div class="card-body">
-        <p class="text-sm text-muted mb-3">Elige qué medir, cómo agruparlo (por día, mes, materia, docente…), un rango de fechas y el tipo de gráfica.</p>
+        <p class="text-sm text-muted mb-3">Elige qué medir, cómo agruparlo (por mes, materia, docente, cohorte, intento…), un rango de fechas y el tipo de gráfica. Si no sabes por dónde empezar, abre una de las ideas: cada una explica qué pregunta responde y cómo leerla.</p>
         <div class="flex flex-wrap items-center gap-2">
             <a class="btn-save" href="/reportes/personalizado">Armar un reporte</a>
+            <a class="btn-view" href="/reportes/personalizado#ideas">Ver todas las ideas</a>
             {% for titulo, descripcion, q in atajos %}
             <a class="chip" href="/reportes/personalizado?{{ q }}" title="{{ descripcion }}">{{ titulo }}</a>
             {% endfor %}

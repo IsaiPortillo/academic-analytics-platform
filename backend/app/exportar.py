@@ -61,6 +61,23 @@ PALETA_SERIES = ("8B0000", "475569", "B45309", "0F766E", "4338CA", "BE185D")
 LIMITE_CATEGORIAS_GRAFICO = 40
 
 
+def tope_eje(maximo: float, tipo: str, divisiones: int = 4) -> float:
+    """Tope del eje de valores con divisiones redondas (0, 25, 50, 75, 100 %),
+    no el máximo × 1.1, que daba marcas como 22.6 % / 45.2 % / 67.8 %.
+    Los porcentajes nunca pasan de 100 %; las notas usan siempre 0–10."""
+    import math  # noqa: PLC0415
+
+    if tipo == "decimal" and 0 < maximo <= 10:
+        return 10.0
+    if maximo <= 0:
+        return 1.0
+    paso = maximo / divisiones
+    magnitud = 10 ** math.floor(math.log10(paso))
+    paso = next(m * magnitud for m in (1, 2, 2.5, 3, 4, 5, 6, 8, 10) if m * magnitud >= paso - 1e-12)
+    tope = paso * divisiones
+    return min(tope, 1.0) if tipo == "porcentaje" else tope
+
+
 @dataclass(frozen=True)
 class Grafico:
     """Gráfica que acompaña al reporte en el PDF y en el Excel. La categoría es
@@ -279,7 +296,7 @@ def a_pdf_bytes(reporte: Reporte) -> bytes:
         lienzo.saveState()
         lienzo.setFont("Helvetica", 7)
         lienzo.setFillColor(tenue)
-        lienzo.drawString(margen, 8 * mm, f"Sistema Minerva · UES-FMO · {generado}")
+        lienzo.drawString(margen, 8 * mm, f"EduMetrics · UES-FMO · {generado}")
         lienzo.drawRightString(pagina[0] - margen, 8 * mm, f"Página {documento.page}")
         lienzo.restoreState()
 
@@ -293,9 +310,15 @@ def a_pdf_bytes(reporte: Reporte) -> bytes:
     if len(reporte.filas) > LIMITE_FILAS_PDF:
         historia.append(Paragraph(f"Primeras {LIMITE_FILAS_PDF:,} de {len(reporte.filas):,} filas. "
                                   "El conjunto completo está en Excel o CSV.", estilo_meta))
+    if reporte.grafico and reporte.filas and len(reporte.filas) > LIMITE_CATEGORIAS_GRAFICO:
+        historia.append(Paragraph(f"La gráfica muestra las primeras {LIMITE_CATEGORIAS_GRAFICO} de "
+                                  f"{len(reporte.filas):,} filas; la tabla las incluye todas.", estilo_meta))
     historia.append(Spacer(1, 8))
     if reporte.grafico and reporte.filas:
-        historia += [_grafico_pdf(reporte, util), Spacer(1, 10)]
+        # Un dibujo no se parte entre páginas: si es más alto que el marco útil,
+        # reportlab falla (LayoutError). Se limita al alto de la página.
+        alto_marco = pagina[1] - margen - 16 * mm - 12
+        historia += [_grafico_pdf(reporte, util, alto_marco), Spacer(1, 10)]
 
     total = sum(c.ancho for c in reporte.columnas)
     anchos = [util * c.ancho / total for c in reporte.columnas]
@@ -341,12 +364,15 @@ def a_pdf_bytes(reporte: Reporte) -> bytes:
     salida = BytesIO()
     SimpleDocTemplate(salida, pagesize=pagina, leftMargin=margen, rightMargin=margen,
                       topMargin=margen, bottomMargin=16 * mm, title=reporte.titulo,
-                      author="Sistema Minerva").build(historia, onFirstPage=pie, onLaterPages=pie)
+                      author="EduMetrics").build(historia, onFirstPage=pie, onLaterPages=pie)
     return salida.getvalue()
 
 
-def _grafico_pdf(reporte: Reporte, ancho: float):
-    """La gráfica del reporte como dibujo vectorial de reportlab (nítido al imprimir)."""
+def _grafico_pdf(reporte: Reporte, ancho: float, alto_maximo: float = 600):
+    """La gráfica del reporte como dibujo vectorial de reportlab (nítido al imprimir).
+
+    Nunca más alta que alto_maximo (el marco de la página): con muchas barras
+    horizontales, cada barra se adelgaza en vez de desbordar la página."""
     from reportlab.graphics.charts.barcharts import HorizontalBarChart, VerticalBarChart  # noqa: PLC0415
     from reportlab.graphics.charts.legends import Legend  # noqa: PLC0415
     from reportlab.graphics.charts.linecharts import HorizontalLineChart  # noqa: PLC0415
@@ -358,8 +384,12 @@ def _grafico_pdf(reporte: Reporte, ancho: float):
     categorias = [str(f[0])[:18] for f in filas]
     series = [[float(f[c]) if f[c] is not None else None for f in filas] for c in g.columnas]
     multiples = len(series) > 1
+    extra = 18 if multiples else 0
     alto = 190 if g.tipo != "barras" else max(120, 14 * len(categorias) + 40)
-    dibujo = Drawing(ancho, alto + (18 if multiples else 0))
+    alto = min(alto, alto_maximo - extra)
+    # Alto de cada barra horizontal tras el ajuste: la letra de la etiqueta no lo supera.
+    tamano_categoria = 6.5 if g.tipo != "barras" else max(4.0, min(6.5, (alto - 50) / max(len(categorias), 1) * 0.8))
+    dibujo = Drawing(ancho, alto + extra)
     if g.tipo == "lineas":
         grafico = HorizontalLineChart()
     elif g.tipo == "barras":
@@ -374,7 +404,7 @@ def _grafico_pdf(reporte: Reporte, ancho: float):
         [[v if v is not None else None for v in s] for s in series]
     grafico.categoryAxis.categoryNames = categorias
     grafico.categoryAxis.labels.fontName = "Helvetica"
-    grafico.categoryAxis.labels.fontSize = 6.5
+    grafico.categoryAxis.labels.fontSize = tamano_categoria
     if g.tipo != "barras" and len(categorias) > 8:
         grafico.categoryAxis.labels.angle = 35
         grafico.categoryAxis.labels.boxAnchor = "ne"
@@ -382,8 +412,9 @@ def _grafico_pdf(reporte: Reporte, ancho: float):
     grafico.valueAxis.labels.fontSize = 6.5
     grafico.valueAxis.valueMin = 0
     valores = [v for s in series for v in s if v is not None]
+    tope = tope_eje(max(valores or [1]), g.tipo_valor)
+    grafico.valueAxis.valueMax, grafico.valueAxis.valueStep = tope, tope / 4
     if g.tipo_valor == "porcentaje":
-        grafico.valueAxis.valueMax = min(1.0, max(valores or [1]) * 1.15) or 1
         grafico.valueAxis.labelTextFormat = lambda v: f"{v * 100:.0f} %"
     elif g.tipo_valor == "decimal":
         grafico.valueAxis.labelTextFormat = "%.1f"

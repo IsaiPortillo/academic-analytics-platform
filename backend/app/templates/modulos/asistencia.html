@@ -110,7 +110,10 @@
                     <div>
                         <label class="field-label" for="fecha-sesion">Fecha de sesión</label>
                         <input type="date" id="fecha-sesion" name="fecha_sesion" class="input"
-                               value="{{ fecha_sesion.isoformat() }}" onchange="this.form.submit()">
+                               value="{{ fecha_sesion.isoformat() }}" onchange="this.form.submit()"
+                               {% if periodo %}min="{{ periodo.fecha_inicio.isoformat() }}" max="{{ fecha_maxima.isoformat() }}"
+                               aria-describedby="fecha-sesion-ayuda"{% endif %}>
+                        {% if periodo %}<p class="text-xs text-muted mt-1" id="fecha-sesion-ayuda">Ciclo {{ periodo.codigo_periodo }}: {{ periodo.fecha_inicio.strftime('%d/%m/%Y') }} a {{ periodo.fecha_fin.strftime('%d/%m/%Y') }}</p>{% endif %}
                     </div>
                     {% if estados_sesion %}
                     <span class="self-end mb-1">{{ badge('warning', 'Sesión ya registrada · ' ~ estados_sesion|length ~ ' marca(s)') }}</span>

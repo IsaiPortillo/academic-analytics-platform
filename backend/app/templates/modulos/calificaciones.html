@@ -177,7 +177,7 @@
                     </div>
                     <div class="w-36">
                         <label class="field-label">Fecha</label>
-                        <input type="date" name="fecha_evaluacion" class="input" required>
+                        <input type="date" name="fecha_evaluacion" class="input" required{% if periodo %} min="{{ periodo.fecha_inicio.isoformat() }}" max="{{ periodo.fecha_fin.isoformat() }}" title="Ciclo {{ periodo.codigo_periodo }}: {{ periodo.fecha_inicio.strftime('%d/%m/%Y') }} a {{ periodo.fecha_fin.strftime('%d/%m/%Y') }}"{% endif %}>
                     </div>
                     <button type="submit" class="btn-save shrink-0">Agregar</button>
                 </form>

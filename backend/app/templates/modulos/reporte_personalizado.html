@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import descargas %}
+{% from "_macros.html" import descargas, campo_fecha %}
 {% block titulo %}Reporte personalizado{% endblock %}
 
 {% block contenido %}
@@ -13,11 +13,52 @@
     </div>
 </div>
 
-<div class="chip-list mb-3" aria-label="Reportes frecuentes">
-    {% for titulo, descripcion, q in atajos %}
-    <a class="chip" href="/reportes/personalizado?{{ q }}" title="{{ descripcion }}">{{ titulo }}</a>
-    {% endfor %}
+<details class="card mb-3 ideas" id="ideas" {% if galeria_abierta %}open{% endif %}>
+    <summary class="card-header ideas-summary">
+        <span>Ideas de reportes <span class="text-muted font-normal">· {{ total_ideas }} listas para usar</span></span>
+        <span class="text-xs text-muted font-normal ideas-toggle">Mostrar u ocultar</span>
+    </summary>
+    <div class="card-body">
+        <div class="guia-pasos mb-4" aria-label="Cómo armar un reporte">
+            <p class="text-sm font-semibold mb-2">Cómo armar un reporte en cinco pasos</p>
+            <ol class="guia-lista">
+                <li><strong>Tema:</strong> qué se mide. Asistencia (marcas por sesión), Calificaciones (notas de cada evaluación) o Matrícula (inscripciones y retiros).</li>
+                <li><strong>Agrupar por:</strong> el eje de la gráfica. Tiempo (mes, período, día de la semana) para ver tendencias; materia, docente o sección para comparar y encontrar los casos extremos.</li>
+                <li><strong>Comparar por</strong> (opcional): una línea o columna por cada valor, por ejemplo una por turno o por carrera. Responde «¿le pasa a todos o solo a un grupo?».</li>
+                <li><strong>Métrica:</strong> qué número dibujar. Prefiere tasas (%) para comparar grupos de distinto tamaño; los conteos sirven para dimensionar.</li>
+                <li><strong>Filtros y fechas:</strong> acotan sin cambiar la pregunta. Un período, una carrera o un rango de fechas. Con «Orden: por la métrica» y barras horizontales salen los rankings.</li>
+            </ol>
+        </div>
+
+        {% for categoria, lista in ideas %}
+        <section class="mb-4" aria-labelledby="cat-{{ loop.index }}">
+            <h2 class="text-sm font-semibold mb-2" id="cat-{{ loop.index }}">{{ categoria }} <span class="text-muted font-normal">({{ lista|length }})</span></h2>
+            <div class="ideas-grid">
+                {% for i, q in lista %}
+                <a class="idea-card{% if idea and idea.clave == i.clave %} is-active{% endif %}" href="/reportes/personalizado?{{ q }}#reporte">
+                    <span class="idea-titulo">{{ i.titulo }}</span>
+                    <span class="idea-pregunta">{{ i.pregunta }}</span>
+                    <span class="idea-pasos">{% for etiqueta, valor in i.pasos() %}<span>{{ valor }}</span>{% if not loop.last %} › {% endif %}{% endfor %}</span>
+                </a>
+                {% endfor %}
+            </div>
+        </section>
+        {% endfor %}
+    </div>
+</details>
+
+{% if idea %}
+<div class="idea-activa mb-3" role="note" aria-label="Idea en uso">
+    <div>
+        <p class="text-xs text-muted mb-1">Idea: {{ idea.categoria }}</p>
+        <p class="font-semibold">{{ idea.titulo }} — <span class="font-normal">{{ idea.pregunta }}</span></p>
+    </div>
+    <dl class="idea-detalle">
+        <div><dt>Cómo se arma</dt><dd>{% for etiqueta, valor in idea.pasos() %}{{ etiqueta }}: <strong>{{ valor }}</strong>{% if not loop.last %} · {% endif %}{% endfor %}</dd></div>
+        <div><dt>Cómo leerlo</dt><dd>{{ idea.lectura }}</dd></div>
+    </dl>
 </div>
+{% endif %}
 
 <form method="get" action="/reportes/personalizado" class="card mb-3" id="form-reporte">
     <div class="card-body grid gap-3">
@@ -31,14 +72,18 @@
             <div>
                 <label class="field-label" for="dimension">Agrupar por</label>
                 <select class="select" id="dimension" name="dimension">
-                    {% for clave, d in dimensiones %}<option value="{{ clave }}" {% if clave == p.dimension %}selected{% endif %}>{{ d.etiqueta }}</option>{% endfor %}
+                    {% for grupo, lista in dimensiones %}<optgroup label="{{ grupo }}">
+                    {% for clave, d in lista %}<option value="{{ clave }}" {% if clave == p.dimension %}selected{% endif %}>{{ d.etiqueta }}</option>{% endfor %}
+                    </optgroup>{% endfor %}
                 </select>
             </div>
             <div>
                 <label class="field-label" for="desglose">Comparar por</label>
                 <select class="select" id="desglose" name="desglose">
                     <option value="">Sin desglose</option>
-                    {% for clave, d in dimensiones %}<option value="{{ clave }}" {% if clave == p.desglose %}selected{% endif %}>{{ d.etiqueta }}</option>{% endfor %}
+                    {% for grupo, lista in dimensiones %}<optgroup label="{{ grupo }}">
+                    {% for clave, d in lista %}<option value="{{ clave }}" {% if clave == p.desglose %}selected{% endif %}>{{ d.etiqueta }}</option>{% endfor %}
+                    </optgroup>{% endfor %}
                 </select>
             </div>
             <div>
@@ -64,11 +109,18 @@
         <div class="filter-bar">
             <div>
                 <label class="field-label" for="desde">Desde</label>
-                <input type="date" class="input" id="desde" name="desde" value="{{ p.desde or '' }}">
+                {{ campo_fecha('desde', 'desde', p.desde, p.fechas_invalidas.get('desde', '')) }}
             </div>
             <div>
                 <label class="field-label" for="hasta">Hasta</label>
-                <input type="date" class="input" id="hasta" name="hasta" value="{{ p.hasta or '' }}">
+                {{ campo_fecha('hasta', 'hasta', p.hasta, p.fechas_invalidas.get('hasta', '')) }}
+            </div>
+            <div>
+                <label class="field-label" for="carrera_id">Carrera</label>
+                <select class="select" id="carrera_id" name="carrera_id">
+                    <option value="">Todas</option>
+                    {% for x in carreras %}<option value="{{ x.carrera_id }}" {% if x.carrera_id == p.carrera_id %}selected{% endif %}>{{ x.nombre }}</option>{% endfor %}
+                </select>
             </div>
             <div>
                 <label class="field-label" for="periodo_id">Período</label>
@@ -81,7 +133,7 @@
                 <label class="field-label" for="materia_id">Materia</label>
                 <select class="select" id="materia_id" name="materia_id">
                     <option value="">Todas</option>
-                    {% for x in materias %}<option value="{{ x.materia_id }}" {% if x.materia_id == p.materia_id %}selected{% endif %}>{{ x.codigo_materia }}</option>{% endfor %}
+                    {% for x in materias %}<option value="{{ x.materia_id }}" {% if x.materia_id == p.materia_id %}selected{% endif %}>{{ x.codigo_materia }} · {{ x.nombre }}</option>{% endfor %}
                 </select>
             </div>
             <div>
@@ -101,11 +153,16 @@
             <button type="submit" class="btn-save shrink-0">Generar</button>
             <a class="btn-outline-neutral shrink-0" href="/reportes/personalizado?tema={{ p.tema }}">Limpiar</a>
         </div>
+        {% if p.fechas_invalidas %}
+        <div class="alert alert-warning" role="alert">
+            <span>{% for campo, texto in p.fechas_invalidas.items() %}No se entendió la fecha «{{ texto }}» en «{{ 'Desde' if campo == 'desde' else 'Hasta' }}»{% if not loop.last %}; {% endif %}{% endfor %}: se ignoró. Escríbela como dd/mm/aaaa (por ejemplo 01/03/2025) o elígela en el calendario.</span>
+        </div>
+        {% endif %}
         <p class="text-xs text-muted">{{ tema.descripcion }}</p>
     </div>
 </form>
 
-<div class="card mb-3">
+<div class="card mb-3" id="reporte">
     <div class="card-header">{{ reporte.titulo }}</div>
     <div class="card-body">
         {% if not reporte.filas %}
@@ -144,4 +201,19 @@
         </table>
     </div>
 </div>
+
+{% set con_ayuda = tema.metricas.values()|selectattr('ayuda')|list %}
+{% if con_ayuda %}
+<details class="card mt-3 calculo">
+    <summary class="card-header">Cómo se calcula cada cifra</summary>
+    <div class="card-body">
+        <dl class="calculo-lista">
+            {% for m in con_ayuda %}
+            <div><dt>{{ m.etiqueta }}</dt><dd>{{ m.ayuda }}</dd></div>
+            {% endfor %}
+        </dl>
+        <p class="text-xs text-muted mt-3">Los porcentajes se calculan sobre cada fila, no se promedian entre filas: el total de una tabla no es el promedio de sus porcentajes. Las barras horizontales de un porcentaje se miden sobre 100 %.</p>
+    </div>
+</details>
+{% endif %}
 {% endblock %}

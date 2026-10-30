@@ -1,6 +1,5 @@
 """Reportes personalizados (coordinador). La lógica está en app/reporte_personalizado.py."""
 
-from datetime import date
 from typing import Optional
 from urllib.parse import urlencode
 
@@ -13,7 +12,8 @@ from .. import reporte_personalizado as rp
 from ..database import get_db
 from ..dependencies import UsuarioSesion, requiere_rol
 from ..exportar import FORMATOS, formatear, responder
-from ..models import Docente, Materia, PeriodoAcademico
+from ..importar import fecha_de_filtro
+from ..models import Carrera, Docente, Materia, PeriodoAcademico
 from ..templating import templates
 
 router = APIRouter(prefix="/reportes/personalizado", tags=["reportes"])
@@ -25,20 +25,27 @@ def _parametros(
     dimension: str = Query("mes"),
     desglose: Optional[str] = Query(None),
     metrica: Optional[str] = Query(None),
-    desde: Optional[date] = Query(None),
-    hasta: Optional[date] = Query(None),
+    desde: Optional[str] = Query(None),
+    hasta: Optional[str] = Query(None),
     periodo_id: Optional[str] = Query(None),
     materia_id: Optional[str] = Query(None),
     docente_id: Optional[str] = Query(None),
     turno: Optional[str] = Query(None),
     grafica: str = Query("lineas"),
     orden: str = Query("natural"),
+    carrera_id: Optional[str] = Query(None),
 ) -> rp.Parametros:
     # Los <select> envían "" para «Todos»: se trata como ausente, no como error.
     def entero(v):
         return int(v) if v and v.isdigit() else None
-    return rp.Parametros(tema, dimension, desglose or None, metrica or None, desde, hasta, entero(periodo_id),
-                         entero(materia_id), entero(docente_id), turno or None, grafica, orden).normalizar()
+    # Las fechas llegan escritas (dd/mm/aaaa, ddmmaaaa o aaaa-mm-dd). Una que no
+    # se entiende se ignora y la pantalla lo avisa, en vez de un error 422.
+    fecha_desde, mal_desde = fecha_de_filtro(desde)
+    fecha_hasta, mal_hasta = fecha_de_filtro(hasta)
+    invalidas = {k: v for k, v in (("desde", mal_desde), ("hasta", mal_hasta)) if v}
+    return rp.Parametros(tema, dimension, desglose or None, metrica or None, fecha_desde, fecha_hasta,
+                         entero(periodo_id), entero(materia_id), entero(docente_id), turno or None, grafica,
+                         orden, entero(carrera_id), invalidas).normalizar()
 
 
 def _catalogos(db: Session):
@@ -47,6 +54,7 @@ def _catalogos(db: Session):
                                                                   PeriodoAcademico.ciclo_romano.desc())).all(),
         "materias": db.scalars(select(Materia).order_by(Materia.codigo_materia)).all(),
         "docentes": db.scalars(select(Docente).order_by(Docente.codigo_docente)).all(),
+        "carreras": db.scalars(select(Carrera).order_by(Carrera.nombre)).all(),
     }
 
 
@@ -58,7 +66,8 @@ def _etiquetas(p: rp.Parametros, catalogos) -> list[tuple[str, str]]:
     if p.desde or p.hasta:
         etiquetas.append(("Fechas", f"{formatear(p.desde, 'fecha') if p.desde else 'inicio'} a "
                                     f"{formatear(p.hasta, 'fecha') if p.hasta else 'hoy'}"))
-    nombres = {"periodo_id": ("Período", {x.periodo_id: x.codigo_periodo for x in catalogos["periodos"]}),
+    nombres = {"carrera_id": ("Carrera", {x.carrera_id: x.nombre for x in catalogos["carreras"]}),
+               "periodo_id": ("Período", {x.periodo_id: x.codigo_periodo for x in catalogos["periodos"]}),
                "materia_id": ("Materia", {x.materia_id: x.codigo_materia for x in catalogos["materias"]}),
                "docente_id": ("Docente", {x.docente_id: x.codigo_docente for x in catalogos["docentes"]})}
     for campo, (etiqueta, mapa) in nombres.items():
@@ -72,7 +81,8 @@ def _etiquetas(p: rp.Parametros, catalogos) -> list[tuple[str, str]]:
 def consulta_de(p: rp.Parametros) -> str:
     valores = {"tema": p.tema, "dimension": p.dimension, "desglose": p.desglose, "metrica": p.metrica,
                "desde": p.desde, "hasta": p.hasta, "periodo_id": p.periodo_id, "materia_id": p.materia_id,
-               "docente_id": p.docente_id, "turno": p.turno, "grafica": p.grafica, "orden": p.orden}
+               "docente_id": p.docente_id, "turno": p.turno, "grafica": p.grafica, "orden": p.orden,
+               "carrera_id": p.carrera_id}
     return urlencode({k: v for k, v in valores.items() if v not in (None, "")})
 
 
@@ -96,12 +106,19 @@ def _grafica_pantalla(reporte, p: rp.Parametros):
               for c in g.columnas]
     if g.tipo == "barras":
         valores = series[0][1]
-        maximo = max((v for v in valores if v is not None), default=0) or 1
-        barras = [{"etiqueta": c, "valor": formatear(v, g.tipo_valor), "pct": (v or 0) / maximo}
+        # Un porcentaje se dibuja sobre 100 %: si se midiera contra la barra más
+        # larga, un 14 % de ausencia llenaría la barra y parecería un 100 %.
+        maximo = 1.0 if g.tipo_valor == "porcentaje" else (max((v for v in valores if v is not None), default=0) or 1)
+        barras = [{"etiqueta": c, "valor": formatear(v, g.tipo_valor), "pct": min(max((v or 0) / maximo, 0), 1)}
                   for c, v in zip(categorias, valores)][:40]
         return None, barras
     dibujar = graficas.lineas if g.tipo == "lineas" else graficas.columnas
     return dibujar(reporte.titulo, categorias[:60], [(n, v[:60]) for n, v in series], g.tipo_valor), []
+
+
+def _ideas_por_categoria():
+    return [(categoria, [(i, urlencode(i.config)) for i in rp.IDEAS if i.categoria == categoria])
+            for categoria in rp.CATEGORIAS_IDEAS]
 
 
 @router.get("")
@@ -119,6 +136,9 @@ def ver(
     return templates.TemplateResponse(request, "modulos/reporte_personalizado.html", {
         "usuario": usuario, "p": p, "reporte": reporte, "resumen": resumen, "filas": filas,
         "svg": svg, "barras": barras, "consulta": consulta_de(p),
-        "temas": rp.TEMAS, "tema": tema, "dimensiones": [(k, rp.DIMENSIONES[k]) for k in rp.dimensiones_de(p.tema)],
-        "graficas": rp.GRAFICAS, "atajos": [(t, d, urlencode(q)) for t, d, q in rp.ATAJOS], **catalogos,
+        "temas": rp.TEMAS, "tema": tema, "dimensiones": rp.dimensiones_agrupadas(p.tema),
+        "graficas": rp.GRAFICAS, **catalogos,
+        # Ideas: la galería se abre en la primera visita (sin parámetros) para orientar.
+        "idea": rp.idea_de(p), "ideas": _ideas_por_categoria(), "total_ideas": len(rp.IDEAS),
+        "galeria_abierta": not request.query_params,
     })

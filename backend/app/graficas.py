@@ -14,7 +14,7 @@ from typing import Optional, Sequence
 
 from markupsafe import Markup
 
-from .exportar import formatear
+from .exportar import formatear, tope_eje
 
 ANCHO, ALTO = 720, 280
 MARGEN = {"arriba": 16, "derecha": 16, "abajo": 56, "izquierda": 56}
@@ -23,17 +23,23 @@ MARGEN = {"arriba": 16, "derecha": 16, "abajo": 56, "izquierda": 56}
 def _escala(valores: Sequence[Optional[float]], tipo: str) -> tuple[float, float]:
     numeros = [v for v in valores if v is not None]
     maximo = max(numeros) if numeros else 1
-    if tipo == "porcentaje":
-        return 0.0, min(1.0, maximo * 1.1) or 1.0
-    if tipo == "decimal" and maximo <= 10:
-        return 0.0, 10.0          # notas: siempre la escala completa de 0 a 10
-    return 0.0, (maximo * 1.1) or 1.0
+    # Divisiones redondas (0–25–50–75–100 %); las notas, siempre de 0 a 10.
+    return 0.0, tope_eje(maximo, tipo)
 
 
 def _marcas_y(minimo: float, maximo: float, tipo: str, n: int = 4) -> list[tuple[float, str]]:
     paso = (maximo - minimo) / n
-    return [(minimo + paso * i, formatear(minimo + paso * i, tipo if tipo != "decimal" else "decimal")
-             if tipo != "entero" else f"{minimo + paso * i:,.0f}") for i in range(n + 1)]
+
+    def texto(v: float) -> str:
+        # Divisiones redondas: «25 %», «2.5», «1,000», sin ceros de relleno.
+        if tipo == "porcentaje":
+            return f"{round(v * 100, 1):g} %"
+        if tipo == "decimal":
+            return f"{round(v, 2):g}"
+        if tipo == "entero":
+            return f"{v:,.0f}"
+        return formatear(v, tipo)
+    return [(minimo + paso * i, texto(minimo + paso * i)) for i in range(n + 1)]
 
 
 def _base(titulo: str, descripcion: str, cuerpo: list[str], series: list[str]) -> Markup:

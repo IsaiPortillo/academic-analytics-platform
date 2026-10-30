@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from ..avisos import redirigir, tomar_aviso
 from ..database import get_db
 from ..dependencies import UsuarioSesion, requiere_rol
+from ..fechas_periodo import periodo_de, problema_fecha
 from ..importar import (TIPO_XLSX, ErrorArchivo, como_entero, como_fecha, leer_filas, normalizar,
                         plantilla_xlsx, ubicar_cabecera)
 from ..models import Asistencia, Estudiante, Inscripcion, Materia, PeriodoAcademico, Seccion
@@ -167,6 +168,7 @@ def inicio_asistencia(
     estados_sesion = {}
     resumen = []
     sesiones = []
+    periodo = None
     if seccion_id:
         seccion = _seccion_permitida(db, seccion_id, usuario)
         if seccion and seccion.periodo_id != periodo_id:
@@ -175,8 +177,10 @@ def inicio_asistencia(
             seccion = None
         if seccion:
             materia = db.get(Materia, seccion.materia_id)
+            periodo = periodo_de(db, seccion)
             if fecha_sesion is None:
-                fecha_sesion = date.today()
+                # Hoy, o el último día del ciclo si ya terminó (o el primero si no empezó).
+                fecha_sesion = min(max(date.today(), periodo.fecha_inicio), periodo.fecha_fin)
             roster = _roster(db, seccion_id, incluir_finalizados=seccion.acta_cerrada)
             estados_sesion = _asistencias_de_sesion(db, fecha_sesion, roster)
             resumen = _resumen_faltas(db, roster)
@@ -194,6 +198,8 @@ def inicio_asistencia(
             "seccion": seccion,
             "materia": materia,
             "fecha_sesion": fecha_sesion,
+            "periodo": periodo,
+            "fecha_maxima": min(date.today(), periodo.fecha_fin) if periodo else None,
             "roster": roster,
             "estados_sesion": estados_sesion,
             "estados_validos": ESTADOS_VALIDOS,
@@ -224,6 +230,10 @@ def registrar_asistencia(
 
     if len(inscripcion_id) != len(estado):
         return redirigir(request, destino, error="Formulario de asistencia inconsistente")
+
+    problema = problema_fecha(periodo_de(db, seccion), fecha_sesion, permitir_futura=False)
+    if problema:
+        return redirigir(request, destino, error=problema)
 
     # Solo se aceptan inscripciones del roster real de la sección. El motor ya
     # rechaza las de secciones ajenas (RLS); aquí se descartan antes de intentarlo.
@@ -348,8 +358,9 @@ def descargar_plantilla(
         "Content-Disposition": f'attachment; filename="{nombre}"', "Cache-Control": "no-store"})
 
 
-def analizar_importacion_asistencia(filas, roster, actuales):
-    """actuales: {(inscripcion_id, fecha): estado}. Devuelve (cambios, errores)."""
+def analizar_importacion_asistencia(filas, roster, actuales, periodo=None):
+    """actuales: {(inscripcion_id, fecha): estado}. Devuelve (cambios, errores).
+    Con periodo, rechaza además las fechas fuera de su ciclo."""
     errores = []
     inicio = ubicar_cabecera(filas, COLUMNA_ID)
     inscripcion_de = {e.estudiante_id: i.inscripcion_id for i, e in roster}
@@ -370,6 +381,10 @@ def analizar_importacion_asistencia(filas, roster, actuales):
             continue
         if fecha > date.today():
             errores.append(f"Fila {numero}: la fecha {fecha:%d/%m/%Y} es futura.")
+            continue
+        problema = problema_fecha(periodo, fecha, permitir_futura=False) if periodo else None
+        if problema:
+            errores.append(f"Fila {numero}: {problema[0].lower()}{problema[1:]}")
             continue
         if not estado:
             continue  # sin estado: no se registra nada para esa fila
@@ -415,7 +430,8 @@ async def importar_asistencia(
     roster = _roster(db, seccion_id)
     try:
         filas = await leer_filas(archivo)
-        cambios, errores = analizar_importacion_asistencia(filas, roster, _asistencias_actuales(db, roster))
+        cambios, errores = analizar_importacion_asistencia(filas, roster, _asistencias_actuales(db, roster),
+                                                           periodo_de(db, seccion))
     except ErrorArchivo as exc:
         return redirigir(request, destino, error=str(exc))
     pendientes = [c for c in cambios if c["tipo"] != "igual"]
@@ -447,8 +463,10 @@ def confirmar_importacion_asistencia(
     db: Session = Depends(get_db),
 ):
     destino = _destino(periodo_id, seccion_id)
-    if _seccion_permitida(db, seccion_id, usuario) is None:
+    seccion = _seccion_permitida(db, seccion_id, usuario)
+    if seccion is None:
         return redirigir(request, destino, error="Sección no encontrada")
+    periodo = periodo_de(db, seccion)
     roster = _roster(db, seccion_id)
     validas = {i.inscripcion_id for i, _ in roster}
     actuales = {(a.inscripcion_id, a.fecha_sesion): a for a in db.scalars(
@@ -460,7 +478,8 @@ def confirmar_importacion_asistencia(
             insc = como_entero(partes[0]) if len(partes) == 3 else None
             fecha = como_fecha(partes[1]) if len(partes) == 3 else None
             estado = partes[2] if len(partes) == 3 else None
-            if insc not in validas or fecha is None or fecha > date.today() or estado not in ESTADOS_VALIDOS:
+            if (insc not in validas or fecha is None or estado not in ESTADOS_VALIDOS
+                    or problema_fecha(periodo, fecha, permitir_futura=False)):
                 db.rollback()
                 return redirigir(request, destino,
                                  error="La importación cambió desde la vista previa: vuelve a subir el archivo.")

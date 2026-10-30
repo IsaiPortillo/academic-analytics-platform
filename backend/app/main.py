@@ -1,5 +1,6 @@
 from fastapi import Depends, FastAPI, Request
-from fastapi.exception_handlers import http_exception_handler
+from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, select
@@ -52,6 +53,27 @@ app.add_middleware(
     max_age=settings.sesion_duracion_horas * 3600,
 )
 
+
+class SinParametrosVacios:
+    """Quita de la URL los parámetros vacíos («periodo_id=&desde=»).
+
+    Un formulario GET envía todos sus campos, también los que quedan en «Todos» o
+    sin fecha. Para FastAPI, «desde=» no es una fecha ni «periodo_id=» un entero,
+    y respondería 422 con JSON. Un filtro vacío es un filtro ausente.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope.get("query_string"):
+            partes = [p for p in scope["query_string"].split(b"&") if p and not p.endswith(b"=")]
+            scope = dict(scope, query_string=b"&".join(partes))
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(SinParametrosVacios)
+
 app.mount("/static", StaticFiles(directory=DIRECTORIO_APP / "static"), name="static")
 
 app.include_router(auth.router)
@@ -93,6 +115,24 @@ async def manejar_excepcion_http(request: Request, exc: StarletteHTTPException):
         )
 
     return await http_exception_handler(request, exc)
+
+
+@app.exception_handler(RequestValidationError)
+async def manejar_parametros_invalidos(request: Request, exc: RequestValidationError):
+    # Un filtro mal escrito en la URL (desde=abc, periodo_id=x): página en español,
+    # no el JSON de FastAPI. La API (/api) conserva su respuesta 422.
+    if request.url.path.startswith("/api"):
+        return await request_validation_exception_handler(request, exc)
+    campos = sorted({str(e["loc"][-1]) for e in exc.errors() if e.get("loc")})
+    return templates.TemplateResponse(
+        request,
+        "error.html",
+        {"codigo": 400,
+         "mensaje": "Algún filtro tiene un valor no válido" + (f" ({', '.join(campos)})" if campos else "")
+                    + ". Vuelve a la pantalla anterior y revísalo.",
+         "usuario": usuario_opcional(request)},
+        status_code=400,
+    )
 
 
 @app.get("/")

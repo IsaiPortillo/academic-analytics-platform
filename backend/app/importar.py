@@ -121,12 +121,26 @@ def como_fecha(valor: Any) -> Optional[date]:
     if isinstance(valor, date):
         return valor
     texto = str(valor or "").strip()
-    for formato in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+    if texto.isdigit() and len(texto) == 8:       # 01022025: ddmmaaaa escrito sin barras
+        texto = f"{texto[:2]}/{texto[2:4]}/{texto[4:]}"
+    for formato in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y"):
         try:
             return datetime.strptime(texto, formato).date()
         except ValueError:
             continue
     return None
+
+
+def fecha_de_filtro(texto: Optional[str]) -> tuple[Optional[date], Optional[str]]:
+    """Fecha escrita en un filtro: (fecha, None), (None, None) si está vacío, o
+    (None, texto) si no se entiende, para avisar en vez de fallar."""
+    texto = (texto or "").strip()
+    if not texto:
+        return None, None
+    fecha = como_fecha(texto)
+    if fecha is None or not 1900 <= fecha.year <= 2100:
+        return None, texto
+    return fecha, None
 
 
 def vacio(valor: Any) -> bool:

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import descargas %}
+{% from "_macros.html" import descargas, campo_fecha %}
 {% block titulo %}Auditoría{% endblock %}
 
 {% block contenido %}
@@ -23,11 +23,11 @@
             <input type="hidden" name="vista" value="{{ vista }}">
             <div>
                 <label for="desde" class="field-label">Desde</label>
-                <input type="date" id="desde" name="desde" class="input" value="{{ filtros.desde or '' }}">
+                {{ campo_fecha('desde', 'desde', filtros.desde, fechas_invalidas.get('desde', '')) }}
             </div>
             <div>
                 <label for="hasta" class="field-label">Hasta</label>
-                <input type="date" id="hasta" name="hasta" class="input" value="{{ filtros.hasta or '' }}">
+                {{ campo_fecha('hasta', 'hasta', filtros.hasta, fechas_invalidas.get('hasta', '')) }}
             </div>
             <div>
                 <label for="usuario-filtro" class="field-label">Usuario</label>
@@ -61,6 +61,11 @@
             <button type="submit" class="btn-save shrink-0">Filtrar</button>
             {% if consulta %}<a class="btn-outline-neutral shrink-0" href="/auditoria?vista={{ vista }}">Limpiar</a>{% endif %}
         </form>
+        {% if fechas_invalidas %}
+        <div class="alert alert-warning mt-3" role="alert">
+            <span>{% for campo, texto in fechas_invalidas.items() %}No se entendió la fecha «{{ texto }}» en «{{ 'Desde' if campo == 'desde' else 'Hasta' }}»{% if not loop.last %}; {% endif %}{% endfor %}: se ignoró. Escríbela como dd/mm/aaaa o elígela en el calendario.</span>
+        </div>
+        {% endif %}
     </div>
 </div>
 

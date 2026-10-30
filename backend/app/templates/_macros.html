@@ -43,6 +43,23 @@
 </div>
 {% endmacro %}
 
+{# Fecha de un filtro: texto dd/mm/aaaa + botón de calendario. No se usa <input type="date">
+   directo porque en Edge/Chrome escribir la fecha solo funciona si el clic cae justo en
+   «dd»; si cae en el mes o el año, la fecha queda incompleta y el navegador bloquea el
+   envío sin explicar por qué. El calendario nativo sigue disponible con el botón
+   (app.js, data-campo-fecha). invalido: el texto que no se entendió, para conservarlo. #}
+{% macro campo_fecha(id, nombre, valor=None, invalido='') %}
+<div class="campo-fecha" data-campo-fecha>
+    <input type="text" class="input{% if invalido %} is-invalid{% endif %}" id="{{ id }}" name="{{ nombre }}"
+           value="{{ invalido or (valor.strftime('%d/%m/%Y') if valor else '') }}" placeholder="dd/mm/aaaa"
+           inputmode="numeric" autocomplete="off" maxlength="10"{% if invalido %} aria-invalid="true"{% endif %}>
+    <button type="button" class="campo-fecha-boton" data-abrir-calendario aria-label="Elegir en el calendario" title="Elegir en el calendario">
+        <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12.5" rx="1.5"/><path d="M3 8.5h14M7 3v3M13 3v3"/></svg>
+    </button>
+    <input type="date" class="campo-fecha-nativo" tabindex="-1" aria-hidden="true" value="{{ valor.isoformat() if valor else '' }}">
+</div>
+{% endmacro %}
+
 {# Iniciales para el avatar: primera letra del primer y del último nombre. #}
 {% macro iniciales(nombre) %}{% set partes = (nombre or '').split() %}{% if partes %}{{ (partes[0][0] ~ (partes[-1][0] if partes|length > 1 else ''))|upper }}{% else %}?{% endif %}{% endmacro %}
 

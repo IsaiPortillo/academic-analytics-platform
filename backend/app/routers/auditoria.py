@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..dependencies import UsuarioSesion, requiere_rol
 from ..exportar import FORMATOS, Columna, Reporte, formatear, responder
+from ..importar import fecha_de_filtro
 from ..templating import templates
 
 router = APIRouter(prefix="/auditoria", tags=["auditoría"])
@@ -134,11 +135,17 @@ def construir_reporte(db: Session, vista: str, **filtros) -> Reporte:
     return Reporte("Bitácora de notas", "bitacora_notas", COLUMNAS_NOTAS, filas, legibles)
 
 
-def _params(desde: Optional[date] = Query(None), hasta: Optional[date] = Query(None),
+def _params(desde: Optional[str] = Query(None), hasta: Optional[str] = Query(None),
             usuario: Optional[str] = Query(None), operacion: Optional[str] = Query(None),
             periodo_id: Optional[int] = Query(None)):
-    return {"desde": desde, "hasta": hasta, "usuario": (usuario or "").strip() or None,
-            "operacion": operacion or None, "periodo_id": periodo_id}
+    # Fechas escritas (dd/mm/aaaa, ddmmaaaa o aaaa-mm-dd): una que no se entiende se ignora.
+    return {"desde": fecha_de_filtro(desde)[0], "hasta": fecha_de_filtro(hasta)[0],
+            "usuario": (usuario or "").strip() or None, "operacion": operacion or None, "periodo_id": periodo_id}
+
+
+def _fechas_invalidas(desde: Optional[str] = Query(None), hasta: Optional[str] = Query(None)) -> dict:
+    """{"desde": "31/02/2025"}: lo que se escribió y no se entendió, para avisarlo y conservarlo."""
+    return {k: v for k, v in (("desde", fecha_de_filtro(desde)[1]), ("hasta", fecha_de_filtro(hasta)[1])) if v}
 
 
 @router.get("/exportar")
@@ -157,6 +164,7 @@ def ver(
     request: Request,
     vista: str = Query("notas"),
     filtros: dict = Depends(_params),
+    invalidas: dict = Depends(_fechas_invalidas),
     usuario: UsuarioSesion = Depends(requiere_rol("rol_coordinador")),
     db: Session = Depends(get_db),
 ):
@@ -178,6 +186,7 @@ def ver(
         "usuario": usuario,
         "vista": vista,
         "filtros": filtros,
+        "fechas_invalidas": invalidas,
         "consulta": consulta,
         "reporte": reporte,
         "filas": filas,

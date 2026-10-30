@@ -54,11 +54,14 @@ class TestSeguridadPorFila(unittest.TestCase):
         with MOTOR.connect() as c:
             c.execute(text("SET LOCAL ROLE rol_coordinador"))
             # Docente A: una sección con inscripciones y evaluaciones. Sección B: de otro docente.
+            # Las dos con el acta abierta: con el acta cerrada, el bloqueo de actas
+            # (script 17) rechaza la escritura antes que la seguridad por fila.
             fila = c.execute(text("""
                 SELECT s.docente_id, s.seccion_id, i.inscripcion_id, e.evaluacion_id
                 FROM academico_oltp.secciones s
                 JOIN academico_oltp.inscripciones i ON i.seccion_id = s.seccion_id
                 JOIN academico_oltp.evaluaciones e ON e.seccion_id = s.seccion_id
+                WHERE NOT s.acta_cerrada
                 ORDER BY s.seccion_id LIMIT 1""")).one()
             cls.docente_a, cls.seccion_a, cls.inscripcion_a, cls.evaluacion_a = fila
             fila = c.execute(text("""
@@ -66,7 +69,7 @@ class TestSeguridadPorFila(unittest.TestCase):
                 FROM academico_oltp.secciones s
                 JOIN academico_oltp.inscripciones i ON i.seccion_id = s.seccion_id
                 JOIN academico_oltp.evaluaciones e ON e.seccion_id = s.seccion_id
-                WHERE s.docente_id <> :a
+                WHERE s.docente_id <> :a AND NOT s.acta_cerrada
                 ORDER BY s.seccion_id LIMIT 1"""), {"a": cls.docente_a}).one()
             cls.seccion_b, cls.inscripcion_b, cls.evaluacion_b = fila
 

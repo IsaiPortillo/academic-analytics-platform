@@ -2250,6 +2250,197 @@
     background-color: var(--color-surface-sunken);
   }
 
+  /* Ideas de reportes (reporte personalizado): una galería plegable con <details>,
+     sin JS. Cada tarjeta es un enlace que carga la configuración de la idea. */
+  .ideas > summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .ideas > summary::-webkit-details-marker {
+    display: none;
+  }
+  .ideas > summary::after {
+    content: "▾";
+    color: var(--color-muted);
+    transition: transform 0.15s ease-in-out;
+  }
+  .ideas:not([open]) > summary::after {
+    transform: rotate(-90deg);
+  }
+  .ideas-toggle {
+    margin-left: auto;
+  }
+  .guia-pasos {
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface-sunken);
+  }
+  .guia-lista {
+    list-style: decimal;
+    padding-left: 1.25rem;
+    display: grid;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+  .ideas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 0.625rem;
+  }
+  .idea-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.75rem 0.875rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    transition: border-color 0.15s ease-in-out, background-color 0.15s ease-in-out;
+  }
+  .idea-card:hover {
+    border-color: var(--color-brand);
+  }
+  .idea-card:focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+  .idea-card.is-active {
+    border-color: var(--color-brand);
+    box-shadow: inset 3px 0 0 var(--color-brand);
+  }
+  .idea-titulo {
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+  .idea-pregunta {
+    font-size: 0.8125rem;
+    color: var(--color-muted);
+  }
+  .idea-pasos {
+    margin-top: auto;
+    padding-top: 0.375rem;
+    font-size: 0.6875rem;
+    color: var(--color-muted);
+  }
+  .idea-pasos span {
+    color: var(--color-text);
+  }
+  /* Campo de fecha de los filtros (macro campo_fecha): texto + botón de calendario.
+     El <input type="date"> queda invisible pero presente: showPicker() necesita que
+     esté en el documento, y así el calendario se abre junto al campo. */
+  .campo-fecha {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    width: 9.5rem;
+  }
+  .campo-fecha > .input {
+    flex: 1;
+    min-width: 0;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .campo-fecha-boton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.5rem;
+    border: 1px solid var(--color-input-border);
+    border-left: 0;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    background-color: var(--color-surface-sunken);
+    color: var(--color-muted);
+    cursor: pointer;
+  }
+  .campo-fecha-boton:hover {
+    color: var(--color-brand);
+  }
+  .campo-fecha-boton:focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 1px;
+  }
+  .campo-fecha-nativo {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+    border: 0;
+    padding: 0;
+  }
+  .input.is-invalid {
+    border-color: var(--color-danger-border);
+    background-color: var(--color-danger-bg);
+  }
+  @media (pointer: coarse) {
+    .campo-fecha-boton {
+      min-width: 44px;
+    }
+  }
+
+  /* Cómo se calcula cada cifra del reporte personalizado. */
+  .calculo > summary {
+    cursor: pointer;
+  }
+  .calculo-lista {
+    display: grid;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+  }
+  .calculo-lista dt {
+    font-weight: 600;
+  }
+  .calculo-lista dd {
+    color: var(--color-muted);
+  }
+  @media (min-width: 1024px) {
+    .calculo-lista > div {
+      display: grid;
+      grid-template-columns: 14rem 1fr;
+      gap: 1rem;
+    }
+  }
+
+  /* La idea en uso: qué responde, cómo se arma y cómo leerla. */
+  .idea-activa {
+    display: grid;
+    gap: 0.625rem;
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-brand);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    font-size: 0.875rem;
+  }
+  .idea-detalle {
+    display: grid;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+  }
+  .idea-detalle dt {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-muted);
+  }
+  @media (min-width: 1024px) {
+    .idea-detalle {
+      grid-template-columns: 1fr 1.6fr;
+      gap: 1rem;
+    }
+  }
+
   /* Pestañas de una misma pantalla (auditoría, administración). Enlaces, no JS:
      cada pestaña es una URL que se puede compartir. Deslizan si no caben. */
   .tabs {
