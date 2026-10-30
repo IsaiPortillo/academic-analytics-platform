@@ -2,7 +2,7 @@
 
 Mismo dibujo que /red-curricular (la app web): las coordenadas las calcula
 backend/app/red_curricular.py con NetworkX y aquí solo se pintan, con los colores
-de la paleta de Minerva. Cada materia puede estar en uno de cuatro estados al
+de la paleta de EduMetrics. Cada materia puede estar en uno de cuatro estados al
 elegir una: elegida, se bloquea si se reprueba (dependiente), hay que aprobarla
 antes (prerrequisito) o sin relación (atenuada). El estado nunca va solo en el
 color: cada nodo dice cuántas materias bloquea y el panel de detalle lo repite en

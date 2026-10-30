@@ -1,4 +1,4 @@
-"""Identidad visual de Sistema Minerva para el dashboard de Streamlit.
+"""Identidad visual de EduMetrics para el dashboard de Streamlit.
 
 Los valores son los de backend/app/static/src/input.css (DESIGN.md): la misma
 marca carmesí, las mismas superficies frías, la misma tipografía y el mismo modo

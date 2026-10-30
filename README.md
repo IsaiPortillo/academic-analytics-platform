@@ -395,7 +395,7 @@ app, no usa la sesión con `SET LOCAL ROLE`: lee el DW con su propia conexión c
 [`docs/FASE-4.1_vista_ejecutiva.txt`](docs/FASE-4.1_vista_ejecutiva.txt).
 
 **Dashboard interactivo en Streamlit (SCRUM-44).** App independiente en `dashboard/` con la misma identidad
-de Sistema Minerva (marca, paleta, tipografía, modo claro y oscuro, barra lateral y barra superior), para que se
+de EduMetrics (marca, paleta, tipografía, modo claro y oscuro, barra lateral y barra superior), para que se
 vea como parte de la app. Tiene la versión interactiva de las pantallas de inteligencia, con sus mismas
 secciones: **Vista ejecutiva**, **Dashboard estratégico**, **Red curricular** (la red dibujada, eligiendo una
 materia se resalta lo que bloquea), **Cubo OLAP** (ROLLUP/CUBE con subtotales y CSV) y **Patrón de riesgo

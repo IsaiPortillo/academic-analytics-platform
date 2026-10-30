@@ -1,4 +1,4 @@
-"""Dashboard interactivo de Sistema Minerva — Streamlit (SCRUM-44 y Fases 4.1 a 4.3).
+"""Dashboard interactivo de EduMetrics — Streamlit (SCRUM-44 y Fases 4.1 a 4.3).
 
 Para el coordinador académico: qué ocurrió con el rendimiento, cuánto costó y
 dónde se concentra, sin escribir consultas. Niveles analíticos descriptivo y
@@ -60,7 +60,7 @@ def _cabeceras() -> dict:
 
 
 def main() -> None:
-    st.set_page_config(page_title="Dashboard interactivo · Sistema Minerva", page_icon=":material/monitoring:",
+    st.set_page_config(page_title="Dashboard interactivo · EduMetrics", page_icon=":material/monitoring:",
                        layout="wide")
     p = tema.paleta(tema.nombre_tema())
     # st.markdown y no st.html: este último sanea el HTML y descarta la hoja de estilos entera

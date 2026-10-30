@@ -3,13 +3,13 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>{% block titulo %}Sistema Minerva{% endblock %} · UES-FMO</title>
-    <meta name="description" content="{% block meta_descripcion %}Sistema Minerva — plataforma académica y analítica de rendimiento estudiantil de la Universidad de El Salvador, Facultad Multidisciplinaria Oriental.{% endblock %}">
+    <title>{% block titulo %}EduMetrics{% endblock %} · UES-FMO</title>
+    <meta name="description" content="{% block meta_descripcion %}EduMetrics — plataforma académica y analítica de rendimiento estudiantil de la Universidad de El Salvador, Facultad Multidisciplinaria Oriental.{% endblock %}">
     {# Sistema interno con datos institucionales reales: no se busca posicionamiento
        en buscadores, solo una presentación correcta (título, ícono, vista previa
        de enlace) al compartirlo o tenerlo abierto en una pestaña. #}
     <meta name="robots" content="noindex, nofollow">
-    <meta property="og:title" content="{% block og_titulo %}Sistema Minerva{% endblock %}">
+    <meta property="og:title" content="{% block og_titulo %}EduMetrics{% endblock %}">
     <meta property="og:description" content="{{ self.meta_descripcion() }}">
     <meta property="og:type" content="website">
     <meta property="og:locale" content="es_SV">
@@ -71,7 +71,7 @@
                         <path d="M6 9.5V16c0 1.5 2.5 3 6 3s6-1.5 6-3V9.5"/>
                     </svg>
                 </span>
-                Minerva
+                EduMetrics
             </div>
 
             {# Solo cajón (< 1024px): ahí la barra superior no tiene lugar para el nombre. #}

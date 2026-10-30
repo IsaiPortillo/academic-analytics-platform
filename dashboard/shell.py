@@ -47,7 +47,7 @@ def _url(base: str, ruta: str) -> str:
 
 
 def marca_html() -> str:
-    return f'<div class="mn-brand"><span class="mn-mark">{MARCA_SVG}</span>Minerva</div>'
+    return f'<div class="mn-brand"><span class="mn-mark">{MARCA_SVG}</span>EduMetrics</div>'
 
 
 def enlaces_html(app_url: str) -> str:

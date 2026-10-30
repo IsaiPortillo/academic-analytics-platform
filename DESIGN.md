@@ -1,5 +1,5 @@
 ---
-name: Sistema Minerva
+name: EduMetrics
 description: Institutional BI/transactional platform for UES-FMO — a high-fidelity academic-analytics dashboard shell (sidebar + topbar), cold corporate surfaces, deep crimson brand, real shadow-based elevation, single-face type system.
 colors:
   brand: "#8b0105"
@@ -82,13 +82,13 @@ components:
     padding: "16px 18px"
 ---
 
-# Design System: Sistema Minerva
+# Design System: EduMetrics
 
 ## Overview
 
 **Creative North Star: "The Institutional BI Console"**
 
-Sistema Minerva is the analytics-and-registrar console for UES-FMO — where a coordinador reads institutional risk signals (retention, curricular bottlenecks, dropout alerts) and a docente processes grades and attendance. It reads like an enterprise Business Intelligence product (Tableau/Looker register), not a warm administrative tool: cold neutral surfaces, crisp 1px borders, real elevation via shadow, and exactly one saturated color — a deep academic crimson — carrying identity through the shell, not through decoration.
+EduMetrics is the analytics-and-registrar console for UES-FMO — where a coordinador reads institutional risk signals (retention, curricular bottlenecks, dropout alerts) and a docente processes grades and attendance. It reads like an enterprise Business Intelligence product (Tableau/Looker register), not a warm administrative tool: cold neutral surfaces, crisp 1px borders, real elevation via shadow, and exactly one saturated color — a deep academic crimson — carrying identity through the shell, not through decoration.
 
 This is a full rebrand (October 2026), approved by the user as a replacement of the prior "Arterial Nocturne" identity, not a refinement of it. The prior system's gradients, warm cream/blush palette, and dual-font pairing are retired; nothing from that world carries forward except the underlying CSS-custom-property architecture and the already-built dense-data components (dock, matrix, tap-toggle, KPI cards, skeleton), which are re-skinned onto the new tokens rather than rebuilt.
 
