@@ -36,6 +36,22 @@ def static_v(ruta: str) -> str:
 templates.env.globals["static_v"] = static_v
 
 
+def escudo_ues() -> str | None:
+    """URL del escudo de la UES para la marca (macro marca en _macros.html), o None.
+
+    Es una imagen monocroma con transparencia: se pinta como máscara con el color
+    del tema (claro en modo oscuro, oscuro en modo claro). Para cambiarlo por la
+    versión oficial basta con reemplazar static/escudo-ues.svg o .png.
+    """
+    for nombre in ("escudo-ues.svg", "escudo-ues.png"):
+        if (DIRECTORIO_APP / "static" / nombre).is_file():
+            return static_v(nombre)
+    return None
+
+
+templates.env.globals["escudo_ues"] = escudo_ues
+
+
 def url_dashboard_streamlit() -> str | None:
     """Enlace del menú al dashboard de Streamlit; None si no está publicado.
     Import diferido para no exigir el .env completo al importar este módulo."""

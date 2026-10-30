@@ -2332,6 +2332,68 @@
   .idea-pasos span {
     color: var(--color-text);
   }
+  /* Marca (macro marca): escudo de la UES │ EduMetrics. El escudo es una imagen
+     monocroma usada como máscara: toma el color del texto, así se ve claro en
+     modo oscuro y oscuro en modo claro, sin dos versiones del archivo. */
+  .marca {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--color-text);
+  }
+  .marca-escudo {
+    width: 2.25rem;
+    height: 2.7rem;
+    flex-shrink: 0;
+    background-color: currentColor;
+    -webkit-mask: var(--escudo) center / contain no-repeat;
+    mask: var(--escudo) center / contain no-repeat;
+  }
+  .marca-escudo-provisional {
+    background: none;
+    -webkit-mask: none;
+    mask: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .marca-escudo-provisional svg {
+    width: 100%;
+    height: 100%;
+  }
+  .marca-separador {
+    width: 2px;
+    height: 1.5rem;
+    border-radius: 1px;
+    background-color: currentColor;
+    opacity: 0.85;
+  }
+  .marca-nombre {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.125rem;
+    letter-spacing: -0.01em;
+    color: var(--color-brand);
+  }
+  .marca-barra {
+    padding: 0.25rem 0.625rem 1rem;
+  }
+  .marca-login {
+    justify-content: center;
+    gap: 1rem;
+  }
+  .marca-login .marca-escudo {
+    width: 4rem;
+    height: 4.8rem;
+  }
+  .marca-login .marca-separador {
+    height: 2.25rem;
+    width: 2.5px;
+  }
+  .marca-login .marca-nombre {
+    font-size: 1.75rem;
+  }
+
   /* Campo de fecha de los filtros (macro campo_fecha): texto + botón de calendario.
      El <input type="date"> queda invisible pero presente: showPicker() necesita que
      esté en el documento, y así el calendario se abre junto al campo. */

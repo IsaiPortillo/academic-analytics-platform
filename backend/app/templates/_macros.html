@@ -43,6 +43,23 @@
 </div>
 {% endmacro %}
 
+{# Marca: escudo de la UES │ EduMetrics. variante: "login" (grande) o "barra" (menú lateral).
+   Sin archivo de escudo, se usa el birrete. #}
+{% macro marca(variante='barra') %}
+{% set escudo = escudo_ues() %}
+<div class="marca marca-{{ variante }}">
+    {% if escudo %}
+    <span class="marca-escudo" style="--escudo: url('{{ escudo }}');" role="img" aria-label="Escudo de la Universidad de El Salvador"></span>
+    {% else %}
+    <span class="marca-escudo marca-escudo-provisional" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4-8 4-8-4 8-4z"/><path d="M6 9.5V16c0 1.5 2.5 3 6 3s6-1.5 6-3V9.5"/></svg>
+    </span>
+    {% endif %}
+    <span class="marca-separador" aria-hidden="true"></span>
+    <span class="marca-nombre">EduMetrics</span>
+</div>
+{% endmacro %}
+
 {# Fecha de un filtro: texto dd/mm/aaaa + botón de calendario. No se usa <input type="date">
    directo porque en Edge/Chrome escribir la fecha solo funciona si el clic cae justo en
    «dd»; si cae en el mes o el año, la fecha queda incompleta y el navegador bloquea el

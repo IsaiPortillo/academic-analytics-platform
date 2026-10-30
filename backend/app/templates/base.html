@@ -37,7 +37,7 @@
 <body>
 
 {% if usuario %}
-{% from "_macros.html" import iniciales %}
+{% from "_macros.html" import iniciales, marca %}
 {% set modulos_operativos = [
     ("/matricula", "Matrícula & Prerrequisitos", "matricula", usuario.es_coordinador),
     ("/calificaciones", "Portal Docente & Notas", "calificaciones", true),
@@ -64,15 +64,7 @@
 <div class="app-shell">
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-nav">
-            <div class="topbar-brand" style="padding: 0.5rem 0.625rem 1rem;">
-                <span class="topbar-brand-mark">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M12 3l8 4-8 4-8-4 8-4z"/>
-                        <path d="M6 9.5V16c0 1.5 2.5 3 6 3s6-1.5 6-3V9.5"/>
-                    </svg>
-                </span>
-                EduMetrics
-            </div>
+            {{ marca('barra') }}
 
             {# Solo cajón (< 1024px): ahí la barra superior no tiene lugar para el nombre. #}
             <a class="sidebar-user" href="/cuenta">
