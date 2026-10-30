@@ -40,8 +40,8 @@ def escudo_ues() -> str | None:
     """URL del escudo de la UES para la marca (macro marca en _macros.html), o None.
 
     Es una imagen monocroma con transparencia: se pinta como máscara con el color
-    del tema (claro en modo oscuro, oscuro en modo claro). Para cambiarlo por la
-    versión oficial basta con reemplazar static/escudo-ues.svg o .png.
+    del tema (claro en modo oscuro, oscuro en modo claro). Origen y licencia del
+    escudo: sección «Créditos» del README.
     """
     for nombre in ("escudo-ues.svg", "escudo-ues.png"):
         if (DIRECTORIO_APP / "static" / nombre).is_file():

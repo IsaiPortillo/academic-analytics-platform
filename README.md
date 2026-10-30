@@ -890,3 +890,14 @@ habría que reconstruirlo en código de aplicación; en Neo4j es el resultado de
 > no relacional, así que es donde un motor de grafos aporta algo real en vez de ser decorativo. Los
 > datos transaccionales se quedan en PostgreSQL precisamente porque ahí sí son tabulares.
 
+
+---
+
+## 📝 Créditos
+
+- **Escudo de la Universidad de El Salvador** (`backend/app/static/escudo-ues.png`): Universidad de El
+  Salvador, versión SVG de [Jarould](https://es.wikipedia.org/wiki/Usuario:Jarould) en
+  [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Escudo_de_la_Universidad_de_El_Salvador.svg),
+  licencia [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). Se convirtió a una imagen
+  monocroma con transparencia para usarla como máscara (toma el color del tema). Es una insignia
+  registrada de la UES: se usa aquí solo para identificar este proyecto académico de la UES-FMO.
