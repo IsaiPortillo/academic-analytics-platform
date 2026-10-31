@@ -8,6 +8,14 @@ resueltas por triggers en la base (script 01); esta capa solo intenta la
 operación y muestra el error que devuelve PostgreSQL cuando la rechaza — no
 reimplementa esas reglas.
 
+Buscar por carnet: la matriz identifica a cada estudiante por su ID interno,
+porque el sistema no guarda nombres ni el carnet (solo su hash). El docente, que
+tiene el carnet en la mano, necesita el ID; el coordinador ya podía resolverlo en
+Catálogos, pero esa pantalla no es suya. La búsqueda vive aquí, limitada al
+roster de la sección, y va por POST: el carnet es un dato personal y en un GET
+quedaría en el historial del navegador y en los registros de nginx. Lo que viaja
+de vuelta en la URL es el ID, que la propia matriz ya muestra.
+
 Secciones del docente: el motor solo le deja leer y escribir evaluaciones y
 notas de sus propias secciones (seguridad por fila, database/oltp/16). Esta capa
 filtra igual por Seccion.docente_id y valida que las inscripciones del
@@ -28,6 +36,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from ..avisos import redirigir, tomar_aviso
+from ..catalogos import hash_carnet
 from ..database import get_db
 from ..dependencies import UsuarioSesion, requiere_rol
 from ..fechas_periodo import periodo_de, problema_fecha
@@ -162,6 +171,7 @@ def inicio_calificaciones(
     periodo_id: Optional[int] = Query(None),
     seccion_id: Optional[int] = Query(None),
     evaluacion_id: Optional[int] = Query(None),
+    resaltar: Optional[int] = Query(None),
     usuario: UsuarioSesion = Depends(requiere_rol("rol_docente", "rol_coordinador")),
     db: Session = Depends(get_db),
 ):
@@ -227,9 +237,72 @@ def inicio_calificaciones(
             "notas_evaluacion_actual": notas_evaluacion_actual,
             "notas_faltantes": notas_faltantes,
             "notas_por_evaluacion": notas_por_evaluacion,
+            "resaltar": resaltar,
             "ok": ok,
             "error": error,
         },
+    )
+
+
+@router.post("/buscar")
+def buscar_por_carnet(
+    request: Request,
+    periodo_id: int = Form(...),
+    seccion_id: int = Form(...),
+    carnet: str = Form(""),
+    evaluacion_id: Optional[int] = Form(None),
+    usuario: UsuarioSesion = Depends(requiere_rol("rol_docente", "rol_coordinador")),
+    db: Session = Depends(get_db),
+):
+    """Traduce un carnet al ID con el que la matriz identifica al estudiante.
+
+    El carnet no se guarda en ninguna parte: se calcula su hash en memoria y se
+    compara con el de los estudiantes del roster. Tampoco se registra en la
+    bitácora ni en el aviso que se devuelve.
+    """
+    destino = _destino(periodo_id, seccion_id, evaluacion_id)
+
+    seccion = _seccion_permitida(db, seccion_id, usuario)
+    if seccion is None:
+        return redirigir(request, destino, error="Sección no encontrada")
+
+    carnet = carnet.strip()
+    if not carnet:
+        return redirigir(request, destino, error="Escribe el carnet que quieres buscar")
+
+    # Solo el roster de ESTA sección. Si el carnet existe pero el estudiante no
+    # está matriculado aquí, la respuesta es la misma que si no existiera: la
+    # pantalla no sirve para averiguar quién está inscrito en otra sección.
+    buscado = hash_carnet(carnet)
+    completo = _roster(db, seccion_id, incluir_finalizados=True)
+    encontrado = next(
+        (estudiante for _, estudiante in completo if estudiante.carnet_hash == buscado),
+        None,
+    )
+    if encontrado is None:
+        return redirigir(
+            request, destino,
+            error="Ese carnet no corresponde a ningún estudiante de esta sección",
+        )
+
+    # La matriz solo muestra las inscripciones finalizadas cuando el acta está
+    # cerrada. Si el estudiante está en la sección pero no en la matriz, se dice
+    # así: resaltar una fila que no se dibuja sería peor que no encontrarlo.
+    visibles = {
+        estudiante.estudiante_id
+        for _, estudiante in _roster(db, seccion_id, incluir_finalizados=seccion.acta_cerrada)
+    }
+    if encontrado.estudiante_id not in visibles:
+        return redirigir(
+            request, destino,
+            error=(f"El carnet corresponde al ID {encontrado.estudiante_id}, pero su inscripción "
+                   "ya está finalizada y la matriz solo muestra las que están en curso"),
+        )
+
+    return redirigir(
+        request,
+        f"{destino}&resaltar={encontrado.estudiante_id}",
+        ok=f"El carnet corresponde al ID {encontrado.estudiante_id}: su fila está resaltada",
     )
 
 

@@ -188,6 +188,24 @@
         <div class="card">
             <div class="card-header">Matriz de notas — {{ roster|length }} estudiante(s)</div>
             <div class="card-body">
+                <form method="post" action="/calificaciones/buscar" class="filter-bar mb-3">
+                    {{ csrf_campo() }}
+                    <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
+                    <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
+                    {% if evaluacion_actual %}
+                    <input type="hidden" name="evaluacion_id" value="{{ evaluacion_actual.evaluacion_id }}">
+                    {% endif %}
+                    <div class="flex-1 min-w-[220px]">
+                        <label class="field-label" for="buscar-carnet">Buscar por carnet</label>
+                        <input class="input" id="buscar-carnet" name="carnet" maxlength="20"
+                               autocomplete="off" placeholder="Ej.: AB12345">
+                        <p class="text-xs text-muted mt-1">
+                            La matriz identifica a cada estudiante por su ID. Escribe el carnet y se
+                            resalta su fila; el carnet no se guarda ni queda en la dirección.
+                        </p>
+                    </div>
+                    <button type="submit" class="btn-outline-neutral shrink-0">Buscar</button>
+                </form>
                 {% if seccion.acta_cerrada %}
                 <div class="alert alert-warning mb-3" role="status">
                     <span>El acta de esta sección está cerrada: las notas se muestran solo para consulta.</span>
@@ -265,8 +283,11 @@
                         </thead>
                         <tbody>
                             {% for fila in tabla %}
-                            <tr>
-                                <th class="matrix-col-sticky">{{ fila.estudiante.estudiante_id }}</th>
+                            {% set destacada = resaltar and fila.estudiante.estudiante_id == resaltar %}
+                            <tr {% if destacada %}aria-current="true"
+                                style="background-color: var(--color-warning-bg); outline: 2px solid var(--color-warning-border);"{% endif %}>
+                                <th class="matrix-col-sticky"
+                                    {% if destacada %}style="background-color: var(--color-warning-bg);"{% endif %}>{{ fila.estudiante.estudiante_id }}</th>
                                 {% for e in evaluaciones %}
                                 <td>
                                     <input type="number" class="matrix-input" name="nota"
