@@ -120,6 +120,23 @@
                     {% endif %}
                 </form>
 
+                <form method="post" action="/asistencia/buscar" class="filter-bar mb-3">
+                    {{ csrf_campo() }}
+                    <input type="hidden" name="periodo_id" value="{{ periodo_id }}">
+                    <input type="hidden" name="seccion_id" value="{{ seccion.seccion_id }}">
+                    <input type="hidden" name="fecha_sesion" value="{{ fecha_sesion.isoformat() }}">
+                    <div class="flex-1 min-w-[220px]">
+                        <label class="field-label" for="buscar-carnet">Buscar por carnet</label>
+                        <input class="input" id="buscar-carnet" name="carnet" maxlength="20"
+                               autocomplete="off" placeholder="Ej.: AB12345">
+                        <p class="text-xs text-muted mt-1">
+                            La lista identifica a cada estudiante por su ID. Escribe el carnet y se
+                            resalta su fila; el carnet no se guarda ni queda en la dirección.
+                        </p>
+                    </div>
+                    <button type="submit" class="btn-outline-neutral shrink-0">Buscar</button>
+                </form>
+
                 {% if sesiones %}
                 <div class="mb-3">
                     <div class="field-label">Sesiones registradas ({{ sesiones|length }})</div>
@@ -177,7 +194,9 @@
                             <thead><tr><th>ID estudiante</th><th style="width:220px;">Estado</th></tr></thead>
                             <tbody>
                                 {% for inscripcion, estudiante in roster %}
-                                <tr>
+                                {% set destacada = resaltar and estudiante.estudiante_id == resaltar %}
+                                <tr {% if destacada %}aria-current="true"
+                                    style="background-color: var(--color-warning-bg); outline: 2px solid var(--color-warning-border);"{% endif %}>
                                     <td class="font-semibold" data-label="Estudiante">{{ estudiante.estudiante_id }}</td>
                                     <td class="cell-actions">
                                         <input type="hidden" name="inscripcion_id" value="{{ inscripcion.inscripcion_id }}">
@@ -228,7 +247,9 @@
                     </thead>
                     <tbody>
                         {% for fila in resumen %}
-                        <tr>
+                        {% set destacada = resaltar and fila.estudiante.estudiante_id == resaltar %}
+                        <tr {% if destacada %}aria-current="true"
+                            style="background-color: var(--color-warning-bg); outline: 2px solid var(--color-warning-border);"{% endif %}>
                             <td class="font-semibold" data-label="Estudiante">{{ fila.estudiante.estudiante_id }}</td>
                             <td class="text-center" data-label="Presentes">{{ fila.presentes }}</td>
                             <td class="text-center" data-label="Faltas">

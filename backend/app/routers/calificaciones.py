@@ -36,7 +36,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from ..avisos import redirigir, tomar_aviso
-from ..catalogos import hash_carnet
+from ..busqueda_carnet import localizar
 from ..database import get_db
 from ..dependencies import UsuarioSesion, requiere_rol
 from ..fechas_periodo import periodo_de, problema_fecha
@@ -256,9 +256,7 @@ def buscar_por_carnet(
 ):
     """Traduce un carnet al ID con el que la matriz identifica al estudiante.
 
-    El carnet no se guarda en ninguna parte: se calcula su hash en memoria y se
-    compara con el de los estudiantes del roster. Tampoco se registra en la
-    bitácora ni en el aviso que se devuelve.
+    La búsqueda en sí está en app/busqueda_carnet.py, compartida con asistencia.
     """
     destino = _destino(periodo_id, seccion_id, evaluacion_id)
 
@@ -266,44 +264,17 @@ def buscar_por_carnet(
     if seccion is None:
         return redirigir(request, destino, error="Sección no encontrada")
 
-    carnet = carnet.strip()
-    if not carnet:
-        return redirigir(request, destino, error="Escribe el carnet que quieres buscar")
-
-    # Solo el roster de ESTA sección. Si el carnet existe pero el estudiante no
-    # está matriculado aquí, la respuesta es la misma que si no existiera: la
-    # pantalla no sirve para averiguar quién está inscrito en otra sección.
-    buscado = hash_carnet(carnet)
-    completo = _roster(db, seccion_id, incluir_finalizados=True)
-    encontrado = next(
-        (estudiante for _, estudiante in completo if estudiante.carnet_hash == buscado),
-        None,
+    # La matriz solo dibuja las inscripciones finalizadas cuando el acta está
+    # cerrada, así que lo visible no siempre es toda la sección.
+    resultado = localizar(
+        carnet,
+        completo=[e for _, e in _roster(db, seccion_id, incluir_finalizados=True)],
+        visible=[e for _, e in _roster(db, seccion_id, incluir_finalizados=seccion.acta_cerrada)],
     )
-    if encontrado is None:
-        return redirigir(
-            request, destino,
-            error="Ese carnet no corresponde a ningún estudiante de esta sección",
-        )
+    if resultado.estudiante_id is None:
+        return redirigir(request, destino, error=resultado.error)
 
-    # La matriz solo muestra las inscripciones finalizadas cuando el acta está
-    # cerrada. Si el estudiante está en la sección pero no en la matriz, se dice
-    # así: resaltar una fila que no se dibuja sería peor que no encontrarlo.
-    visibles = {
-        estudiante.estudiante_id
-        for _, estudiante in _roster(db, seccion_id, incluir_finalizados=seccion.acta_cerrada)
-    }
-    if encontrado.estudiante_id not in visibles:
-        return redirigir(
-            request, destino,
-            error=(f"El carnet corresponde al ID {encontrado.estudiante_id}, pero su inscripción "
-                   "ya está finalizada y la matriz solo muestra las que están en curso"),
-        )
-
-    return redirigir(
-        request,
-        f"{destino}&resaltar={encontrado.estudiante_id}",
-        ok=f"El carnet corresponde al ID {encontrado.estudiante_id}: su fila está resaltada",
-    )
+    return redirigir(request, f"{destino}&resaltar={resultado.estudiante_id}", ok=resultado.ok)
 
 
 @router.post("/evaluaciones")
