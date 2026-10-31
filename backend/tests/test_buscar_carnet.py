@@ -1,8 +1,9 @@
-"""Buscar por carnet en la matriz de notas (app/routers/calificaciones.py).
+"""Buscar por carnet (app/busqueda_carnet.py y las dos pantallas que lo usan).
 
-La matriz identifica a cada estudiante por su ID interno, porque el sistema no
-guarda nombres ni el carnet (solo su hash). Esta pantalla traduce un carnet al
-ID, limitada al roster de la sección.
+Las listas de clase identifican a cada estudiante por su ID interno, porque el
+sistema no guarda nombres ni el carnet (solo su hash). La búsqueda traduce un
+carnet al ID, limitada al roster de la sección, y la comparten la matriz de
+notas (calificaciones) y el control de asistencia.
 
     cd backend && python -m unittest tests.test_buscar_carnet -v
 
@@ -18,9 +19,10 @@ from unittest import mock
 os.environ.setdefault("APP_DB_PASSWORD", "x")
 os.environ.setdefault("APP_SECRET_KEY", "y")
 
+from app.busqueda_carnet import localizar  # noqa: E402
 from app.catalogos import hash_carnet  # noqa: E402
 from app.dependencies import UsuarioSesion  # noqa: E402
-from app.routers import calificaciones  # noqa: E402
+from app.routers import asistencia, calificaciones  # noqa: E402
 
 CARNET = "QQ00001"           # distinto del ejemplo del placeholder, a propósito
 CARNET_AJENO = "ZZ99999"
@@ -189,3 +191,83 @@ class TestMatrizConResaltado(unittest.TestCase):
         html = self._pagina(resaltar=125)
         self.assertNotIn(CARNET, html)
         self.assertNotIn(hash_carnet(CARNET), html)
+
+
+class TestModuloCompartido(unittest.TestCase):
+    """app/busqueda_carnet.localizar, sin pantallas ni base de datos."""
+
+    def setUp(self):
+        self.en_curso = _estudiante(125, CARNET)
+        self.finalizado = _estudiante(900, "CD67890")
+
+    def test_encuentra_y_devuelve_el_id(self):
+        r = localizar(CARNET, completo=[self.en_curso], visible=[self.en_curso])
+        self.assertEqual(r.estudiante_id, 125)
+        self.assertIsNone(r.error)
+
+    def test_un_carnet_ajeno_no_dice_si_existe_en_otra_parte(self):
+        r = localizar(CARNET_AJENO, completo=[self.en_curso], visible=[self.en_curso])
+        self.assertIsNone(r.estudiante_id)
+        self.assertEqual(r.error, "Ese carnet no corresponde a ningún estudiante de esta sección")
+
+    def test_en_la_seccion_pero_fuera_de_la_lista_visible(self):
+        r = localizar("CD67890", completo=[self.en_curso, self.finalizado], visible=[self.en_curso])
+        self.assertIsNone(r.estudiante_id)
+        self.assertIn("ID 900", r.error)
+        self.assertIn("ya está finalizada", r.error)
+
+    def test_el_carnet_vacio_o_en_blanco_pide_uno(self):
+        for entrada in ("", "   ", None):
+            self.assertEqual(localizar(entrada, completo=[], visible=[]).error,
+                             "Escribe el carnet que quieres buscar")
+
+    def test_normaliza_igual_que_el_alta_de_estudiantes(self):
+        self.assertEqual(
+            localizar(f"  {CARNET.lower()} ", completo=[self.en_curso], visible=[self.en_curso]).estudiante_id,
+            125)
+
+    def test_nunca_devuelve_el_carnet_ni_su_hash(self):
+        for entrada in (CARNET, CARNET_AJENO):
+            r = localizar(entrada, completo=[self.en_curso], visible=[self.en_curso])
+            self.assertNotIn(entrada, str(r))
+            self.assertNotIn(hash_carnet(entrada), str(r))
+
+
+class TestBuscarEnAsistencia(unittest.TestCase):
+    """La misma búsqueda, en el control de asistencia."""
+
+    def setUp(self):
+        self.peticion = SimpleNamespace(session={})
+        self.db = mock.Mock()
+        self.seccion = SimpleNamespace(seccion_id=173, docente_id=3, periodo_id=8, acta_cerrada=False)
+        self.db.get.return_value = self.seccion
+        self.en_curso = _estudiante(125, CARNET)
+
+    def _roster(self, db, seccion_id, incluir_finalizados=False):
+        return [(SimpleNamespace(inscripcion_id=1), self.en_curso)]
+
+    def _buscar(self, carnet, usuario=None, fecha=date(2025, 9, 15)):
+        with mock.patch.object(asistencia, "_roster", self._roster):
+            return asistencia.buscar_por_carnet(
+                self.peticion, periodo_id=8, seccion_id=173, carnet=carnet,
+                fecha_sesion=fecha, usuario=usuario or _docente(), db=self.db)
+
+    def test_conserva_la_fecha_de_la_sesion(self):
+        r = self._buscar(CARNET)
+        self.assertEqual(r.headers["location"],
+                         "/asistencia?periodo_id=8&seccion_id=173&fecha_sesion=2025-09-15&resaltar=125")
+
+    def test_el_carnet_no_viaja_en_la_direccion(self):
+        self.assertNotIn(CARNET, self._buscar(CARNET).headers["location"])
+
+    def test_una_seccion_ajena_no_se_consulta(self):
+        r = self._buscar(CARNET, usuario=_docente(docente_id=99))
+        self.assertNotIn("resaltar", r.headers["location"])
+        self.assertEqual(self.peticion.session.get("aviso", {}).get("error"), "Sección no encontrada")
+
+    def test_los_mensajes_son_los_mismos_que_en_calificaciones(self):
+        # El módulo compartido existe justamente para esto: lo que la aplicación
+        # responde sobre un carnet no puede depender de por dónde se preguntó.
+        self._buscar(CARNET_AJENO)
+        self.assertEqual(self.peticion.session["aviso"]["error"],
+                         "Ese carnet no corresponde a ningún estudiante de esta sección")

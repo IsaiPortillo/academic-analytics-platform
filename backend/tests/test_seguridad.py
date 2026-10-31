@@ -51,6 +51,7 @@ RUTAS_POST = [
     "/calificaciones/evaluaciones/1/eliminar", "/calificaciones/importar", "/calificaciones/importar/confirmar",
     "/calificaciones/acta/cerrar", "/calificaciones/acta/reabrir", "/calificaciones/buscar",
     "/asistencia/registrar", "/asistencia/sesion/eliminar", "/asistencia/importar", "/asistencia/importar/confirmar",
+    "/asistencia/buscar",
     "/costos/recargar", "/costos/1",
     "/usuarios", "/usuarios/1/editar", "/usuarios/1/estado", "/usuarios/1/restablecer",
     "/admin/materias/nuevo", "/admin/materias/1", "/admin/materias/1/eliminar",

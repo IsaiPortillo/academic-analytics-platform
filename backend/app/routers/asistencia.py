@@ -8,6 +8,11 @@ resuelto por la base; esta capa hace upsert (UPDATE si ya existe una marca
 para esa inscripción+fecha, INSERT si no) en vez de reimplementar la regla,
 igual que calificaciones.py con uq_inscripcion_evaluacion.
 
+Buscar por carnet: la lista identifica a cada estudiante por su ID interno,
+porque el sistema no guarda nombres ni el carnet (solo su hash). La traducción
+está en app/busqueda_carnet.py, compartida con calificaciones, y va por POST
+para que el carnet no quede en la URL.
+
 Secciones del docente: igual que en calificaciones.py, el motor limita al
 docente a la asistencia de sus secciones (database/oltp/16) y esta capa además
 valida que las inscripciones del formulario sean del roster de la sección.
@@ -23,6 +28,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from ..avisos import redirigir, tomar_aviso
+from ..busqueda_carnet import localizar
 from ..database import get_db
 from ..dependencies import UsuarioSesion, requiere_rol
 from ..fechas_periodo import periodo_de, problema_fecha
@@ -152,6 +158,7 @@ def inicio_asistencia(
     periodo_id: Optional[int] = Query(None),
     seccion_id: Optional[int] = Query(None),
     fecha_sesion: Optional[date] = Query(None),
+    resaltar: Optional[int] = Query(None),
     usuario: UsuarioSesion = Depends(requiere_rol("rol_docente", "rol_coordinador")),
     db: Session = Depends(get_db),
 ):
@@ -205,10 +212,41 @@ def inicio_asistencia(
             "estados_validos": ESTADOS_VALIDOS,
             "resumen": resumen,
             "sesiones": sesiones,
+            "resaltar": resaltar,
             "ok": ok,
             "error": error,
         },
     )
+
+
+@router.post("/buscar")
+def buscar_por_carnet(
+    request: Request,
+    periodo_id: int = Form(...),
+    seccion_id: int = Form(...),
+    carnet: str = Form(""),
+    fecha_sesion: Optional[date] = Form(None),
+    usuario: UsuarioSesion = Depends(requiere_rol("rol_docente", "rol_coordinador")),
+    db: Session = Depends(get_db),
+):
+    """Traduce un carnet al ID con el que la lista identifica al estudiante."""
+    destino = _destino(periodo_id, seccion_id, fecha_sesion)
+
+    seccion = _seccion_permitida(db, seccion_id, usuario)
+    if seccion is None:
+        return redirigir(request, destino, error="Sección no encontrada")
+
+    # La lista solo dibuja las inscripciones finalizadas cuando el acta está
+    # cerrada, así que lo visible no siempre es toda la sección.
+    resultado = localizar(
+        carnet,
+        completo=[e for _, e in _roster(db, seccion_id, incluir_finalizados=True)],
+        visible=[e for _, e in _roster(db, seccion_id, incluir_finalizados=seccion.acta_cerrada)],
+    )
+    if resultado.estudiante_id is None:
+        return redirigir(request, destino, error=resultado.error)
+
+    return redirigir(request, f"{destino}&resaltar={resultado.estudiante_id}", ok=resultado.ok)
 
 
 @router.post("/registrar")
