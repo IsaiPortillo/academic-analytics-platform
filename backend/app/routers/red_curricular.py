@@ -56,19 +56,18 @@ def red_curricular(
     if materias.empty:
         return _error(request, usuario, "El Data Warehouse está vacío. Cárgalo con: python -m etl.carga")
 
-    red = rc.construir_red(materias, relaciones)
-    if not red.number_of_edges():
-        return _error(request, usuario, rc.SIN_RED)
-    if not nx.is_directed_acyclic_graph(red):
-        return _error(request, usuario,
-                      "La malla cargada en el Data Warehouse tiene un ciclo de prerrequisitos, y una malla "
-                      "así no se puede cursar. Revisa el grafo de Neo4j y recarga con: python -m etl.carga")
-
     # El diagnóstico mira el historial: por defecto, todos los períodos.
     codigos = periodos["codigo_periodo"].tolist()
     sel_periodos = (periodo,) if periodo in codigos else ()
-    # La red es la de las carreras que tienen malla en el grafo; las demás no tienen qué dibujar.
-    carreras = carreras[carreras["codigo_carrera"].isin(set(materias["codigo_carrera"]))]
+
+    # Una red por carrera. Cada carrera tiene su propia malla: mezclarlas da una
+    # cuadrícula de cientos de materias sin relación entre sí (lo que pasaba cuando
+    # el grafo tenía nodos de todas las carreras, p. ej. tras «Sincronizar» en
+    # Administración → Malla). Solo se ofrecen las carreras con prerrequisitos.
+    relaciones_por_carrera = rc.carreras_con_red(materias, relaciones)
+    carreras = carreras[carreras["codigo_carrera"].isin(relaciones_por_carrera.index)]
+    if carreras.empty:
+        return _error(request, usuario, rc.SIN_RED)
     departamentos = (carreras[["codigo_departamento", "nombre_departamento"]]
                      .drop_duplicates().to_dict("records"))
     if departamento not in {d["codigo_departamento"] for d in departamentos}:
@@ -77,9 +76,18 @@ def red_curricular(
         carreras["codigo_departamento"] == departamento
     ]
     if carrera not in set(carreras_visibles["codigo_carrera"]):
-        carrera = None
-    filtros = dw.Filtros(sel_periodos, (carrera,) if carrera else (),
-                         (departamento,) if departamento else ())
+        # Por defecto, la carrera con la malla más completa.
+        carrera = next(c for c in relaciones_por_carrera.index if c in set(carreras_visibles["codigo_carrera"]))
+    materias = materias[materias["codigo_carrera"] == carrera]
+    filtros = dw.Filtros(sel_periodos, (carrera,), (departamento,) if departamento else ())
+
+    red = rc.construir_red(materias, relaciones)
+    if not red.number_of_edges():
+        return _error(request, usuario, rc.SIN_RED)
+    if not nx.is_directed_acyclic_graph(red):
+        return _error(request, usuario,
+                      "La malla cargada en el Data Warehouse tiene un ciclo de prerrequisitos, y una malla "
+                      "así no se puede cursar. Revisa el grafo de Neo4j y recarga con: python -m etl.carga")
 
     seleccion = periodos[periodos["codigo_periodo"].isin(sel_periodos)] if sel_periodos else periodos
     moneda = seleccion["moneda"].dropna().iloc[0] if seleccion["moneda"].notna().any() else "USD"

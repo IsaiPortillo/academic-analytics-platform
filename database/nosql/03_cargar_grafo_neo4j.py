@@ -3,11 +3,13 @@ UNIVERSIDAD DE EL SALVADOR - FACULTAD MULTIDISCIPLINARIA ORIENTAL
 ESPECIALIZACIÓN EN BD & BI 2026
 FASE 1 - PUNTO 1.3: AUTOMATIZACIÓN DE CARGA EN NEO4J
 
-Carga la malla curricular de Ingeniería de Sistemas Informáticos (el plan completo, 45
-asignaturas en 10 ciclos) como grafo: un nodo por asignatura y una relación
-(A)-[:REQUIERE_APROBADA]->(B) cuando para cursar A hay que haber aprobado B. Los datos
-salen de scripts/generator/catalogo_ues.py, el mismo catálogo con el que el generador
-llena la base relacional, así que ambos coinciden.
+Carga la malla curricular de las 12 carreras como grafo: un nodo por asignatura (con su
+carrera) y una relación (A)-[:REQUIERE_APROBADA]->(B) cuando para cursar A hay que haber
+aprobado B. Sistemas Informáticos tiene su plan propio (45 asignaturas); las demás, el
+plan derivado del catálogo (la serie I -> II -> III y una materia del ciclo anterior).
+Los datos salen de scripts/generator/catalogo_ues.py, el mismo catálogo con el que el
+generador llena la base relacional y decide qué inscribe cada estudiante, así que los
+tres coinciden. Las mallas de carreras distintas no se tocan entre sí.
 
     python database/nosql/03_cargar_grafo_neo4j.py              # agrega o actualiza
     python database/nosql/03_cargar_grafo_neo4j.py --reiniciar  # deja el grafo igual al plan
@@ -35,13 +37,14 @@ NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 
 MATERIAS_DATA = [
-    {"codigo": m.codigo, "nombre": m.nombre, "uv": m.uv, "ciclo": m.ciclo, "area": m.area}
-    for m in cat.ISI.materias
+    {"codigo": m.codigo, "nombre": m.nombre, "uv": m.uv, "ciclo": m.ciclo, "area": m.area,
+     "carrera": c.codigo}
+    for c in cat.CARRERAS for m in c.materias
 ]
 
 PRERREQUISITOS_DATA = [
     # (Materia_Destino, Materia_Prerrequisito)
-    (m.codigo, requisito) for m in cat.ISI.materias for requisito in m.prerrequisitos
+    (m.codigo, requisito) for c in cat.CARRERAS for m in c.materias for requisito in m.prerrequisitos
 ]
 
 
@@ -72,7 +75,8 @@ def cargar_grafo(reiniciar: bool = False) -> None:
             SET mat.nombre = m.nombre,
                 mat.uv = m.uv,
                 mat.ciclo = m.ciclo,
-                mat.area = m.area;
+                mat.area = m.area,
+                mat.carrera = m.carrera;
         """, materias=MATERIAS_DATA)
 
         print("[4/5] Creando relaciones :REQUIERE_APROBADA...")
@@ -98,7 +102,7 @@ def cargar_grafo(reiniciar: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Carga la malla de Sistemas Informáticos en Neo4j.")
+    parser = argparse.ArgumentParser(description="Carga la malla curricular de las 12 carreras en Neo4j.")
     parser.add_argument("--reiniciar", action="store_true",
                         help="deja el grafo igual al plan (borra lo que no esté en él)")
     argumentos = parser.parse_args()

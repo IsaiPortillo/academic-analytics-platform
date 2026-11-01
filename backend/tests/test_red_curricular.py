@@ -108,6 +108,36 @@ class TestGrafo(unittest.TestCase):
         self.assertEqual(rc.cadena_mas_larga(rc.construir_red(_materias(), _prerrequisitos([]))), [])
 
 
+class TestUnaRedPorCarrera(unittest.TestCase):
+    """Antes, con nodos de todas las carreras en el grafo (p. ej. tras «Sincronizar»
+    en Administración → Malla), la red dibujaba cientos de materias sueltas."""
+
+    def _materias_dos_carreras(self):
+        sistemas = _materias().assign(codigo_carrera="I10515")
+        # Medicina: nodos en el grafo pero ninguna relación; y una carrera con una sola.
+        medicina = pd.DataFrame({"codigo_materia": [f"MED{i:03d}" for i in range(30)],
+                                 "nombre_materia": "Med", "ciclo_plan": 1, "codigo_carrera": "M10108"})
+        civil = pd.DataFrame({"codigo_materia": ["CIV001", "CIV002"], "nombre_materia": "Civ",
+                              "ciclo_plan": [1, 2], "codigo_carrera": "I10506"})
+        return pd.concat([sistemas, medicina, civil], ignore_index=True)
+
+    def test_solo_carreras_con_prerrequisitos_y_la_mas_completa_primero(self):
+        relaciones = pd.concat([_prerrequisitos(), pd.DataFrame(
+            [("CIV002", "CIV001")], columns=["codigo_materia", "codigo_prerrequisito"])], ignore_index=True)
+        con_red = rc.carreras_con_red(self._materias_dos_carreras(), relaciones)
+        self.assertEqual(list(con_red.index), ["I10515", "I10506"])
+        self.assertNotIn("M10108", con_red.index)
+
+    def test_la_red_de_una_carrera_no_trae_materias_de_otras(self):
+        materias = self._materias_dos_carreras()
+        red = rc.construir_red(materias[materias["codigo_carrera"] == "I10515"], _prerrequisitos())
+        self.assertEqual(red.number_of_nodes(), len(MATERIAS))
+        self.assertFalse(any(c.startswith("MED") for c in red.nodes))
+
+    def test_sin_ninguna_relacion_no_hay_carreras(self):
+        self.assertTrue(rc.carreras_con_red(self._materias_dos_carreras(), _prerrequisitos([])).empty)
+
+
 class TestDisposicion(unittest.TestCase):
     def setUp(self):
         self.d = rc.disponer(_red())

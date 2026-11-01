@@ -194,7 +194,22 @@ def panorama(ctx: Contexto) -> None:
 def red_curricular(ctx: Contexto) -> None:
     st.title("Red curricular: dónde se concentra el costo")
 
-    nodos_df, relaciones = datos.malla()
+    nodos_todos, relaciones = datos.malla()
+    # Una red por carrera: mezclar mallas de carreras distintas da una cuadrícula
+    # de cientos de materias sin relación entre sí. Solo las carreras con prerrequisitos.
+    con_red = rc.carreras_con_red(nodos_todos, relaciones)
+    if con_red.empty:
+        st.warning(rc.SIN_RED)
+        return
+    _, catalogo = datos.catalogos()
+    nombres = dict(zip(catalogo["codigo_carrera"], catalogo["nombre_carrera"]))
+    del_departamento = set(catalogo.loc[catalogo["codigo_departamento"].isin(ctx.departamentos), "codigo_carrera"])
+    opciones = [c for c in con_red.index
+                if (not ctx.carreras or c in ctx.carreras)
+                and (not ctx.departamentos or c in del_departamento)] or list(con_red.index)
+    carrera = st.selectbox("Carrera", opciones, format_func=lambda c: nombres.get(c, c),
+                           help="Cada carrera tiene su propia malla. Solo aparecen las que tienen prerrequisitos.")
+    nodos_df = nodos_todos[nodos_todos["codigo_carrera"] == carrera]
     grafo = rc.construir_red(nodos_df, relaciones)
     if not grafo.number_of_edges():
         st.warning(rc.SIN_RED)
@@ -204,7 +219,9 @@ def red_curricular(ctx: Contexto) -> None:
                  "Revisa el grafo de Neo4j y recarga: `python -m etl.carga`.")
         return
 
-    cruce = datos.cruce(*ctx.filtros)
+    cruce = datos.cruce(ctx.periodos, (carrera,), ())
+    cruce = rc.cruce_costo_posicion(nodos_df, cruce[["codigo_materia", "reprobados", "cerradas",
+                                                     "estudiantes_reprobados", "costo_reprobacion"]])
     disposicion = rc.disponer(grafo)
     maximo = max(int(cruce["dependientes_totales"].max()), 1)
     info = {}

@@ -95,11 +95,19 @@ def extraer_metricas_grafo(sesion: Session) -> pd.DataFrame:
     return pd.DataFrame(registros, columns=COLUMNAS_METRICAS)
 
 
-def clasificar_cuellos_de_botella(metricas: pd.DataFrame) -> pd.DataFrame:
+def clasificar_cuellos_de_botella(metricas: pd.DataFrame, por: str | None = None) -> pd.DataFrame:
     """Agrega indice_bloqueo (fracción del resto del pensum que la materia
-    bloquea) y la marca es_cuello_botella según UMBRAL_CUELLO_BOTELLA."""
+    bloquea) y la marca es_cuello_botella según UMBRAL_CUELLO_BOTELLA.
+
+    por: columna con la carrera. El grafo tiene la malla de varias carreras y el
+    «resto del pensum» es el de la carrera de la materia, no el del grafo entero:
+    con 12 mallas, dividir entre todos los nodos daría índices 12 veces menores."""
     resultado = metricas.copy()
-    otras_materias = max(len(resultado) - 1, 1)
+    if por and por in resultado.columns:
+        tamanos = resultado.groupby(por, dropna=False)["codigo_materia"].transform("size")
+    else:
+        tamanos = pd.Series(len(resultado), index=resultado.index)
+    otras_materias = (tamanos - 1).clip(lower=1)
     resultado["indice_bloqueo"] = (resultado["dependientes_totales"] / otras_materias).round(4)
     resultado["es_cuello_botella"] = resultado["indice_bloqueo"] >= UMBRAL_CUELLO_BOTELLA
     return resultado

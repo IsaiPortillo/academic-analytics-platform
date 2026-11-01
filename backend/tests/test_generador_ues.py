@@ -248,8 +248,15 @@ class TestCargaDelGrafo(unittest.TestCase):
         especificacion = importlib.util.spec_from_file_location("cargador", RAIZ / "database" / "nosql" / "03_cargar_grafo_neo4j.py")
         cargador = importlib.util.module_from_spec(especificacion)
         especificacion.loader.exec_module(cargador)
-        self.assertEqual(len(cargador.MATERIAS_DATA), len(cat.ISI.materias))
-        self.assertEqual(len(cargador.PRERREQUISITOS_DATA), sum(len(m.prerrequisitos) for m in cat.ISI.materias))
+        # La malla de las 12 carreras, cada nodo con su carrera (la red curricular se dibuja por carrera).
+        self.assertEqual(len(cargador.MATERIAS_DATA), sum(len(c.materias) for c in cat.CARRERAS))
+        self.assertEqual(len(cargador.PRERREQUISITOS_DATA),
+                         sum(len(m.prerrequisitos) for c in cat.CARRERAS for m in c.materias))
+        carrera_de = {m["codigo"]: m["carrera"] for m in cargador.MATERIAS_DATA}
+        self.assertEqual({carrera_de[m.codigo] for m in cat.ISI.materias}, {cat.CODIGO_ISI})
+        # Ningún prerrequisito cruza de una carrera a otra.
+        for destino, requisito in cargador.PRERREQUISITOS_DATA:
+            self.assertEqual(carrera_de[destino], carrera_de[requisito], (destino, requisito))
 
     def test_el_archivo_cql_coincide_con_el_catalogo(self):
         texto = (RAIZ / "database" / "nosql" / "03_malla_curricular.cql").read_text(encoding="utf-8")

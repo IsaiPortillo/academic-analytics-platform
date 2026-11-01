@@ -52,6 +52,15 @@ TIPOS = {
 # El grafo
 # ---------------------------------------------------------------------------
 
+def carreras_con_red(materias: pd.DataFrame, prerrequisitos: pd.DataFrame) -> pd.Series:
+    """Cuántas materias con prerrequisitos tiene cada carrera, de la malla más
+    completa a la menos. Cada carrera tiene su propia malla: la red se dibuja de
+    una en una. Una carrera con nodos en el grafo pero sin ninguna relación (p. ej.
+    tras «Sincronizar» en Administración → Malla) no tiene red y no aparece."""
+    con_requisitos = materias[materias["codigo_materia"].isin(set(prerrequisitos["codigo_materia"]))]
+    return con_requisitos.groupby("codigo_carrera").size().sort_values(ascending=False, kind="stable")
+
+
 def construir_red(materias: pd.DataFrame, prerrequisitos: pd.DataFrame) -> nx.DiGraph:
     """Grafo dirigido prerrequisito -> materia. Las relaciones hacia una materia
     que no está en `materias` se ignoran: sin ficha no hay nada que dibujar."""

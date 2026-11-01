@@ -257,7 +257,10 @@ def construir_materias(materias: pd.DataFrame, metricas_grafo: pd.DataFrame,
     cursa. Una materia con muchos dependientes pero que casi nadie reprueba no
     es un cuello de botella en la práctica; este índice combina ambas cosas.
     """
-    grafo = clasificar_cuellos_de_botella(metricas_grafo)
+    # El índice de bloqueo se mide dentro de la malla de cada carrera.
+    grafo = clasificar_cuellos_de_botella(
+        metricas_grafo.merge(materias[["codigo_materia", "carrera_id"]], on="codigo_materia", how="left"),
+        por="carrera_id").drop(columns="carrera_id")
     m = materias.merge(grafo, on="codigo_materia", how="left", indicator=True)
     m["en_grafo"] = m.pop("_merge") == "both"
 

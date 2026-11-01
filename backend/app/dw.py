@@ -371,9 +371,9 @@ def estudiantes_con_patron(filtros: Filtros, limite: int = 50) -> pd.DataFrame:
 def malla() -> pd.DataFrame:
     """Nodos de la malla con las métricas de grafo calculadas en Neo4j.
 
-    Solo las materias que están en el grafo: la malla de Neo4j es la de una carrera
-    (Ingeniería de Sistemas Informáticos); las materias de las demás carreras están en el
-    almacén para el resto del análisis, pero no tienen red que dibujar."""
+    Solo las materias que están en el grafo. El grafo tiene la malla de cada carrera
+    (una red por carrera, sin relaciones entre carreras): la red curricular dibuja la
+    de la carrera elegida."""
     return _leer("""
         SELECT m.codigo_materia, m.nombre_materia, m.ciclo_plan, m.unidades_valorativas, m.area,
                m.en_grafo, m.dependientes_directos, m.dependientes_indirectos,

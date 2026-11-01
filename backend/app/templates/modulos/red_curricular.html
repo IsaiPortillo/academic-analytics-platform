@@ -37,7 +37,7 @@
             <div>
                 <label for="carrera" class="field-label">Carrera</label>
                 <select id="carrera" name="carrera" class="select" onchange="this.form.submit()">
-                    <option value="">Todas</option>
+                    {# Sin «Todas»: cada carrera tiene su propia malla. #}
                     {% for c in carreras %}
                     <option value="{{ c.codigo_carrera }}" {% if c.codigo_carrera == carrera %}selected{% endif %}>{{ c.nombre_carrera }}</option>
                     {% endfor %}

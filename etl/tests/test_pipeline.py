@@ -302,6 +302,22 @@ class TestMateriasYGrafo(unittest.TestCase):
         self.assertTrue(c.loc["PRG315", "es_cuello_botella"])
         self.assertFalse(c.loc["DWB115", "es_cuello_botella"])
 
+    def test_el_indice_se_mide_dentro_de_la_malla_de_cada_carrera(self):
+        # El grafo tiene la malla de varias carreras: sumar otra carrera de 40
+        # materias al grafo no puede diluir el índice de las de la primera.
+        _, metricas = _datos_base()
+        otra = pd.DataFrame({"codigo_materia": [f"MED{i:03d}" for i in range(40)], "area": "Salud",
+                             "dependientes_directos": 0, "dependientes_indirectos": 0, "dependientes_totales": 0,
+                             "prerrequisitos_directos": 0, "longitud_cascada": 0, "profundidad_prerrequisitos": 0})
+        juntas = pd.concat([metricas.assign(carrera_id=1), otra.assign(carrera_id=2)], ignore_index=True)
+        por_carrera = clasificar_cuellos_de_botella(juntas, por="carrera_id").set_index("codigo_materia")
+        sola = clasificar_cuellos_de_botella(metricas).set_index("codigo_materia")
+        self.assertEqual(por_carrera.loc["PRG115", "indice_bloqueo"], sola.loc["PRG115", "indice_bloqueo"])
+        self.assertTrue(por_carrera.loc["PRG315", "es_cuello_botella"])
+        # Sin agrupar, la otra carrera sí lo diluiría (lo que se corrigió).
+        self.assertLess(clasificar_cuellos_de_botella(juntas).set_index("codigo_materia").loc["PRG115", "indice_bloqueo"],
+                        sola.loc["PRG115", "indice_bloqueo"])
+
     def test_cruce_relacional_grafo(self):
         datos, metricas = _datos_base()
         r = transformar(datos, metricas, FECHA_CORTE)
