@@ -98,7 +98,9 @@ ALTER TABLE academico_oltp.secciones
 
 CREATE TABLE IF NOT EXISTS auditoria.log_actas (
     log_id BIGSERIAL PRIMARY KEY,
-    seccion_id INT NOT NULL REFERENCES academico_oltp.secciones (seccion_id),
+    -- Sin clave ajena a propósito (ver script 22): una bitácora no puede impedir
+    -- que se borre lo que audita. Mismo criterio que log_cambios_notas.
+    seccion_id INT NOT NULL,
     accion VARCHAR(10) NOT NULL CHECK (accion IN ('CERRADA', 'REABIERTA')),
     usuario_app VARCHAR(50),
     usuario_db VARCHAR(50) NOT NULL,

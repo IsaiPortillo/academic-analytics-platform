@@ -169,6 +169,59 @@ class TestActas(unittest.TestCase):
             ("CERRADA", "docente.prueba", "rol_docente", None, inscritos),
         ])
 
+    def test_la_bitacora_de_actas_no_ancla_la_seccion(self):
+        """Regresión: log_actas se creó con una clave ajena a secciones sin ON DELETE.
+
+        Mientras existió, cerrar un acta prohibía borrar esa sección, y el
+        generador de datos lo hace al reiniciar (`--reiniciar`). No se notó
+        porque la tabla estaba vacía en todas las máquinas. Ver script 22.
+        """
+        self._como("rol_coordinador")   # el único rol con USAGE sobre el esquema auditoria
+        ajenas = self.c.execute(text("""
+            SELECT count(*) FROM pg_constraint
+            WHERE contype = 'f'
+              AND conrelid = 'auditoria.log_actas'::regclass
+              AND confrelid = 'academico_oltp.secciones'::regclass""")).scalar_one()
+        self.assertEqual(ajenas, 0, "la bitácora volvió a anclar la sección")
+
+    def test_el_rastro_del_acta_sobrevive_al_borrado_de_la_seccion(self):
+        """El camino del generador: cerrar, reabrir y borrar lo transaccional.
+
+        La transacción se revierte, así que la base queda como estaba.
+        """
+        self._completar_notas()
+        self._como("rol_docente", self.docente, usuario="docente.prueba")
+        self.c.execute(text("SELECT academico_oltp.cerrar_acta(:s)"), {"s": self.seccion})
+
+        self._como("rol_coordinador", usuario="coord.prueba")
+        self.c.execute(text("SELECT academico_oltp.reabrir_acta(:s, 'borrado de prueba')"),
+                       {"s": self.seccion})
+        filas = self.c.execute(text(
+            "SELECT count(*) FROM auditoria.log_actas WHERE seccion_id = :s"),
+            {"s": self.seccion}).scalar_one()
+        self.assertGreaterEqual(filas, 2)   # el cierre y la reapertura
+
+        # Mismo orden que reiniciar() en el generador: las dependientes primero.
+        for tabla, columna in (("calificaciones", "inscripcion_id"), ("asistencias", "inscripcion_id")):
+            self.c.execute(text(
+                f"DELETE FROM academico_oltp.{tabla} WHERE {columna} IN "
+                "(SELECT inscripcion_id FROM academico_oltp.inscripciones WHERE seccion_id = :s)"),
+                {"s": self.seccion})
+        self.c.execute(text("DELETE FROM academico_oltp.inscripciones WHERE seccion_id = :s"),
+                       {"s": self.seccion})
+        self.c.execute(text("DELETE FROM academico_oltp.evaluaciones WHERE seccion_id = :s"),
+                       {"s": self.seccion})
+        self.c.execute(text("DELETE FROM academico_oltp.secciones WHERE seccion_id = :s"),
+                       {"s": self.seccion})
+
+        self.assertEqual(self.c.execute(text(
+            "SELECT count(*) FROM academico_oltp.secciones WHERE seccion_id = :s"),
+            {"s": self.seccion}).scalar_one(), 0)
+        # El rastro sigue ahí aunque la sección ya no exista: eso es el punto.
+        self.assertEqual(self.c.execute(text(
+            "SELECT count(*) FROM auditoria.log_actas WHERE seccion_id = :s"),
+            {"s": self.seccion}).scalar_one(), filas)
+
     def test_la_auditoria_registra_quien_cambio_la_nota(self):
         self._como("rol_coordinador", usuario="coord.auditoria")
         fila = self.c.execute(text("""

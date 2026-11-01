@@ -65,6 +65,7 @@ SCRIPTS=(
   "19_motivo_retiro.sql|SELECT 1 FROM information_schema.columns WHERE table_schema='academico_oltp' AND table_name='inscripciones' AND column_name='motivo_retiro'"
   "20_metas_indicadores.sql|SELECT 1 FROM pg_views WHERE schemaname='dw_academico' AND viewname='v_semaforo_indicador'"
   "21_perfil_propio.sql|SELECT 1 FROM pg_proc WHERE proname='actualizar_perfil_propio'"
+  "22_log_actas_sin_fk.sql|SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='auditoria' AND c.relname='log_actas' AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid=c.oid AND conname='log_actas_seccion_id_fkey')"
 )
 
 consultar() {
