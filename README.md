@@ -289,13 +289,27 @@ Ambos scripts toman las credenciales del `.env`; ya no hay que editarlos.
 python backend/scripts/crear_usuario.py --demo --password demo1234
 ```
 
-Crea dos usuarios de prueba para entorno local: `coordinador` y `docente` (este último
-requiere que el generador de datos se haya ejecutado antes — paso 4). Para dar de alta
-usuarios reales, sin el flag `--demo`:
+Crea tres usuarios de prueba para entorno local:
+
+| Usuario | Rol | Alcance |
+|---|---|---|
+| `coordinador` | `rol_admin` | Toda la institución |
+| `coordinador.carrera` | `rol_coordinador` | La primera carrera de la base |
+| `docente` | `rol_docente` | Las secciones de ese docente |
+
+Los dos últimos requieren que el generador de datos se haya ejecutado antes (paso 4). Para dar
+de alta usuarios reales, sin el flag `--demo`:
 
 ```bash
 python backend/scripts/crear_usuario.py --username jperez \
     --nombre "Jose Perez" --rol rol_docente --docente-id 3
+```
+
+Un coordinador lleva **una** carrera, y es obligatoria:
+
+```bash
+python backend/scripts/crear_usuario.py --username mlopez \
+    --nombre "Maria Lopez" --rol rol_coordinador --carrera-id 1
 ```
 
 ### 6. Compilar los estilos (Tailwind CSS)
@@ -718,7 +732,8 @@ La autorización **no se resuelve en Python, sino en el motor de base de datos**
 
 1. La aplicación se conecta siempre con un rol de servicio (`rol_app`) creado con `NOINHERIT`,
    que por sí solo únicamente puede leer la tabla de usuarios.
-2. Al autenticar, se recupera el rol asignado al usuario (`rol_coordinador` o `rol_docente`).
+2. Al autenticar, se recupera el rol asignado al usuario (`rol_admin`, `rol_coordinador` o
+   `rol_docente`).
 3. En cada transacción se ejecuta `SET LOCAL ROLE <rol>`, de modo que los `GRANT` definidos en
    `01_init_oltp_academico.sql` son los que autorizan o rechazan cada operación.
 
@@ -730,6 +745,45 @@ Consecuencias del diseño:
   la sesión se queda sin privilegios en lugar de acumular los de todos los roles.
 - `SET LOCAL` (y no `SET`) limita el cambio a la transacción, evitando que una conexión
   reutilizada del pool arrastre el rol del usuario anterior.
+- **Tres roles, con dos recortes impuestos por el motor** (`database/oltp/23_rol_admin_y_carrera.sql`):
+
+  | Rol | Alcance | Administra |
+  |---|---|---|
+  | `rol_admin` | Toda la institución | Usuarios, períodos, carreras, departamentos, docentes, costos por UV, metas |
+  | `rol_coordinador` | **Una carrera** | Matrícula, notas, asistencia, materias, secciones y estudiantes **de su carrera** |
+  | `rol_docente` | **Sus secciones** | Sus evaluaciones, notas y asistencia |
+
+  Un coordinador lleva **una** carrera (`usuarios.carrera_id`, obligatoria por `CHECK`); el
+  departamento no se guarda porque se deriva de ella. La aplicación declara la carrera en cada
+  transacción con `set_config('app.carrera_id', …, true)`, y las políticas de fila de `carreras`,
+  `materias`, `estudiantes`, `secciones`, `inscripciones`, `evaluaciones`, `calificaciones` y
+  `asistencias` la usan. **Si no la declara, no ve ninguna fila:** falla cerrado, igual que el
+  docente.
+
+  Las políticas están escritas **en línea** y no con funciones auxiliares: una función con
+  `SET search_path` no se puede «inlinear» y PostgreSQL la ejecutaría por cada fila. Medido en
+  esta base, el recorte cuesta 32 ms → 49 ms en un conteo de 131.000 notas, porque el
+  planificador lo convierte en *hash joins*.
+
+- **El almacén respeta la misma carrera** (`database/oltp/24_dw_alcance_por_carrera.sql`). Los
+  tableros no leen el OLTP: leen `dw_academico` con una conexión aparte, así que el recorte no
+  podía viajar por la sesión del OLTP. Se agregó `rol_dw_carrera`, del que `rol_dashboard` es
+  miembro, y `app/dw.py` lo adopta con `SET LOCAL ROLE` solo cuando quien pregunta es un
+  coordinador de carrera. `rol_dashboard` sin adoptarlo sigue viendo todo, que es lo que
+  necesitan el tablero de Streamlit y `etl.validar_dw`. `v_mart_departamento` se marcó
+  `security_invoker` porque una vista normal se evalúa con los permisos de su dueño y el recorte
+  se podría esquivar consultándola.
+
+  **Límite declarado:** las vistas de indicadores (`v_semaforo_indicador`,
+  `v_indicador_calculo`) siguen siendo institucionales, porque las metas lo son
+  (`academico_oltp.metas_indicador`). Un coordinador de carrera ve el valor de su carrera frente
+  a la meta institucional; comparar una carrera contra una meta de toda la institución sería
+  engañoso, y resolverlo bien exige metas por carrera.
+
+- **La bitácora es de solo lectura incluso para el admin.** La jerarquía no alcanza a la
+  auditoría: ningún rol de la aplicación puede insertar, alterar ni borrar entradas, porque la
+  escriben funciones `SECURITY DEFINER`. Es la garantía del sistema y no admite excepciones.
+
 - **Cada docente solo ve y escribe sus propias secciones**, y también lo impone el motor:
   `evaluaciones`, `calificaciones` y `asistencias` tienen seguridad por fila
   (`database/oltp/16_rls_docente.sql`). Junto al `SET LOCAL ROLE`, la aplicación declara el

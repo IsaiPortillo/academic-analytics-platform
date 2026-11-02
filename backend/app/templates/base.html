@@ -43,15 +43,15 @@
     ("/calificaciones", "Portal Docente & Notas", "calificaciones", true),
     ("/asistencia", "Asistencia", "asistencia", true),
     ("/reportes", "Reportes", "reportes", usuario.es_coordinador),
-    ("/costos", "Costos institucionales", "costos", usuario.es_coordinador),
+    ("/costos", "Costos institucionales", "costos", usuario.es_admin),
 ] %}
 {% set modulos_admin = [
     ("/admin", "Catálogos", usuario.es_coordinador),
     ("/admin/malla", "Malla curricular", usuario.es_coordinador),
-    ("/admin/metas", "Metas de indicadores", usuario.es_coordinador),
-    ("/usuarios", "Usuarios", usuario.es_coordinador),
+    ("/admin/metas", "Metas de indicadores", usuario.es_admin),
+    ("/usuarios", "Usuarios", usuario.es_admin),
     ("/auditoria", "Auditoría", usuario.es_coordinador),
-    ("/almacen", "Almacén de datos", usuario.es_coordinador),
+    ("/almacen", "Almacén de datos", usuario.es_admin),
 ] %}
 {% set modulos_inteligencia = [
     ("/vista-ejecutiva", "Vista ejecutiva", "ejecutiva", usuario.es_coordinador),

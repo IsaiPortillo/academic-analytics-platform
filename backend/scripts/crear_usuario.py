@@ -1,6 +1,6 @@
 """Alta de usuarios de la aplicación.
 
-Se conecta con el rol de servicio (rol_app) y cambia a rol_coordinador, que es
+Se conecta con el rol de servicio (rol_app) y cambia a rol_admin, que es
 quien tiene permiso de INSERT sobre academico_oltp.usuarios. No requiere el
 superusuario de PostgreSQL.
 
@@ -23,11 +23,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sqlalchemy import select, text  # noqa: E402
 
 from app.database import SessionLocal  # noqa: E402
-from app.models import Docente, Usuario  # noqa: E402
+from app.models import Carrera, Docente, Usuario  # noqa: E402
 from app.security import hashear_password  # noqa: E402
 
 
-def crear_usuario(db, username, nombre, rol, password, docente_id=None):
+def crear_usuario(db, username, nombre, rol, password, docente_id=None, carrera_id=None):
     if db.scalar(select(Usuario).where(Usuario.username == username)):
         print(f"  - '{username}' ya existe, se omite.")
         return False
@@ -39,6 +39,7 @@ def crear_usuario(db, username, nombre, rol, password, docente_id=None):
             nombre_completo=nombre,
             rol_db=rol,
             docente_id=docente_id,
+            carrera_id=carrera_id,
         )
     )
     db.flush()
@@ -51,7 +52,9 @@ def main():
     parser.add_argument("--demo", action="store_true", help="crear usuarios de demostración")
     parser.add_argument("--username")
     parser.add_argument("--nombre")
-    parser.add_argument("--rol", choices=["rol_coordinador", "rol_docente"])
+    parser.add_argument("--rol", choices=["rol_admin", "rol_coordinador", "rol_docente"])
+    parser.add_argument("--carrera-id", type=int,
+                        help="requerido si el rol es rol_coordinador (lleva una sola carrera)")
     parser.add_argument("--docente-id", type=int, help="requerido si el rol es rol_docente")
     parser.add_argument("--password", help="si se omite, se pide de forma interactiva")
     args = parser.parse_args()
@@ -66,13 +69,28 @@ def main():
     db = SessionLocal()
     try:
         # rol_app no puede escribir en usuarios; rol_coordinador sí.
-        db.execute(text("SET LOCAL ROLE rol_coordinador"))
+        db.execute(text("SET LOCAL ROLE rol_admin"))
 
         if args.demo:
             print("Creando usuarios de demostración:")
             crear_usuario(
-                db, "coordinador", "Coordinador Académico", "rol_coordinador", password
+                db, "coordinador", "Administración Académica", "rol_admin", password
             )
+
+            # Un coordinador acotado a la primera carrera, para poder comprobar el
+            # recorte por carrera (script 23) sin tener que crearlo a mano.
+            primera_carrera = db.scalar(select(Carrera).order_by(Carrera.carrera_id).limit(1))
+            if primera_carrera is None:
+                print("  ! No hay carreras en la base: omito el coordinador de carrera.")
+            else:
+                crear_usuario(
+                    db,
+                    "coordinador.carrera",
+                    f"Coordinación de {primera_carrera.nombre}",
+                    "rol_coordinador",
+                    password,
+                    carrera_id=primera_carrera.carrera_id,
+                )
 
             primer_docente = db.scalar(select(Docente).order_by(Docente.docente_id).limit(1))
             if primer_docente is None:
@@ -92,8 +110,11 @@ def main():
         else:
             if args.rol == "rol_docente" and args.docente_id is None:
                 parser.error("--docente-id es obligatorio para rol_docente")
+            if args.rol == "rol_coordinador" and args.carrera_id is None:
+                parser.error("--carrera-id es obligatorio para rol_coordinador")
             crear_usuario(
-                db, args.username, args.nombre, args.rol, password, args.docente_id
+                db, args.username, args.nombre, args.rol, password, args.docente_id,
+                args.carrera_id,
             )
 
         db.commit()

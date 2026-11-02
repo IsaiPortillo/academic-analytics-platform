@@ -33,10 +33,26 @@ POR_PAGINA = 50
 COORDINADOR = requiere_rol("rol_coordinador")
 
 
-def _catalogo(slug: str) -> Catalogo:
+def _catalogo(slug: str, usuario: UsuarioSesion) -> Catalogo:
+    """Resuelve el catálogo y comprueba de una vez quién puede administrarlo.
+
+    Las dos cosas van juntas a propósito: así no se puede agregar una ruta nueva
+    y olvidarse del permiso. Los catálogos institucionales (períodos, docentes,
+    carreras, departamentos) son del admin; los de la carrera los lleva el
+    coordinador, y las políticas de fila del script 23 lo limitan a la suya.
+
+    Es la barrera de usabilidad; la de verdad está en la base: al coordinador le
+    quitaron la escritura sobre esos cuatro, así que un POST se estrellaría
+    contra «permission denied».
+    """
     if slug not in CATALOGOS:
         raise HTTPException(status_code=404, detail="Catálogo no encontrado")
-    return CATALOGOS[slug]
+    catalogo = CATALOGOS[slug]
+    if catalogo.solo_admin and not usuario.es_admin:
+        raise HTTPException(
+            status_code=403,
+            detail=f"«{catalogo.titulo}» lo administra el administrador institucional")
+    return catalogo
 
 
 def _clave(catalogo: Catalogo):
@@ -124,7 +140,7 @@ def listar(
     usuario: UsuarioSesion = Depends(COORDINADOR),
     db: Session = Depends(get_db),
 ):
-    catalogo = _catalogo(slug)
+    catalogo = _catalogo(slug, usuario)
     ok, error = tomar_aviso(request)
     por_defecto = _por_defecto(db, catalogo)
     seleccion = fl.leer(catalogo, request.query_params, por_defecto)
@@ -163,7 +179,7 @@ def listar(
 def exportar(request: Request, slug: str, usuario: UsuarioSesion = Depends(COORDINADOR),
              db: Session = Depends(get_db)):
     """La lista tal como está filtrada y ordenada, completa (no solo la página), en CSV."""
-    catalogo = _catalogo(slug)
+    catalogo = _catalogo(slug, usuario)
     seleccion = fl.leer(catalogo, request.query_params, _por_defecto(db, catalogo))
     fl.reconciliar(db, catalogo, seleccion, _busqueda(catalogo, seleccion.buscar))
     consulta = _consulta_filtrada(db, catalogo, seleccion)
@@ -182,7 +198,7 @@ def exportar(request: Request, slug: str, usuario: UsuarioSesion = Depends(COORD
 
 @router.get("/{slug}/plantilla")
 def descargar_plantilla(slug: str, usuario: UsuarioSesion = Depends(COORDINADOR), db: Session = Depends(get_db)):
-    catalogo = _catalogo(slug)
+    catalogo = _catalogo(slug, usuario)
     return Response(carga.construir_plantilla(db, catalogo), media_type=TIPO_XLSX, headers={
         "Content-Disposition": f'attachment; filename="plantilla_{catalogo.slug}.xlsx"',
         "Cache-Control": "no-store"})
@@ -203,7 +219,7 @@ def _mostrar(campo, texto: str, etiquetas_fk: dict) -> str:
 @router.post("/{slug}/importar")
 async def importar(request: Request, slug: str, archivo: UploadFile = File(...),
                    usuario: UsuarioSesion = Depends(COORDINADOR), db: Session = Depends(get_db)):
-    catalogo = _catalogo(slug)
+    catalogo = _catalogo(slug, usuario)
     destino = f"/admin/{slug}"
     try:
         filas = await leer_filas(archivo)
@@ -235,7 +251,7 @@ async def importar(request: Request, slug: str, archivo: UploadFile = File(...),
 @router.post("/{slug}/importar/confirmar")
 def confirmar_importacion(request: Request, slug: str, datos: str = Form(...),
                           usuario: UsuarioSesion = Depends(COORDINADOR), db: Session = Depends(get_db)):
-    catalogo = _catalogo(slug)
+    catalogo = _catalogo(slug, usuario)
     destino = f"/admin/{slug}"
     try:
         cambios = carga.leer_carga(catalogo, datos)
@@ -266,7 +282,7 @@ def _formulario(request, usuario, db, catalogo, registro, valores=None, errores=
 @router.get("/{slug}/nuevo")
 def nuevo(request: Request, slug: str, usuario: UsuarioSesion = Depends(COORDINADOR),
           db: Session = Depends(get_db)):
-    return _formulario(request, usuario, db, _catalogo(slug), None)
+    return _formulario(request, usuario, db, _catalogo(slug, usuario), None)
 
 
 def _guardar(request, usuario, db, catalogo, registro, formulario):
@@ -304,7 +320,7 @@ def _guardar(request, usuario, db, catalogo, registro, formulario):
 @router.post("/{slug}/nuevo")
 async def crear(request: Request, slug: str, usuario: UsuarioSesion = Depends(COORDINADOR),
                 db: Session = Depends(get_db)):
-    return _guardar(request, usuario, db, _catalogo(slug), None, await request.form())
+    return _guardar(request, usuario, db, _catalogo(slug, usuario), None, await request.form())
 
 
 def _registro(db: Session, catalogo: Catalogo, registro_id: int):
@@ -317,21 +333,21 @@ def _registro(db: Session, catalogo: Catalogo, registro_id: int):
 @router.get("/{slug}/{registro_id}")
 def editar(request: Request, slug: str, registro_id: int, usuario: UsuarioSesion = Depends(COORDINADOR),
            db: Session = Depends(get_db)):
-    catalogo = _catalogo(slug)
+    catalogo = _catalogo(slug, usuario)
     return _formulario(request, usuario, db, catalogo, _registro(db, catalogo, registro_id))
 
 
 @router.post("/{slug}/{registro_id}")
 async def actualizar(request: Request, slug: str, registro_id: int,
                      usuario: UsuarioSesion = Depends(COORDINADOR), db: Session = Depends(get_db)):
-    catalogo = _catalogo(slug)
+    catalogo = _catalogo(slug, usuario)
     return _guardar(request, usuario, db, catalogo, _registro(db, catalogo, registro_id), await request.form())
 
 
 @router.post("/{slug}/{registro_id}/eliminar")
 def eliminar(request: Request, slug: str, registro_id: int, usuario: UsuarioSesion = Depends(COORDINADOR),
              db: Session = Depends(get_db)):
-    catalogo = _catalogo(slug)
+    catalogo = _catalogo(slug, usuario)
     registro = _registro(db, catalogo, registro_id)
     nombre = catalogo.etiqueta(registro)
     try:

@@ -168,7 +168,7 @@ DECLARE
     v_faltan INT;
     v_ids BIGINT[];
 BEGIN
-    IF v_rol NOT IN ('rol_docente', 'rol_coordinador') THEN
+    IF v_rol NOT IN ('rol_admin', 'rol_docente', 'rol_coordinador') THEN
         RAISE EXCEPTION 'Rol sin permiso para cerrar actas';
     END IF;
 
@@ -223,8 +223,8 @@ DECLARE
     v_rol TEXT := COALESCE(NULLIF(current_setting('role', true), 'none'), session_user);
     v_ids BIGINT[];
 BEGIN
-    IF v_rol <> 'rol_coordinador' THEN
-        RAISE EXCEPTION 'Solo el coordinador puede reabrir un acta';
+    IF v_rol NOT IN ('rol_admin', 'rol_coordinador') THEN
+        RAISE EXCEPTION 'Solo el coordinador de la carrera o el administrador pueden reabrir un acta';
     END IF;
     IF length(btrim(COALESCE(p_motivo, ''))) < 5 THEN
         RAISE EXCEPTION 'Indica el motivo de la reapertura (al menos 5 caracteres)';

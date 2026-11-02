@@ -27,7 +27,7 @@ from ..config import settings
 from ..database import ROLES_VALIDOS, get_db
 from ..dependencies import (CLAVE_CAMBIO_OBLIGATORIO, CLAVE_HUELLA, UsuarioSesion, huella_password,
                             requiere_rol, usuario_actual)
-from ..models import Docente, Usuario
+from ..models import Carrera, Docente, Usuario
 from ..security import hashear_password, verificar_password
 from ..templating import templates
 
@@ -38,7 +38,8 @@ LONGITUD_MINIMA = 10
 LARGO_NOMBRE = (3, 120)   # los mismos límites que actualizar_perfil_propio() (script 21)
 # El Salvador no tiene horario de verano: un desfase fijo es exacto y no exige tzdata.
 ZONA_LOCAL = timezone(timedelta(hours=-6))
-ROLES = {"rol_coordinador": "Coordinador", "rol_docente": "Docente"}
+ROLES = {"rol_admin": "Administrador", "rol_coordinador": "Coordinador de carrera",
+         "rol_docente": "Docente"}
 
 
 def _mensaje_bd(exc: DBAPIError) -> str:
@@ -85,9 +86,11 @@ def password_temporal() -> str:
             return clave
 
 
-def _coordinadores_activos(db: Session, excepto: Optional[int] = None) -> int:
+def _admins_activos(db: Session, excepto: Optional[int] = None) -> int:
+    """Cuántos administradores quedan. Si llegara a cero, nadie podría volver a
+    administrar la institución: ni crear usuarios ni asignar carreras."""
     consulta = select(func.count()).select_from(Usuario).where(
-        Usuario.rol_db == "rol_coordinador", Usuario.activo.is_(True))
+        Usuario.rol_db == "rol_admin", Usuario.activo.is_(True))
     if excepto is not None:
         consulta = consulta.where(Usuario.usuario_id != excepto)
     return db.scalar(consulta)
@@ -95,6 +98,13 @@ def _coordinadores_activos(db: Session, excepto: Optional[int] = None) -> int:
 
 def _docentes(db: Session):
     return db.scalars(select(Docente).order_by(Docente.codigo_docente)).all()
+
+
+def _carreras(db: Session):
+    """Carreras para asignar a un coordinador. El admin las ve todas (su política
+    de fila no recorta); el departamento no se pide: se deriva de la carrera."""
+    return db.scalars(
+        select(Carrera).where(Carrera.activo.is_(True)).order_by(Carrera.nombre)).all()
 
 
 def _credencial(request, usuario, cuenta: Usuario, clave: str, accion: str):
@@ -111,7 +121,7 @@ def _credencial(request, usuario, cuenta: Usuario, clave: str, accion: str):
 def listar(
     request: Request,
     buscar: Optional[str] = Query(None),
-    usuario: UsuarioSesion = Depends(requiere_rol("rol_coordinador")),
+    usuario: UsuarioSesion = Depends(requiere_rol("rol_admin")),
     db: Session = Depends(get_db),
 ):
     ok, error = tomar_aviso(request)
@@ -122,6 +132,7 @@ def listar(
     cuentas = db.execute(consulta.order_by(Usuario.activo.desc(), Usuario.username)).all()
     return templates.TemplateResponse(request, "modulos/usuarios.html", {
         "usuario": usuario, "cuentas": cuentas, "docentes": _docentes(db), "roles": ROLES,
+        "carreras": _carreras(db),
         "buscar": buscar or "", "ok": ok, "error": error, "longitud_minima": LONGITUD_MINIMA,
     })
 
@@ -133,7 +144,8 @@ def crear(
     nombre_completo: str = Form(...),
     rol_db: str = Form(...),
     docente_id: Optional[str] = Form(None),
-    usuario: UsuarioSesion = Depends(requiere_rol("rol_coordinador")),
+    carrera_id: Optional[str] = Form(None),
+    usuario: UsuarioSesion = Depends(requiere_rol("rol_admin")),
     db: Session = Depends(get_db),
 ):
     username = username.strip().lower()
@@ -148,8 +160,12 @@ def crear(
     docente = int(docente_id) if rol_db == "rol_docente" and (docente_id or "").isdigit() else None
     if rol_db == "rol_docente" and docente is None:
         return redirigir(request, "/usuarios", error="Elige el docente al que corresponde la cuenta.")
+    carrera = _carrera_elegida(rol_db, carrera_id)
+    if rol_db == "rol_coordinador" and carrera is None:
+        return redirigir(request, "/usuarios", error="Elige la carrera que va a llevar el coordinador.")
     clave = password_temporal()
     cuenta = Usuario(username=username, nombre_completo=nombre_completo, rol_db=rol_db, docente_id=docente,
+                     carrera_id=carrera,
                      password_hash=hashear_password(clave), debe_cambiar_password=True)
     try:
         db.add(cuenta)
@@ -158,6 +174,14 @@ def crear(
         db.rollback()
         return redirigir(request, "/usuarios", error=_mensaje_bd(exc))
     return _credencial(request, usuario, cuenta, clave, "creada")
+
+
+def _carrera_elegida(rol_db: str, carrera_id: Optional[str]) -> Optional[int]:
+    """La carrera solo aplica al coordinador. Para los otros roles es NULL, y la
+    restricción chk_coordinador_con_carrera (script 23) lo exige en la base."""
+    if rol_db != "rol_coordinador":
+        return None
+    return int(carrera_id) if (carrera_id or "").isdigit() else None
 
 
 def _cuenta(db: Session, usuario_id: int) -> Optional[Usuario]:
@@ -171,7 +195,8 @@ def editar(
     nombre_completo: str = Form(...),
     rol_db: str = Form(...),
     docente_id: Optional[str] = Form(None),
-    usuario: UsuarioSesion = Depends(requiere_rol("rol_coordinador")),
+    carrera_id: Optional[str] = Form(None),
+    usuario: UsuarioSesion = Depends(requiere_rol("rol_admin")),
     db: Session = Depends(get_db),
 ):
     cuenta = _cuenta(db, usuario_id)
@@ -181,16 +206,22 @@ def editar(
         return redirigir(request, "/usuarios", error="Rol no reconocido.")
     if cuenta.usuario_id == usuario.usuario_id and rol_db != cuenta.rol_db:
         return redirigir(request, "/usuarios", error="No puedes cambiar tu propio rol.")
-    if (cuenta.rol_db == "rol_coordinador" and rol_db != "rol_coordinador" and cuenta.activo
-            and _coordinadores_activos(db, excepto=cuenta.usuario_id) == 0):
-        return redirigir(request, "/usuarios", error="Debe quedar al menos un coordinador activo.")
+    if (cuenta.rol_db == "rol_admin" and rol_db != "rol_admin" and cuenta.activo
+            and _admins_activos(db, excepto=cuenta.usuario_id) == 0):
+        return redirigir(request, "/usuarios", error="Debe quedar al menos un administrador activo.")
     docente = int(docente_id) if rol_db == "rol_docente" and (docente_id or "").isdigit() else None
     if rol_db == "rol_docente" and docente is None:
         return redirigir(request, "/usuarios", error="Elige el docente al que corresponde la cuenta.")
+    carrera = _carrera_elegida(rol_db, carrera_id)
+    if rol_db == "rol_coordinador" and carrera is None:
+        return redirigir(request, "/usuarios", error="Elige la carrera que va a llevar el coordinador.")
     try:
         cuenta.nombre_completo = nombre_completo.strip() or cuenta.nombre_completo
         cuenta.rol_db = rol_db
         cuenta.docente_id = docente
+        # Cambiar la carrera corta su sesión abierta (dependencies.cuenta_vigente),
+        # así no sigue viendo la anterior hasta que caduque la cookie.
+        cuenta.carrera_id = carrera
         db.flush()
     except DBAPIError as exc:
         db.rollback()
@@ -204,7 +235,7 @@ def cambiar_estado(
     request: Request,
     usuario_id: int,
     activo: bool = Form(...),
-    usuario: UsuarioSesion = Depends(requiere_rol("rol_coordinador")),
+    usuario: UsuarioSesion = Depends(requiere_rol("rol_admin")),
     db: Session = Depends(get_db),
 ):
     cuenta = _cuenta(db, usuario_id)
@@ -212,9 +243,9 @@ def cambiar_estado(
         return redirigir(request, "/usuarios", error="Usuario no encontrado.")
     if cuenta.usuario_id == usuario.usuario_id and not activo:
         return redirigir(request, "/usuarios", error="No puedes desactivar tu propia cuenta.")
-    if (not activo and cuenta.rol_db == "rol_coordinador"
-            and _coordinadores_activos(db, excepto=cuenta.usuario_id) == 0):
-        return redirigir(request, "/usuarios", error="Debe quedar al menos un coordinador activo.")
+    if (not activo and cuenta.rol_db == "rol_admin"
+            and _admins_activos(db, excepto=cuenta.usuario_id) == 0):
+        return redirigir(request, "/usuarios", error="Debe quedar al menos un administrador activo.")
     cuenta.activo = activo
     db.flush()
     return redirigir(request, "/usuarios", ok=f"Cuenta «{cuenta.username}» "
@@ -225,7 +256,7 @@ def cambiar_estado(
 def restablecer(
     request: Request,
     usuario_id: int,
-    usuario: UsuarioSesion = Depends(requiere_rol("rol_coordinador")),
+    usuario: UsuarioSesion = Depends(requiere_rol("rol_admin")),
     db: Session = Depends(get_db),
 ):
     cuenta = _cuenta(db, usuario_id)

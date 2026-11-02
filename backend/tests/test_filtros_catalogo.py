@@ -287,7 +287,7 @@ class TestListaYExportacion(unittest.TestCase):
         db.scalars.return_value.all.return_value = registros
         peticion = SimpleNamespace(query_params={"buscar": "ing", "orden": "nombre"})
         with mock.patch.object(administracion, "_etiquetas_fk", return_value={}):
-            r = administracion.exportar(peticion, "departamentos", SimpleNamespace(), db)
+            r = administracion.exportar(peticion, "departamentos", SimpleNamespace(es_admin=True), db)
         texto = r.body.decode("utf-8")
         self.assertTrue(texto.startswith("﻿"))
         lineas = texto.lstrip("﻿").splitlines()
@@ -310,7 +310,7 @@ class TestListaYExportacion(unittest.TestCase):
         contexto = {
             "request": SimpleNamespace(session={"csrf": "t"}, url=SimpleNamespace(path="/admin/materias")),
             "url_for": lambda *a, **k: "/static/x", "usuario": SimpleNamespace(
-                nombre_completo="Coordinación", rol_legible="Coordinador", es_coordinador=True, rol_db="rol_coordinador"),
+                nombre_completo="Coordinación", rol_legible="Coordinador", es_coordinador=True, es_admin=False, rol_db="rol_coordinador"),
             "catalogo": MATERIAS, "ok": None, "error": None, "columnas": columnas,
             "filas": [(1, ["MAT115", "Matemática I"])], "total": 1, "total_catalogo": 523, "pagina": 1, "paginas": 1,
             "seleccion": s, "filtros": filtros, "quitados": [],
@@ -331,7 +331,7 @@ class TestListaYExportacion(unittest.TestCase):
         from app.templating import templates
         html_base = {"request": SimpleNamespace(session={"csrf": "t"}, url=SimpleNamespace(path="/admin/materias")),
                      "url_for": lambda *a, **k: "/static/x",
-                     "usuario": SimpleNamespace(nombre_completo="C", rol_legible="Coordinador", es_coordinador=True,
+                     "usuario": SimpleNamespace(nombre_completo="C", rol_legible="Coordinador", es_coordinador=True, es_admin=False,
                                                 rol_db="rol_coordinador"),
                      "catalogo": MATERIAS, "ok": None, "error": None, "columnas": [], "filas": [], "total": 0,
                      "total_catalogo": 523, "pagina": 1, "paginas": 1, "seleccion": fl.leer(MATERIAS, {}), "filtros": [], "quitados": [],

@@ -135,6 +135,7 @@ def procesar_login(
         nombre_completo=usuario.nombre_completo,
         rol_db=usuario.rol_db,
         docente_id=usuario.docente_id,
+        carrera_id=usuario.carrera_id,
     )
     limite_login.registrar_exito(ip, username)
     # Sesión nueva: se descarta todo lo anterior (incluido el token CSRF que vio la

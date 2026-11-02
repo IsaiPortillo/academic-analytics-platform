@@ -24,7 +24,7 @@ class TestActas(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         with MOTOR.connect() as c:
-            c.execute(text("SET LOCAL ROLE rol_coordinador"))
+            c.execute(text("SET LOCAL ROLE rol_admin"))
             # Una sección abierta cuyas evaluaciones suman 100 y con inscritos;
             # preferimos la del docente que tiene usuario.
             fila = c.execute(text("""
@@ -68,7 +68,7 @@ class TestActas(unittest.TestCase):
         return str(e.exception.orig)
 
     def _completar_notas(self):
-        self._como("rol_coordinador")
+        self._como("rol_admin")
         self.c.execute(text("""
             INSERT INTO academico_oltp.calificaciones (inscripcion_id, evaluacion_id, nota)
             SELECT i.inscripcion_id, e.evaluacion_id, 8
@@ -85,7 +85,7 @@ class TestActas(unittest.TestCase):
             "WHERE seccion_id = :s AND estado_inscripcion = 'INSCRITO'"), {"s": self.seccion}).scalar_one()
 
     def test_no_cierra_con_notas_pendientes(self):
-        self._como("rol_coordinador")
+        self._como("rol_admin")
         # Quitamos una nota para asegurar que falta al menos una.
         self._completar_notas()
         self.c.execute(text("""
@@ -128,7 +128,7 @@ class TestActas(unittest.TestCase):
 
         # Con el acta cerrada, el trigger rechaza notas, evaluaciones y asistencia,
         # incluso al coordinador.
-        for rol, docente in (("rol_docente", self.docente), ("rol_coordinador", None)):
+        for rol, docente in (("rol_docente", self.docente), ("rol_admin", None)):
             self._como(rol, docente)
             for sql in (
                 "UPDATE academico_oltp.calificaciones SET nota = 10 WHERE inscripcion_id IN "
@@ -145,7 +145,7 @@ class TestActas(unittest.TestCase):
         self._como("rol_docente", self.docente)
         self.assertIn("permission denied for function reabrir_acta",
                       self._falla("SELECT academico_oltp.reabrir_acta(:s, 'corrección')", {"s": self.seccion}))
-        self._como("rol_coordinador", usuario="coord.prueba")
+        self._como("rol_admin", usuario="coord.prueba")
         self.assertIn("al menos 5 caracteres",
                       self._falla("SELECT academico_oltp.reabrir_acta(:s, '  ab ')", {"s": self.seccion}))
         reabiertas = self.c.execute(text("SELECT academico_oltp.reabrir_acta(:s, 'Nota mal digitada')"),
@@ -165,7 +165,7 @@ class TestActas(unittest.TestCase):
             "FROM auditoria.log_actas WHERE seccion_id = :s ORDER BY log_id DESC LIMIT 2"),
             {"s": self.seccion}).all()
         self.assertEqual([tuple(f) for f in bitacora], [
-            ("REABIERTA", "coord.prueba", "rol_coordinador", "Nota mal digitada", inscritos),
+            ("REABIERTA", "coord.prueba", "rol_admin", "Nota mal digitada", inscritos),
             ("CERRADA", "docente.prueba", "rol_docente", None, inscritos),
         ])
 
@@ -176,7 +176,7 @@ class TestActas(unittest.TestCase):
         generador de datos lo hace al reiniciar (`--reiniciar`). No se notó
         porque la tabla estaba vacía en todas las máquinas. Ver script 22.
         """
-        self._como("rol_coordinador")   # el único rol con USAGE sobre el esquema auditoria
+        self._como("rol_admin")   # el único rol con USAGE sobre el esquema auditoria
         ajenas = self.c.execute(text("""
             SELECT count(*) FROM pg_constraint
             WHERE contype = 'f'
@@ -193,7 +193,7 @@ class TestActas(unittest.TestCase):
         self._como("rol_docente", self.docente, usuario="docente.prueba")
         self.c.execute(text("SELECT academico_oltp.cerrar_acta(:s)"), {"s": self.seccion})
 
-        self._como("rol_coordinador", usuario="coord.prueba")
+        self._como("rol_admin", usuario="coord.prueba")
         self.c.execute(text("SELECT academico_oltp.reabrir_acta(:s, 'borrado de prueba')"),
                        {"s": self.seccion})
         filas = self.c.execute(text(
@@ -223,7 +223,7 @@ class TestActas(unittest.TestCase):
             {"s": self.seccion}).scalar_one(), filas)
 
     def test_la_auditoria_registra_quien_cambio_la_nota(self):
-        self._como("rol_coordinador", usuario="coord.auditoria")
+        self._como("rol_admin", usuario="coord.auditoria")
         fila = self.c.execute(text("""
             SELECT c.calificacion_id FROM academico_oltp.calificaciones c
             JOIN academico_oltp.inscripciones i ON i.inscripcion_id = c.inscripcion_id
@@ -234,7 +234,7 @@ class TestActas(unittest.TestCase):
                        {"c": fila[0]})
         self.c.execute(text("DELETE FROM academico_oltp.calificaciones WHERE calificacion_id = :c"), {"c": fila[0]})
         self.c.execute(text("RESET ROLE"))
-        self.c.execute(text("SET LOCAL ROLE rol_coordinador"))
+        self.c.execute(text("SET LOCAL ROLE rol_admin"))
         ops = self.c.execute(text(
             "SELECT operacion, usuario_app FROM auditoria.log_cambios_notas "
             "WHERE usuario_app = 'coord.auditoria' ORDER BY 1")).all()
@@ -246,7 +246,7 @@ class TestFuncionesDeCuenta(unittest.TestCase):
     def setUp(self):
         self.c = MOTOR.connect()
         self.c.begin()
-        self.c.execute(text("SET LOCAL ROLE rol_coordinador"))
+        self.c.execute(text("SET LOCAL ROLE rol_admin"))
         self.usuario, self.otro = self.c.execute(text(
             "SELECT usuario_id FROM academico_oltp.usuarios WHERE activo ORDER BY usuario_id LIMIT 2")).scalars().all()
         self.hash_otro = self._hash(self.otro)
@@ -296,7 +296,7 @@ class TestFuncionesDeCuenta(unittest.TestCase):
     def test_cuenta_desactivada_no_cambia_contrasena(self):
         self.c.execute(text("RESET ROLE"))
         # rol_app no puede desactivar; lo hace el coordinador, que sí puede.
-        self.c.execute(text("SET LOCAL ROLE rol_coordinador"))
+        self.c.execute(text("SET LOCAL ROLE rol_admin"))
         self.c.execute(text("UPDATE academico_oltp.usuarios SET activo = FALSE WHERE usuario_id = :u"),
                        {"u": self.usuario})
         self._declarar(self.usuario)
@@ -311,7 +311,7 @@ class TestFuncionesDeCuenta(unittest.TestCase):
     def test_registrar_acceso_es_de_rol_app(self):
         self.c.execute(text("RESET ROLE"))
         self.c.execute(text("SELECT academico_oltp.registrar_acceso(:u)"), {"u": self.usuario})
-        self.c.execute(text("SET LOCAL ROLE rol_coordinador"))
+        self.c.execute(text("SET LOCAL ROLE rol_admin"))
         reciente = self.c.execute(text(
             "SELECT ultimo_acceso > now() - interval '1 minute' FROM academico_oltp.usuarios "
             "WHERE usuario_id = :u"), {"u": self.usuario}).scalar_one()

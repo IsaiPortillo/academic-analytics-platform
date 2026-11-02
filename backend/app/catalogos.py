@@ -58,6 +58,10 @@ class Catalogo:
     filtro_periodo: bool = False
     columnas_extra: tuple[tuple[str, Callable[[Any], Any]], ...] = field(default_factory=tuple)
 
+    @property
+    def solo_admin(self) -> bool:
+        return self.slug in CATALOGOS_INSTITUCIONALES
+
 
 def _opciones(modelo, etiqueta, orden):
     def cargar(db: Session):
@@ -86,6 +90,11 @@ PERIODOS = _opciones(PeriodoAcademico, lambda p: p.codigo_periodo,
                      (PeriodoAcademico.anio.desc(), PeriodoAcademico.ciclo_romano.desc()))
 
 ACTIVO = Campo("activo", "Activo", "bool", requerido=False, por_defecto=True)
+
+# Catálogos institucionales: solo los administra rol_admin. Los demás —materias,
+# secciones y estudiantes— los lleva el coordinador de su carrera, y las
+# políticas de fila del script 23 lo limitan a ella.
+CATALOGOS_INSTITUCIONALES = frozenset({"periodos", "docentes", "carreras", "departamentos"})
 
 CATALOGOS: dict[str, Catalogo] = {c.slug: c for c in (
     Catalogo(

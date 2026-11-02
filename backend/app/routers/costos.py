@@ -66,7 +66,7 @@ def _periodos_con_costo(db: Session):
 @router.get("")
 def listar(
     request: Request,
-    usuario: UsuarioSesion = Depends(requiere_rol("rol_coordinador")),
+    usuario: UsuarioSesion = Depends(requiere_rol("rol_admin")),
     db: Session = Depends(get_db),
 ):
     ok, error = tomar_aviso(request)
@@ -97,7 +97,7 @@ def listar(
 @router.post("/recargar")
 def recargar(
     request: Request,
-    usuario: UsuarioSesion = Depends(requiere_rol("rol_coordinador")),
+    usuario: UsuarioSesion = Depends(requiere_rol("rol_admin")),
 ):
     """Recarga el Data Warehouse para que el tablero vea los costos editados.
 
@@ -126,7 +126,7 @@ def guardar(
     costo_por_uv: str = Form(...),
     moneda: str = Form("USD"),
     fuente: str = Form(...),
-    usuario: UsuarioSesion = Depends(requiere_rol("rol_coordinador")),
+    usuario: UsuarioSesion = Depends(requiere_rol("rol_admin")),
     db: Session = Depends(get_db),
 ):
     fuente = fuente.strip()

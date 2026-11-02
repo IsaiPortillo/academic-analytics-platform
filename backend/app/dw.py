@@ -17,6 +17,8 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DBAPIError
 
+from . import alcance
+
 
 class DWNoConfigurado(Exception):
     """Falta DASHBOARD_DB_PASSWORD en el .env."""
@@ -89,8 +91,26 @@ def _condiciones(filtros: Filtros) -> tuple[str, dict]:
 
 
 def _leer(sql: str, params: dict | None = None) -> pd.DataFrame:
+    """Punto único de consulta al almacén.
+
+    Si la petición trae un alcance de carrera (un coordinador), adopta
+    rol_dw_carrera y declara la carrera: las políticas del script 24 recortan
+    las filas. Sin alcance, la consulta va como siempre, institucional, que es
+    lo que necesitan el admin, el tablero de Streamlit y la validación.
+    """
+    carrera = alcance.carrera_actual()
     with engine().connect() as conexion:
-        return pd.read_sql(text(sql), conexion, params=params or {}, coerce_float=True)
+        if carrera is None:
+            return pd.read_sql(text(sql), conexion, params=params or {}, coerce_float=True)
+        # SET LOCAL solo vive dentro de una transacción, y así el rol se revierte
+        # al cerrarla y la conexión vuelve limpia al pool (igual que get_db).
+        with conexion.begin():
+            conexion.execute(text("SET LOCAL ROLE rol_dw_carrera"))
+            conexion.execute(
+                text("SELECT set_config('app.carrera_id', :carrera, true)"),
+                {"carrera": str(carrera)},
+            )
+            return pd.read_sql(text(sql), conexion, params=params or {}, coerce_float=True)
 
 
 def catalogo_periodos() -> pd.DataFrame:
