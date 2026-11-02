@@ -256,3 +256,143 @@ class TestReglasDeLaCuenta(unittest.TestCase):
 
     def test_el_rol_tiene_que_ser_uno_de_los_tres(self):
         self.assertIn("usuarios_rol_db_check", self._crear("rol_inventado"))
+
+
+@unittest.skipIf(MOTOR is None, "PostgreSQL no disponible (docker compose up -d)")
+class TestAuditoriaPorCarrera(unittest.TestCase):
+    """La bitácora también se acota (script 25).
+
+    Sin esto, el recorte servía para los datos y se podía esquivar leyendo su
+    rastro: /auditoria mostraba los cambios de nota de todas las carreras.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        with MOTOR.connect() as c:
+            c.execute(text("SET LOCAL ROLE rol_admin"))
+            fila = c.execute(text("""
+                SELECT m.carrera_id, c2.calificacion_id
+                FROM academico_oltp.calificaciones c2
+                JOIN academico_oltp.inscripciones i ON i.inscripcion_id = c2.inscripcion_id
+                JOIN academico_oltp.secciones s ON s.seccion_id = i.seccion_id
+                JOIN academico_oltp.materias m ON m.materia_id = s.materia_id
+                WHERE NOT s.acta_cerrada LIMIT 1""")).first()
+            if fila is None:
+                raise unittest.SkipTest("No hay notas en secciones con acta abierta")
+            cls.carrera, cls.calificacion = fila
+            cls.otra_carrera = c.execute(text(
+                "SELECT carrera_id FROM academico_oltp.carreras WHERE carrera_id <> :c LIMIT 1"),
+                {"c": cls.carrera}).scalar()
+            if cls.otra_carrera is None:
+                raise unittest.SkipTest("Solo hay una carrera")
+
+    def setUp(self):
+        self.c = MOTOR.connect()
+        self.tx = self.c.begin()
+        # Un cambio de nota en una sección de cls.carrera: el disparador escribe
+        # la bitácora. La transacción se revierte al terminar.
+        self.c.execute(text("SET LOCAL ROLE rol_admin"))
+        self.c.execute(text("SELECT set_config('app.usuario', 'prueba.alcance', true)"))
+        self.c.execute(text("""
+            UPDATE academico_oltp.calificaciones
+               SET nota = CASE WHEN nota > 5 THEN nota - 1 ELSE nota + 1 END
+             WHERE calificacion_id = :id"""), {"id": self.calificacion})
+
+    def tearDown(self):
+        self.tx.rollback()
+        self.c.close()
+
+    def _ve(self, rol, carrera=None):
+        self.c.execute(text("RESET ROLE"))
+        self.c.execute(text(f"SET LOCAL ROLE {rol}"))
+        self.c.execute(text("SELECT set_config('app.carrera_id', :c, true)"),
+                       {"c": "" if carrera is None else str(carrera)})
+        return self.c.execute(text(
+            "SELECT count(*) FROM auditoria.log_cambios_notas "
+            "WHERE usuario_app = 'prueba.alcance'")).scalar_one()
+
+    def test_el_coordinador_ve_el_cambio_de_su_carrera(self):
+        self.assertEqual(self._ve("rol_coordinador", self.carrera), 1)
+
+    def test_el_coordinador_de_otra_carrera_no_lo_ve(self):
+        self.assertEqual(self._ve("rol_coordinador", self.otra_carrera), 0)
+
+    def test_sin_carrera_declarada_no_ve_ninguna_fila(self):
+        self.assertEqual(self._ve("rol_coordinador"), 0)
+
+    def test_el_admin_lo_ve(self):
+        self.assertEqual(self._ve("rol_admin"), 1)
+
+    def test_nadie_puede_escribir_la_bitacora_aunque_ahora_tenga_politicas(self):
+        """Las políticas son FOR SELECT: agregarlas no abrió la escritura."""
+        for rol in ("rol_admin", "rol_coordinador"):
+            self.c.execute(text("RESET ROLE"))
+            self.c.execute(text(f"SET LOCAL ROLE {rol}"))
+            punto = self.c.begin_nested()
+            with self.assertRaises(DBAPIError) as e:
+                self.c.execute(text("DELETE FROM auditoria.log_cambios_notas"))
+            punto.rollback()
+            with self.subTest(rol=rol):
+                self.assertIn("permission denied", str(e.exception.orig).lower())
+
+
+class TestMensajesYMenus(unittest.TestCase):
+    """Lo que ve el usuario cuando el motor lo rechaza, y lo que el menú le ofrece."""
+
+    def _catalogo(self, slug):
+        from app.catalogos import CATALOGOS
+        return CATALOGOS[slug]
+
+    def _mensaje(self, slug, pgcode):
+        from types import SimpleNamespace
+        from app.routers.administracion import mensaje_bd
+        exc = SimpleNamespace(orig=SimpleNamespace(pgcode=pgcode, diag=None))
+        return mensaje_bd(exc, self._catalogo(slug))
+
+    def test_la_violacion_de_fila_se_explica_en_castellano(self):
+        # 42501 es el código con el que PostgreSQL rechaza una fila de otra
+        # carrera; sin esto, la pantalla mostraba «new row violates row-level
+        # security policy for table "materias"».
+        mensaje = self._mensaje("materias", "42501")
+        self.assertIn("otra carrera", mensaje)
+        self.assertNotIn("row-level", mensaje)
+
+    def test_el_mensaje_concuerda_en_genero(self):
+        self.assertTrue(self._mensaje("materias", "42501").startswith("Esa materia"))
+        self.assertTrue(self._mensaje("periodos", "42501").startswith("Ese período"))
+
+    def test_los_catalogos_institucionales_estan_declarados(self):
+        from app.catalogos import CATALOGOS, CATALOGOS_INSTITUCIONALES
+        self.assertEqual(CATALOGOS_INSTITUCIONALES,
+                         {"periodos", "docentes", "carreras", "departamentos"})
+        # Los de la carrera NO son institucionales: los lleva el coordinador.
+        for slug in ("materias", "secciones", "estudiantes"):
+            self.assertFalse(CATALOGOS[slug].solo_admin, slug)
+
+    def test_el_admin_es_superconjunto_del_coordinador(self):
+        """Una ruta abierta al coordinador también lo está para el admin."""
+        from fastapi import HTTPException
+        from app.dependencies import UsuarioSesion, requiere_rol
+
+        def usuario(rol, carrera=None):
+            return UsuarioSesion(usuario_id=1, username="u", nombre_completo="U",
+                                 rol_db=rol, docente_id=None, carrera_id=carrera)
+
+        abierta = requiere_rol("rol_coordinador")
+        for rol, carrera in (("rol_admin", None), ("rol_coordinador", 1)):
+            self.assertIs(abierta(usuario(rol, carrera)).rol_db, rol)
+        with self.assertRaises(HTTPException):
+            abierta(usuario("rol_docente"))
+
+        # Pero lo exclusivo del admin no se abre al coordinador.
+        solo_admin = requiere_rol("rol_admin")
+        with self.assertRaises(HTTPException):
+            solo_admin(usuario("rol_coordinador", 1))
+
+    def test_el_rol_legible_distingue_los_tres(self):
+        from app.dependencies import UsuarioSesion
+        def legible(rol, carrera=None):
+            return UsuarioSesion(1, "u", "U", rol, None, carrera).rol_legible
+        self.assertEqual(legible("rol_admin"), "Administrador")
+        self.assertEqual(legible("rol_coordinador", 1), "Coordinador")
+        self.assertEqual(legible("rol_docente"), "Docente")
