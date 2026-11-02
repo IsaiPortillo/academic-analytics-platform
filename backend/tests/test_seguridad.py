@@ -57,7 +57,7 @@ RUTAS_POST = [
     "/admin/materias/nuevo", "/admin/materias/1", "/admin/materias/1/eliminar",
     "/admin/materias/importar", "/admin/materias/importar/confirmar",
     "/admin/malla/agregar", "/admin/malla/quitar", "/admin/malla/sincronizar",
-    "/admin/metas/tasa_reprobacion", "/almacen/validar",
+    "/admin/metas/tasa_reprobacion", "/admin/metas/tasa_reprobacion/quitar", "/almacen/validar",
 ]
 
 

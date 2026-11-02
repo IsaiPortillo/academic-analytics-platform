@@ -774,11 +774,27 @@ Consecuencias del diseño:
   `security_invoker` porque una vista normal se evalúa con los permisos de su dueño y el recorte
   se podría esquivar consultándola.
 
-  **Límite declarado:** las vistas de indicadores (`v_semaforo_indicador`,
-  `v_indicador_calculo`) siguen siendo institucionales, porque las metas lo son
-  (`academico_oltp.metas_indicador`). Un coordinador de carrera ve el valor de su carrera frente
-  a la meta institucional; comparar una carrera contra una meta de toda la institución sería
-  engañoso, y resolverlo bien exige metas por carrera.
+- **Metas por carrera, con la institucional de respaldo**
+  (`database/oltp/26_metas_por_carrera.sql` y `27_dw_metas_por_carrera.sql`). `metas_indicador`
+  guarda una fila por (indicador, carrera), donde `carrera_id` nulo es la **meta general**:
+
+  | Alcance | Qué meta se usa |
+  |---|---|
+  | Carrera con meta propia | la suya |
+  | Carrera sin meta propia | **hereda** la institucional |
+  | Institución | la general |
+
+  Así el admin define las generales como siempre y además las individuales que quiera, y
+  ninguna carrera queda sin meta. El almacén calcula cada indicador **por carrera y también
+  el total**, en una sola pasada con `GROUPING SETS`, y `v_semaforo_indicador` resuelve la meta
+  con un `LATERAL` que antepone la de la carrera. `NULLS NOT DISTINCT` (PostgreSQL 15+) es lo
+  que permite que «sin carrera» sea una clave única real, sin inventar un centinela.
+
+  **Lo que NO se hace, a propósito:** derivar la meta institucional promediando las de las
+  carreras. Cuatro de los cinco indicadores son razones, y promediar razones es un promedio de
+  promedios — el error que el proyecto evita en todas partes. Solo el costo de reprobación es
+  aditivo. La validación comprueba lo que sí es aditivo: que los numeradores y denominadores de
+  las carreras sumen exactamente los institucionales.
 
 - **La bitácora es de solo lectura incluso para el admin.** La jerarquía no alcanza a la
   auditoría: ningún rol de la aplicación puede insertar, alterar ni borrar entradas, porque la

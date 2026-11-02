@@ -103,14 +103,56 @@ El planificador convierte la política en *hash joins*. Y medido por pantalla, e
 - **Las cuentas que ya existían** migraron a `rol_admin` solas. Un coordinador sin carrera no
   vería nada, y nadie podría volver a administrar.
 
+## 9. Metas por carrera (scripts 26 y 27) — 14 de 14 en vivo
+
+Añadido el 2 de noviembre de 2026, con su propia auditoría contra la aplicación corriendo.
+
+| Comprobación | Resultado |
+|---|---|
+| El admin entra a Metas y elige el alcance (institución o una de las 12 carreras) | ✅ |
+| En alcance de carrera avisa «hereda la institucional» y muestra cuál | ✅ |
+| La perspectiva del CMI y el cargo responsable solo se editan en la meta general | ✅ |
+| Guardar una meta propia redirige al alcance de esa carrera y deja la general intacta | ✅ |
+| «Volver a la meta institucional» quita la propia y la carrera vuelve a heredar | ✅ |
+| El coordinador **no** entra a Metas (403) | ✅ |
+| El coordinador ve en la base su meta y la general, **nunca la de otra carrera** | ✅ |
+| El coordinador no puede escribir metas | ✅ permission denied |
+
+**El semáforo, con una meta propia puesta a Ingeniería de Sistemas (40 000 y 15 %):**
+
+| Alcance | Costo de reprobación | Tasa de reprobación |
+|---|---|---|
+| Institucional | Meta ≤ $90 000 · Desfavorable | Meta ≤ 22 % · En observación |
+| Ing. Sistemas (meta propia) | Meta ≤ **$40 000** · Favorable | Meta ≤ **15 %** · Desfavorable |
+| Ing. Civil (hereda) | Meta ≤ $90 000 · **sin estado** | Meta ≤ 22 % · En observación |
+| Coordinador de Ing. Sistemas | Meta ≤ **$40 000** · Favorable | Meta ≤ **15 %** · Desfavorable |
+
+Las dos filas del medio son la prueba de la regla: la carrera con meta propia **sí** evalúa el
+total —la meta ya está a su escala—; la que hereda la institucional **no**, porque un subtotal no
+se compara con un total institucional.
+
+**Defecto encontrado y corregido en esta auditoría:** el coordinador de carrera veía sus propios
+valores contra las metas **institucionales**, con un falso «Favorable» de 393 contra 90 000. Su
+recorte viene de las políticas de fila, no del filtro de la URL, así que la vista ejecutiva no
+sabía su alcance. Ahora lo deriva de su cuenta (`carrera_del_usuario`), con prueba de regresión.
+
+**En el almacén:** 60 filas institucionales y 720 por carrera en `fact_indicador_periodo`, y el
+`MERGE` sigue siendo **idempotente** (0 filas tocadas al repetirlo). Con `=` en vez de
+`IS NOT DISTINCT FROM`, las filas institucionales no habrían emparejado nunca y el `MERGE` las
+habría borrado e insertado en cada carga, para siempre.
+
+**La validación del almacén pasó de 99 a 100 verificaciones**, con una nueva que comprueba lo que
+sí es aditivo: que los numeradores y denominadores de las carreras sumen exactamente los
+institucionales. Es la confirmación independiente de que `GROUPING SETS` calcula bien el grano.
+
 ## Decisiones y límites declarados
 
 - **El departamento no se guarda.** Las carreras ya pertenecen a uno, así que asignar la carrera
   lo determina; guardar los dos permitiría que se contradijeran.
-- **Las vistas de indicadores siguen institucionales.** Las metas lo son
-  (`academico_oltp.metas_indicador`), así que el semáforo también: un coordinador ve el valor de
-  su carrera frente a la meta institucional. Compararla contra una meta de toda la institución
-  sería engañoso, y resolverlo bien exige metas por carrera.
+- **Resuelto el 2 de noviembre:** las metas pasaron a ser por carrera con la institucional de
+  respaldo (sección 9). Lo que **no** se hace es derivar la institucional promediando las de las
+  carreras: cuatro de los cinco indicadores son razones, y promediar razones es un promedio de
+  promedios. Solo el costo de reprobación es aditivo.
 - **`v_mart_departamento` se marcó `security_invoker`.** Una vista normal se evalúa con los
   permisos de su dueño, así que el recorte se podía esquivar consultándola.
 - **Alcance honesto.** Protege contra errores de la aplicación. No protege contra quien controle

@@ -2,11 +2,11 @@
 
 Generado automáticamente por `python -m etl.validar_dw`. No editar a mano: se regenera en cada corrida, y el historial de corridas queda en git.
 
-- **Fecha:** 2026-11-01 21:36
-- **Commit:** `180561d`
-- **Última carga del DW:** 2026-11-02 03:23 UTC, fecha de corte 2026-11-01
+- **Fecha:** 2026-11-02 11:38
+- **Commit:** `77be301`
+- **Última carga del DW:** 2026-11-02 17:36 UTC, fecha de corte 2026-11-02
 - **Volumen:** 53,683 hechos de inscripción, 2,303 estudiantes
-- **Resultado:** 99 de 99 verificaciones correctas ✅
+- **Resultado:** 100 de 100 verificaciones correctas ✅
 
 ## Qué se verifica y contra qué
 
@@ -89,6 +89,7 @@ Generado automáticamente por `python -m etl.validar_dw`. No editar a mano: se r
 | Particiones | Condición laboral: grupos sin valor (nulos) | 0 | 0 | ✅ OK |
 | Indicadores | Vista de cálculo del DW = fórmulas de la app (KPI × período) | 60 | 60 | ✅ OK |
 | Indicadores | Resultados guardados por el MERGE = vista de cálculo | 0 | 0 | ✅ OK |
+| Indicadores | Las carreras suman el total institucional (numeradores y denominadores) | 0 | 0 | ✅ OK |
 | Cruce relacional-grafo | Materias de la malla con el área que registra Neo4j | 523 | 523 | ✅ OK |
 | Cruce relacional-grafo | Materias sin nodo en el grafo rotuladas «Sin área en la malla» | 0 | 0 | ✅ OK |
 | Red curricular | Relaciones de prerrequisito en el DW frente a las de Neo4j | 429 | 429 | ✅ OK |

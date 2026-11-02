@@ -293,11 +293,15 @@ def validar_particiones():
 
 
 def validar_indicadores():
-    """Metas y semáforo (database/oltp/20): la vista de cálculo del DW debe dar lo
-    mismo que las fórmulas de la app, y lo guardado por el MERGE, lo mismo que la vista."""
+    """Metas y semáforo (scripts 20, 26 y 27): la vista de cálculo del DW debe dar
+    lo mismo que las fórmulas de la app, lo guardado por el MERGE lo mismo que la
+    vista, y las filas por carrera deben sumar la institucional."""
     from app import indicadores as ind  # noqa: PLC0415
     try:
-        vista = dw._leer("SELECT codigo, codigo_periodo, valor FROM dw_academico.v_indicador_calculo")
+        # Solo las filas institucionales: desde el script 27 la vista trae además
+        # una fila por carrera, que se comprueba aparte (por aditividad).
+        vista = dw._leer("SELECT codigo, codigo_periodo, valor FROM dw_academico.v_indicador_calculo "
+                         "WHERE carrera_id IS NULL")
     except DBAPIError:
         registrar("Indicadores", "Vista de cálculo de indicadores presente (script 20)", "sí", "no")
         return
@@ -317,10 +321,36 @@ def validar_indicadores():
     distintos = dw._leer("""
         SELECT count(*) AS n
         FROM dw_academico.v_indicador_calculo v
-        FULL JOIN dw_academico.fact_indicador_periodo f USING (codigo, codigo_periodo)
+        FULL JOIN dw_academico.fact_indicador_periodo f
+               ON f.codigo = v.codigo AND f.codigo_periodo = v.codigo_periodo
+              -- Con USING (o «=») las filas institucionales, que llevan
+              -- carrera_id nulo, no emparejarían: NULL = NULL es NULL.
+              AND f.carrera_id IS NOT DISTINCT FROM v.carrera_id
         WHERE v.valor IS DISTINCT FROM f.valor
     """).iloc[0]["n"]
     registrar("Indicadores", "Resultados guardados por el MERGE = vista de cálculo", 0, int(distintos))
+
+    # Las filas por carrera deben sumar exactamente la institucional. Se comprueba
+    # sobre los NUMERADORES y DENOMINADORES, que sí son aditivos, y no sobre el
+    # valor: sumar razones sería un promedio de promedios (ver script 26).
+    descuadres = dw._leer("""
+        WITH por_carrera AS (
+            SELECT codigo, codigo_periodo,
+                   SUM(numerador)   AS numerador,
+                   SUM(denominador) AS denominador
+            FROM dw_academico.fact_indicador_periodo
+            WHERE carrera_id IS NOT NULL
+            GROUP BY codigo, codigo_periodo
+        )
+        SELECT count(*) AS n
+        FROM dw_academico.fact_indicador_periodo total
+        JOIN por_carrera c ON c.codigo = total.codigo AND c.codigo_periodo = total.codigo_periodo
+        WHERE total.carrera_id IS NULL
+          AND (round(COALESCE(total.numerador, 0), 4)   IS DISTINCT FROM round(COALESCE(c.numerador, 0), 4)
+            OR round(COALESCE(total.denominador, 0), 4) IS DISTINCT FROM round(COALESCE(c.denominador, 0), 4))
+    """).iloc[0]["n"]
+    registrar("Indicadores", "Las carreras suman el total institucional (numeradores y denominadores)",
+              0, int(descuadres))
 
 
 def validar_area(s):

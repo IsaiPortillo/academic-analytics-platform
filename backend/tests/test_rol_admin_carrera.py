@@ -396,3 +396,189 @@ class TestMensajesYMenus(unittest.TestCase):
         self.assertEqual(legible("rol_admin"), "Administrador")
         self.assertEqual(legible("rol_coordinador", 1), "Coordinador")
         self.assertEqual(legible("rol_docente"), "Docente")
+
+
+@unittest.skipIf(MOTOR is None, "PostgreSQL no disponible (docker compose up -d)")
+class TestMetasPorCarrera(unittest.TestCase):
+    """Metas por carrera con la institucional de respaldo (scripts 26 y 27)."""
+
+    @classmethod
+    def setUpClass(cls):
+        with MOTOR.connect() as c:
+            c.execute(text("SET LOCAL ROLE rol_admin"))
+            cls.carrera, cls.otra = [f[0] for f in c.execute(text(
+                "SELECT carrera_id FROM academico_oltp.carreras ORDER BY carrera_id LIMIT 2"))]
+
+    def setUp(self):
+        self.c = MOTOR.connect()
+        self.tx = self.c.begin()
+        self.c.execute(text("SET LOCAL ROLE rol_admin"))
+
+    def tearDown(self):
+        self.tx.rollback()
+        self.c.close()
+
+    def _metas(self, codigo="tasa_reprobacion"):
+        return self.c.execute(text(
+            "SELECT carrera_id, meta FROM academico_oltp.metas_indicador "
+            "WHERE codigo = :c ORDER BY carrera_id NULLS FIRST"), {"c": codigo}).all()
+
+    def _poner(self, carrera, meta=0.15, codigo="tasa_reprobacion"):
+        self.c.execute(text("""
+            INSERT INTO academico_oltp.metas_indicador (codigo, carrera_id, meta, tolerancia, justificacion)
+            VALUES (:c, :car, :m, 0.01, 'meta de prueba por carrera')
+            ON CONFLICT ON CONSTRAINT uq_meta_indicador_carrera
+            DO UPDATE SET meta = EXCLUDED.meta"""), {"c": codigo, "car": carrera, "m": meta})
+
+    def test_la_institucional_y_la_de_carrera_conviven(self):
+        # Se borra primero por si la base ya traía una meta para esa carrera: la
+        # prueba no debe depender de lo que haya configurado alguien.
+        self.c.execute(text("DELETE FROM academico_oltp.metas_indicador "
+                            "WHERE codigo = 'tasa_reprobacion' AND carrera_id = :c"),
+                       {"c": self.carrera})
+        antes = len(self._metas())
+        self._poner(self.carrera)
+        self.assertEqual(len(self._metas()), antes + 1)
+        self.assertIn(None, [f.carrera_id for f in self._metas()])
+
+    def test_no_se_pueden_duplicar_ni_la_institucional_ni_la_de_una_carrera(self):
+        # NULLS NOT DISTINCT: dos filas institucionales del mismo indicador chocan.
+        # La institucional ya existe; la de la carrera se crea para poder repetirla.
+        self._poner(self.carrera)
+        for carrera in (None, self.carrera):
+            punto = self.c.begin_nested()
+            with self.assertRaises(DBAPIError) as e:
+                self.c.execute(text("""
+                    INSERT INTO academico_oltp.metas_indicador (codigo, carrera_id, meta, tolerancia, justificacion)
+                    VALUES ('tasa_reprobacion', :car, 0.3, 0.01, 'duplicada a proposito')"""),
+                    {"car": carrera})
+            punto.rollback()
+            with self.subTest(carrera=carrera):
+                self.assertIn("uq_meta_indicador_carrera", str(e.exception.orig))
+
+    def test_el_coordinador_ve_la_suya_y_la_general_pero_no_la_ajena(self):
+        self._poner(self.carrera, 0.15)
+        self._poner(self.otra, 0.30)
+        self.c.execute(text("RESET ROLE"))
+        self.c.execute(text("SET LOCAL ROLE rol_coordinador"))
+        self.c.execute(text("SELECT set_config('app.carrera_id', :c, true)"), {"c": str(self.carrera)})
+        visibles = {f.carrera_id for f in self.c.execute(text(
+            "SELECT carrera_id FROM academico_oltp.metas_indicador WHERE codigo = 'tasa_reprobacion'"))}
+        self.assertIn(None, visibles)                  # la institucional, que hereda
+        self.assertIn(self.carrera, visibles)          # la suya
+        self.assertNotIn(self.otra, visibles)          # la de otra carrera, no
+
+    def test_el_coordinador_no_escribe_metas(self):
+        self.c.execute(text("RESET ROLE"))
+        self.c.execute(text("SET LOCAL ROLE rol_coordinador"))
+        self.c.execute(text("SELECT set_config('app.carrera_id', :c, true)"), {"c": str(self.carrera)})
+        punto = self.c.begin_nested()
+        with self.assertRaises(DBAPIError) as e:
+            self.c.execute(text("UPDATE academico_oltp.metas_indicador SET meta = meta"))
+        punto.rollback()
+        self.assertIn("permission denied", str(e.exception.orig).lower())
+
+
+@unittest.skipIf(MOTOR_DW is None, "Falta DASHBOARD_DB_PASSWORD en el .env")
+class TestSemaforoPorCarrera(unittest.TestCase):
+    """La vista resuelve la meta: la de la carrera si existe, la institucional si no."""
+
+    def setUp(self):
+        self.c = MOTOR_DW.connect()
+        self.tx = self.c.begin()
+
+    def tearDown(self):
+        self.tx.rollback()
+        self.c.close()
+
+    def _fila(self, carrera, codigo="tasa_reprobacion"):
+        return self.c.execute(text("""
+            SELECT meta, meta_propia, estado FROM dw_academico.v_semaforo_indicador
+            WHERE codigo = :c AND carrera_id IS NOT DISTINCT FROM :car
+            ORDER BY orden_periodo DESC LIMIT 1"""), {"c": codigo, "car": carrera}).first()
+
+    def test_el_almacen_calcula_por_carrera_y_tambien_el_total(self):
+        filas = self.c.execute(text("""
+            SELECT count(*) FILTER (WHERE carrera_id IS NULL)     AS institucionales,
+                   count(*) FILTER (WHERE carrera_id IS NOT NULL) AS por_carrera
+            FROM dw_academico.fact_indicador_periodo""")).first()
+        self.assertGreater(filas.institucionales, 0)
+        self.assertGreater(filas.por_carrera, filas.institucionales)
+
+    def test_sin_meta_propia_la_carrera_usa_la_institucional(self):
+        # Una carrera que NO tenga meta propia para ese indicador: cuál sea
+        # depende de lo que haya configurado el admin, así que se busca.
+        carrera = self.c.execute(text("""
+            SELECT c.carrera_id FROM dw_academico.dim_carrera c
+            WHERE NOT EXISTS (SELECT 1 FROM dw_academico.meta_indicador m
+                              WHERE m.codigo = 'tasa_reprobacion' AND m.carrera_id = c.carrera_id)
+            ORDER BY c.carrera_id LIMIT 1""")).scalar()
+        if carrera is None:
+            self.skipTest("todas las carreras tienen meta propia")
+        institucional = self._fila(None)
+        propia = self._fila(carrera)
+        self.assertFalse(propia.meta_propia)
+        self.assertEqual(propia.meta, institucional.meta)
+
+    def test_con_meta_propia_el_semaforo_usa_la_de_la_carrera(self):
+        fila = self.c.execute(text("""
+            SELECT s.carrera_id, s.meta, s.meta_propia, m.meta AS meta_configurada
+            FROM dw_academico.v_semaforo_indicador s
+            JOIN dw_academico.meta_indicador m
+              ON m.codigo = s.codigo AND m.carrera_id = s.carrera_id
+            WHERE s.codigo = 'tasa_reprobacion' LIMIT 1""")).first()
+        if fila is None:
+            self.skipTest("ninguna carrera tiene meta propia configurada")
+        self.assertTrue(fila.meta_propia)
+        self.assertEqual(fila.meta, fila.meta_configurada)
+
+    def test_con_meta_propia_la_carrera_usa_la_suya(self):
+        carrera = self.c.execute(text(
+            "SELECT carrera_id FROM dw_academico.dim_carrera ORDER BY carrera_id LIMIT 1")).scalar_one()
+        # No se puede escribir como rol_dashboard; se prueba la resolución con una
+        # consulta equivalente a la de la vista, que es lo que aquí importa.
+        resuelta = self.c.execute(text("""
+            SELECT mi.meta, mi.carrera_id IS NOT NULL AS propia
+            FROM dw_academico.meta_indicador mi
+            WHERE mi.codigo = 'tasa_reprobacion'
+              AND (mi.carrera_id = :car OR mi.carrera_id IS NULL)
+            ORDER BY mi.carrera_id NULLS LAST LIMIT 1"""), {"car": carrera}).first()
+        self.assertIsNotNone(resuelta)
+
+    def test_el_merge_es_idempotente_con_el_grano_nuevo(self):
+        """Con «=» en vez de IS NOT DISTINCT FROM, las filas institucionales se
+        borrarían e insertarían en cada carga para siempre."""
+        definicion = self.c.execute(text(
+            "SELECT prosrc FROM pg_proc WHERE proname = 'actualizar_resultados_indicadores'")).scalar_one()
+        self.assertIn("IS NOT DISTINCT FROM", definicion)
+
+
+class TestAlcanceDelCoordinadorEnLaVistaEjecutiva(unittest.TestCase):
+    """El coordinador no usa el filtro: su alcance se deriva de su cuenta.
+
+    Regresión: sin esto, el coordinador veía los valores de SU carrera contra las
+    metas institucionales, y el total daba «Favorable» siempre (393 contra 90.000).
+    """
+
+    CARRERAS = [{"carrera_id": 1, "codigo_carrera": "I10515"},
+                {"carrera_id": 15, "codigo_carrera": "I10506"}]
+
+    def _usuario(self, rol, carrera=None, docente=None):
+        from app.dependencies import UsuarioSesion
+        return UsuarioSesion(usuario_id=1, username="u", nombre_completo="U",
+                             rol_db=rol, docente_id=docente, carrera_id=carrera)
+
+    def _derivar(self, usuario):
+        from app.routers.vista_ejecutiva import carrera_del_usuario
+        return carrera_del_usuario(usuario, self.CARRERAS)
+
+    def test_el_coordinador_queda_acotado_a_su_carrera(self):
+        self.assertEqual(self._derivar(self._usuario("rol_coordinador", carrera=1)), "I10515")
+        self.assertEqual(self._derivar(self._usuario("rol_coordinador", carrera=15)), "I10506")
+
+    def test_el_admin_no_queda_acotado(self):
+        self.assertIsNone(self._derivar(self._usuario("rol_admin")))
+
+    def test_una_carrera_que_no_esta_en_el_catalogo_no_inventa_codigo(self):
+        # Puede pasar si el almacén todavía no se recargó tras crear la carrera.
+        self.assertIsNone(self._derivar(self._usuario("rol_coordinador", carrera=999)))

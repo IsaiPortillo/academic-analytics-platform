@@ -69,6 +69,8 @@ SCRIPTS=(
   "23_rol_admin_y_carrera.sql|SELECT 1 FROM pg_policies WHERE schemaname='academico_oltp' AND tablename='estudiantes' AND policyname='coordinador_carrera'"
   "24_dw_alcance_por_carrera.sql|SELECT 1 FROM pg_policies WHERE schemaname='dw_academico' AND tablename='fact_inscripcion' AND policyname='carrera_declarada'"
   "25_auditoria_por_carrera.sql|SELECT 1 FROM pg_policies WHERE schemaname='auditoria' AND tablename='log_cambios_notas' AND policyname='coordinador_carrera'"
+  "26_metas_por_carrera.sql|SELECT 1 FROM pg_constraint WHERE conname='uq_meta_indicador_carrera'"
+  "27_dw_metas_por_carrera.sql|SELECT 1 FROM pg_tables WHERE schemaname='dw_academico' AND tablename='meta_indicador'"
 )
 
 consultar() {
@@ -116,7 +118,7 @@ for entrada in "${SCRIPTS[@]}"; do
     fi
 
     faltan=$((faltan + 1))
-    [[ "$archivo" == 1[0-5]_* || "$archivo" == 20_* ]] && toca_dw=1
+    [[ "$archivo" == 1[0-5]_* || "$archivo" == 20_* || "$archivo" == 27_* ]] && toca_dw=1
 
     if (( SOLO_REVISAR )); then
         printf "  %-42s FALTA\n" "$archivo"
