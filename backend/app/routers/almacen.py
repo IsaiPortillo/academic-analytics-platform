@@ -17,7 +17,7 @@ from ..dependencies import UsuarioSesion, requiere_rol
 from ..templating import templates
 
 router = APIRouter(prefix="/almacen", tags=["almacén"])
-COORDINADOR = requiere_rol("rol_coordinador")
+COORDINADOR = requiere_rol("rol_admin")
 REGISTRO = recarga.RAIZ_PROYECTO / "docs" / "validacion" / "registro_validacion.md"
 
 

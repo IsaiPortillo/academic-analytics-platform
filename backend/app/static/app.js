@@ -573,17 +573,26 @@ document.querySelectorAll("[data-skeleton-on-filter]").forEach((filtro) => {
 })();
 
 // Usuarios: el campo «Docente» solo aplica (y solo se envía) con el rol docente.
-document.querySelectorAll("select[data-rol-docente]").forEach((selector) => {
-  const campo = document.querySelector(selector.dataset.rolDocente);
-  if (!campo) return;
+// Campos que solo aplican a un rol: el docente vinculado y la carrera del
+// coordinador. Se muestran y se vuelven obligatorios según el rol elegido.
+document.querySelectorAll("select[data-rol-docente], select[data-rol-carrera]").forEach((selector) => {
+  const dependencias = [
+    [selector.dataset.rolDocente, "rol_docente"],
+    [selector.dataset.rolCarrera, "rol_coordinador"],
+  ];
   const sincronizar = () => {
-    const esDocente = selector.value === "rol_docente";
-    campo.hidden = !esDocente;
-    const lista = campo.querySelector("select");
-    if (lista) {
-      lista.disabled = !esDocente;
-      lista.required = esDocente;
-    }
+    dependencias.forEach(([destino, rol]) => {
+      if (!destino) return;
+      const campo = document.querySelector(destino);
+      if (!campo) return;
+      const aplica = selector.value === rol;
+      campo.hidden = !aplica;
+      const lista = campo.querySelector("select");
+      if (lista) {
+        lista.disabled = !aplica;
+        lista.required = aplica;
+      }
+    });
   };
   selector.addEventListener("change", sincronizar);
   sincronizar();

@@ -20,7 +20,7 @@ from ..dependencies import UsuarioSesion, requiere_rol
 from ..templating import templates
 
 router = APIRouter(prefix="/admin/metas", tags=["metas"])
-COORDINADOR = requiere_rol("rol_coordinador")
+COORDINADOR = requiere_rol("rol_admin")
 PERSPECTIVAS = ("Financiera", "Estudiantes", "Procesos internos", "Aprendizaje y crecimiento")
 
 

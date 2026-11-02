@@ -240,6 +240,10 @@ class Usuario(Base):
     docente_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("academico_oltp.docentes.docente_id")
     )
+    # Carrera que lleva un rol_coordinador (script 23). NULL para admin y docente.
+    carrera_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("academico_oltp.carreras.carrera_id")
+    )
     activo: Mapped[bool] = mapped_column(Boolean, server_default=VERDADERO)
     creado_en: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), server_default=AHORA

@@ -66,6 +66,8 @@ SCRIPTS=(
   "20_metas_indicadores.sql|SELECT 1 FROM pg_views WHERE schemaname='dw_academico' AND viewname='v_semaforo_indicador'"
   "21_perfil_propio.sql|SELECT 1 FROM pg_proc WHERE proname='actualizar_perfil_propio'"
   "22_log_actas_sin_fk.sql|SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='auditoria' AND c.relname='log_actas' AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid=c.oid AND conname='log_actas_seccion_id_fkey')"
+  "23_rol_admin_y_carrera.sql|SELECT 1 FROM pg_policies WHERE schemaname='academico_oltp' AND tablename='estudiantes' AND policyname='coordinador_carrera'"
+  "24_dw_alcance_por_carrera.sql|SELECT 1 FROM pg_policies WHERE schemaname='dw_academico' AND tablename='fact_inscripcion' AND policyname='carrera_declarada'"
 )
 
 consultar() {

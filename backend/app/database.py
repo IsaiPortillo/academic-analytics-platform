@@ -7,7 +7,7 @@ from .config import settings
 # Únicos roles a los que la aplicación puede cambiar. SET ROLE no admite
 # parámetros ligados, así que el nombre del rol se interpola en el SQL: esta
 # lista blanca es lo que impide que ese punto sea una inyección.
-ROLES_VALIDOS = frozenset({"rol_coordinador", "rol_docente"})
+ROLES_VALIDOS = frozenset({"rol_admin", "rol_coordinador", "rol_docente"})
 
 engine = create_engine(settings.database_url, pool_pre_ping=True, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
@@ -43,6 +43,14 @@ def get_db(request: Request):
                 {"usuario": str(datos.get("username") or ""),
                  "usuario_id": str(datos.get("usuario_id") or "")},
             )
+            if rol == "rol_coordinador":
+                # Las políticas del script 23 leen este valor para limitar al
+                # coordinador a su carrera. Sin él no ve NINGUNA fila: falla
+                # cerrado, igual que el docente.
+                db.execute(
+                    text("SELECT set_config('app.carrera_id', :carrera, true)"),
+                    {"carrera": str(datos.get("carrera_id") or "")},
+                )
             if rol == "rol_docente":
                 # Las políticas de seguridad por fila (database/oltp/16) leen este
                 # valor para limitar al docente a sus secciones. El tercer argumento

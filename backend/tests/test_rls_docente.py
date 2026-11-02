@@ -52,7 +52,7 @@ class TestSeguridadPorFila(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         with MOTOR.connect() as c:
-            c.execute(text("SET LOCAL ROLE rol_coordinador"))
+            c.execute(text("SET LOCAL ROLE rol_admin"))
             # Docente A: una sección con inscripciones y evaluaciones. Sección B: de otro docente.
             # Las dos con el acta abierta: con el acta cerrada, el bloqueo de actas
             # (script 17) rechaza la escritura antes que la seguridad por fila.
@@ -182,7 +182,7 @@ class TestSeguridadPorFila(unittest.TestCase):
 
     def test_el_coordinador_ve_todo(self):
         with MOTOR.connect() as c:
-            self._como(c, "rol_coordinador")
+            self._como(c, "rol_admin")
             total = c.execute(text("SELECT count(*) FROM academico_oltp.calificaciones")).scalar()
             self._como(c, "rol_docente", self.docente_a)
             del_docente = c.execute(text("SELECT count(*) FROM academico_oltp.calificaciones")).scalar()
@@ -194,8 +194,12 @@ class TestSeguridadPorFila(unittest.TestCase):
             politicas = c.execute(text("""
                 SELECT count(*) FROM pg_policies
                 WHERE schemaname = 'academico_oltp' AND policyname = 'etl_lectura'
-                  AND 'rol_etl' = ANY(roles) AND cmd = 'SELECT'""")).scalar()
-        self.assertEqual(politicas, 3)
+                  AND 'rol_etl' = ANY(roles) AND cmd = 'SELECT'""")).scalar_one()
+        # Las ocho tablas con RLS: las tres del script 16 y las cinco del 23. Sin
+        # política, el ETL leería cero filas y cargaría un almacén vacío sin un
+        # solo error, así que esta cuenta es la que avisa si alguien agrega una
+        # tabla con RLS y se olvida del ETL.
+        self.assertEqual(politicas, 8)
 
 
 if __name__ == "__main__":

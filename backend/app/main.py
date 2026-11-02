@@ -6,8 +6,10 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
+from . import alcance
 from .config import settings
 from .csrf import verificar_csrf
 from .database import get_db
@@ -35,6 +37,26 @@ from .routers import (
 )
 from .templating import DIRECTORIO_APP, templates
 
+class AlcanceDeCarrera(BaseHTTPMiddleware):
+    """Fija el alcance por carrera de la petición, para las consultas al almacén.
+
+    Lo hace un middleware y no una dependencia porque dw.py no recibe al usuario:
+    lee el ContextVar al abrir su conexión (ver app/alcance.py). Se lee la sesión
+    tal cual: la vigencia de la cuenta y la caducidad las comprueba después
+    dependencies.usuario_opcional, y si la sesión no vale, la petición no llega a
+    consultar nada.
+    """
+
+    async def dispatch(self, request, call_next):
+        datos = request.session.get("usuario") or {}
+        # Solo el coordinador de carrera lleva recorte. El admin y el docente van
+        # sin alcance: el primero porque ve todo, el segundo porque no entra a
+        # los tableros.
+        carrera = datos.get("carrera_id") if datos.get("rol_db") == "rol_coordinador" else None
+        alcance.fijar(carrera)
+        return await call_next(request)
+
+
 app = FastAPI(
     title="Plataforma de Gestión Académica",
     description="Sistema transaccional operacional (Fase 2)",
@@ -42,6 +64,11 @@ app = FastAPI(
     # Todo POST debe traer el token CSRF de la sesión (app/csrf.py).
     dependencies=[Depends(verificar_csrf)],
 )
+
+# Orden: en Starlette el último middleware agregado es el más externo, así que
+# AlcanceDeCarrera se agrega ANTES que SessionMiddleware para que corra DESPUÉS
+# de él y encuentre request.session ya disponible.
+app.add_middleware(AlcanceDeCarrera)
 
 app.add_middleware(
     SessionMiddleware,

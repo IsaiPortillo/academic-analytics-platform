@@ -258,7 +258,7 @@ class TestLoginConLimite(unittest.TestCase):
 
     def test_el_login_correcto_renueva_la_sesion(self):
         usuario = SimpleNamespace(usuario_id=7, username="ana", nombre_completo="Ana",
-                                  rol_db="rol_docente", docente_id=3,
+                                  rol_db="rol_docente", docente_id=3, carrera_id=None,
                                   password_hash=hashear_password("buena"), debe_cambiar_password=False)
         db = mock.Mock()
         db.scalar.return_value = usuario
@@ -276,7 +276,8 @@ class TestLoginConLimite(unittest.TestCase):
 
     def test_con_contrasena_temporal_va_directo_a_cambiarla(self):
         usuario = SimpleNamespace(usuario_id=8, username="beto", nombre_completo="Beto", rol_db="rol_docente",
-                                  docente_id=4, password_hash=hashear_password("Temporal2026x"),
+                                  docente_id=4, carrera_id=None,
+                                  password_hash=hashear_password("Temporal2026x"),
                                   debe_cambiar_password=True)
         db = mock.Mock()
         db.scalar.return_value = usuario
@@ -296,21 +297,21 @@ class TestVigenciaDeLaSesion(unittest.TestCase):
     def _cuenta(self, fila, huella):
         conexion = mock.MagicMock()
         conexion.__enter__.return_value.execute.return_value.first.return_value = fila
-        datos = {"usuario_id": 7, "rol_db": "rol_docente", "docente_id": 3}
+        datos = {"usuario_id": 7, "rol_db": "rol_docente", "docente_id": 3, "carrera_id": None}
         with mock.patch.object(dependencies.engine, "connect", return_value=conexion):
             return dependencies.cuenta_vigente(datos, huella)
 
     def test_vigente_con_mismo_rol_y_misma_contrasena(self):
-        fila = SimpleNamespace(rol_db="rol_docente", docente_id=3, password_hash="$2b$12$abc")
+        fila = SimpleNamespace(rol_db="rol_docente", docente_id=3, carrera_id=None, password_hash="$2b$12$abc")
         self.assertTrue(self._cuenta(fila, dependencies.huella_password("$2b$12$abc")))
 
     def test_otra_contrasena_corta_la_sesion(self):
-        fila = SimpleNamespace(rol_db="rol_docente", docente_id=3, password_hash="$2b$12$nueva")
+        fila = SimpleNamespace(rol_db="rol_docente", docente_id=3, carrera_id=None, password_hash="$2b$12$nueva")
         self.assertFalse(self._cuenta(fila, dependencies.huella_password("$2b$12$abc")))
 
     def test_sin_huella_la_sesion_no_vale(self):
         # Sesiones abiertas antes de existir la huella: se cierran una vez.
-        fila = SimpleNamespace(rol_db="rol_docente", docente_id=3, password_hash="$2b$12$abc")
+        fila = SimpleNamespace(rol_db="rol_docente", docente_id=3, carrera_id=None, password_hash="$2b$12$abc")
         self.assertFalse(self._cuenta(fila, None))
 
     def test_otro_rol_o_cuenta_inactiva_corta_la_sesion(self):
@@ -384,12 +385,30 @@ class TestDocenteParaSeguridadPorFila(unittest.TestCase):
         self.assertIn("set_config('app.docente_id', :docente, true)", sentencias[2][0])
         self.assertEqual(sentencias[2][1], {"docente": "3"})
 
-    def test_el_coordinador_no_declara_docente(self):
+    def test_el_coordinador_declara_su_carrera_y_no_un_docente(self):
         sentencias = self._sentencias({"rol_db": "rol_coordinador", "docente_id": None, "username": "coord",
-                                       "usuario_id": 1})
-        self.assertEqual(len(sentencias), 2)
+                                       "usuario_id": 1, "carrera_id": 5})
+        self.assertEqual(len(sentencias), 3)
         self.assertEqual(sentencias[0][0], "SET LOCAL ROLE rol_coordinador")
-        self.assertNotIn("app.docente_id", sentencias[1][0])
+        self.assertIn("set_config('app.carrera_id', :carrera, true)", sentencias[2][0])
+        self.assertEqual(sentencias[2][1], {"carrera": "5"})
+        self.assertNotIn("app.docente_id", " ".join(s[0] for s in sentencias))
+
+    def test_un_coordinador_sin_carrera_declara_vacio_y_no_vera_nada(self):
+        # Falla cerrado: con app.carrera_id vacío, carrera_sesion() es NULL y las
+        # políticas del script 23 no devuelven ninguna fila.
+        sentencias = self._sentencias({"rol_db": "rol_coordinador", "docente_id": None, "username": "coord",
+                                       "usuario_id": 1, "carrera_id": None})
+        self.assertEqual(sentencias[2][1], {"carrera": ""})
+
+    def test_el_admin_no_declara_carrera_ni_docente(self):
+        sentencias = self._sentencias({"rol_db": "rol_admin", "docente_id": None, "username": "jefe",
+                                       "usuario_id": 1, "carrera_id": None})
+        self.assertEqual(len(sentencias), 2)
+        self.assertEqual(sentencias[0][0], "SET LOCAL ROLE rol_admin")
+        texto = " ".join(s[0] for s in sentencias)
+        self.assertNotIn("app.carrera_id", texto)
+        self.assertNotIn("app.docente_id", texto)
 
     def test_sin_sesion_no_declara_nada(self):
         self.assertEqual(self._sentencias({}), [])
