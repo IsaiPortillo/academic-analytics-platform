@@ -2,9 +2,9 @@
 
 Generado automáticamente por `python -m etl.validar_dw`. No editar a mano: se regenera en cada corrida, y el historial de corridas queda en git.
 
-- **Fecha:** 2026-10-29 21:50
-- **Commit:** `1e344c9`
-- **Última carga del DW:** 2026-10-29 21:48 UTC, fecha de corte 2026-10-29
+- **Fecha:** 2026-11-01 21:26
+- **Commit:** `2066157`
+- **Última carga del DW:** 2026-11-02 03:23 UTC, fecha de corte 2026-11-01
 - **Volumen:** 53,683 hechos de inscripción, 2,303 estudiantes
 - **Resultado:** 99 de 99 verificaciones correctas ✅
 
@@ -89,9 +89,9 @@ Generado automáticamente por `python -m etl.validar_dw`. No editar a mano: se r
 | Particiones | Condición laboral: grupos sin valor (nulos) | 0 | 0 | ✅ OK |
 | Indicadores | Vista de cálculo del DW = fórmulas de la app (KPI × período) | 60 | 60 | ✅ OK |
 | Indicadores | Resultados guardados por el MERGE = vista de cálculo | 0 | 0 | ✅ OK |
-| Cruce relacional-grafo | Materias de la malla con el área que registra Neo4j | 45 | 45 | ✅ OK |
-| Cruce relacional-grafo | Materias sin nodo en el grafo rotuladas «Sin área en la malla» | 478 | 478 | ✅ OK |
-| Red curricular | Relaciones de prerrequisito en el DW frente a las de Neo4j | 39 | 39 | ✅ OK |
+| Cruce relacional-grafo | Materias de la malla con el área que registra Neo4j | 523 | 523 | ✅ OK |
+| Cruce relacional-grafo | Materias sin nodo en el grafo rotuladas «Sin área en la malla» | 0 | 0 | ✅ OK |
+| Red curricular | Relaciones de prerrequisito en el DW frente a las de Neo4j | 429 | 429 | ✅ OK |
 | Red curricular | Relaciones que están en un lado y no en el otro (diferencia simétrica) | 0 | 0 | ✅ OK |
 | Red curricular | La malla del DW es un grafo sin ciclos | True | True | ✅ OK |
 | Red curricular | Materias que se exigen a sí mismas | 0 | 0 | ✅ OK |
@@ -100,7 +100,7 @@ Generado automáticamente por `python -m etl.validar_dw`. No editar a mano: se r
 | Red curricular | Materias cuyo es_cuello_botella no corresponde a su índice de bloqueo | 0 | 0 | ✅ OK |
 | Red curricular | Costo de reprobación del cruce por materia frente al total de los hechos | 1096900.0 | 1096900.0 | ✅ OK |
 | Red curricular | Materias del cruce frente a materias de la malla | 523 | 523 | ✅ OK |
-| Red curricular | rol_dashboard lee las relaciones de la malla (lo que ve la pantalla) | 39 | 39 | ✅ OK |
+| Red curricular | rol_dashboard lee las relaciones de la malla (lo que ve la pantalla) | 429 | 429 | ✅ OK |
 | Cubo OLAP | ROLLUP periodo × ciclo: una sola fila de total general | 1 | 1 | ✅ OK |
 | Cubo OLAP | ROLLUP periodo × ciclo: inscripciones con nota final del total frente a los hechos | 45783 | 45783 | ✅ OK |
 | Cubo OLAP | ROLLUP periodo × ciclo: reprobados del total frente a los hechos | 11006 | 11006 | ✅ OK |
