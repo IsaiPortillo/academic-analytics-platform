@@ -115,10 +115,18 @@ def dashboard_estrategico(
     ]
 
     # --- Materias que más bloquean la malla ------------------------------------------
+    # La malla no llega acotada por filtros.carrera/departamento (dw.malla() siempre
+    # trae las de las 12 carreras): si no se recorta aquí, elegir un departamento o
+    # una carrera cambia los indicadores de arriba pero este ranking sigue mezclando
+    # materias de las demás carreras, que es justo lo que no debe pasar.
     malla, relaciones = dw.malla(), dw.prerrequisitos()
+    if carrera:
+        malla = malla[malla["codigo_carrera"] == carrera]
+    elif departamento:
+        malla = malla[malla["codigo_carrera"].isin(carreras_visibles["codigo_carrera"])]
     cruce = rc.cruce_costo_posicion(malla, dw.costo_por_materia(filtros))
     materias = panel.materias_que_mas_bloquean(cruce, moneda)
-    sin_red = not len(relaciones)
+    sin_red = malla.empty or not len(relaciones)
 
     fuentes = seleccion["fuente_costo"].dropna().unique().tolist()
     supuesto = None
