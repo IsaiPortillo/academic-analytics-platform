@@ -121,8 +121,12 @@ def catalogo_periodos() -> pd.DataFrame:
 
 
 def catalogo_carreras() -> pd.DataFrame:
+    # carrera_id (la llave natural del OLTP) va incluida para poder cruzarla con
+    # usuarios.carrera_id: es así como la vista ejecutiva sabe cuál es la carrera
+    # de un coordinador, cuyo recorte viene de las políticas de fila y no de un
+    # filtro de la URL.
     return _leer("""
-        SELECT codigo_carrera, nombre_carrera, codigo_departamento, nombre_departamento
+        SELECT carrera_id, codigo_carrera, nombre_carrera, codigo_departamento, nombre_departamento
         FROM dw_academico.dim_carrera ORDER BY nombre_departamento, nombre_carrera
     """)
 
@@ -201,29 +205,69 @@ def historial_cargas(limite: int = 20) -> list[dict]:
     """, {"limite": limite}).to_dict("records")
 
 
-def metas_indicadores() -> dict[str, dict]:
-    """Meta y banda de tolerancia de cada KPI (dim_indicador, script 20).
-    Vacío si el DW todavía no tiene el script 20 aplicado."""
+def metas_indicadores(codigo_carrera: str | None = None) -> dict[str, dict]:
+    """Meta y banda de tolerancia de cada KPI, resuelta para un alcance.
+
+    Con `codigo_carrera`, devuelve la meta propia de esa carrera si la tiene y la
+    institucional si no (script 27); `meta_propia` dice cuál de las dos se usó.
+    Sin carrera, devuelve las institucionales. Vacío si el DW todavía no tiene el
+    script 20 aplicado.
+    """
     try:
         df = _leer("""
-            SELECT codigo, nombre, unidad, sentido, perspectiva, responsable_cargo,
-                   meta_por_periodo, meta, tolerancia, justificacion
-            FROM dw_academico.dim_indicador ORDER BY orden
-        """)
+            SELECT i.codigo, i.nombre, i.unidad, i.sentido, i.perspectiva, i.responsable_cargo,
+                   i.meta_por_periodo, m.meta, m.tolerancia, m.justificacion,
+                   COALESCE(m.carrera_id IS NOT NULL, false) AS meta_propia
+            FROM dw_academico.dim_indicador i
+            LEFT JOIN LATERAL (
+                SELECT mi.meta, mi.tolerancia, mi.justificacion, mi.carrera_id
+                FROM dw_academico.meta_indicador mi
+                WHERE mi.codigo = i.codigo
+                  AND (mi.carrera_id IS NULL
+                       OR mi.carrera_id = (SELECT c.carrera_id FROM dw_academico.dim_carrera c
+                                           WHERE c.codigo_carrera = :carrera))
+                ORDER BY mi.carrera_id NULLS LAST
+                LIMIT 1
+            ) m ON TRUE
+            ORDER BY i.orden
+        """, {"carrera": codigo_carrera})
     except DBAPIError:
-        return {}
+        # Sin el script 27, la meta institucional sigue viviendo en dim_indicador.
+        try:
+            df = _leer("""
+                SELECT codigo, nombre, unidad, sentido, perspectiva, responsable_cargo,
+                       meta_por_periodo, meta, tolerancia, justificacion, false AS meta_propia
+                FROM dw_academico.dim_indicador ORDER BY orden
+            """)
+        except DBAPIError:
+            return {}
     return {fila["codigo"]: fila for fila in df.to_dict("records")}
 
 
-def semaforo_por_periodo() -> pd.DataFrame:
-    """Lo que calcula la vista v_semaforo_indicador: estado de cada KPI por período."""
+def semaforo_por_periodo(codigo_carrera: str | None = None) -> pd.DataFrame:
+    """Lo que calcula la vista v_semaforo_indicador: estado de cada KPI por período.
+
+    Con `codigo_carrera`, el de esa carrera, contra su meta propia si la tiene
+    (script 27). Sin carrera, el institucional.
+    """
     try:
         return _leer("""
-            SELECT codigo, codigo_periodo, orden_periodo, valor, estado
-            FROM dw_academico.v_semaforo_indicador ORDER BY orden_periodo
-        """)
+            SELECT s.codigo, s.codigo_periodo, s.orden_periodo, s.valor, s.estado, s.meta_propia
+            FROM dw_academico.v_semaforo_indicador s
+            WHERE s.carrera_id IS NOT DISTINCT FROM
+                  (SELECT c.carrera_id FROM dw_academico.dim_carrera c
+                   WHERE c.codigo_carrera = :carrera)
+            ORDER BY s.orden_periodo
+        """, {"carrera": codigo_carrera})
     except DBAPIError:
-        return pd.DataFrame(columns=["codigo", "codigo_periodo", "orden_periodo", "valor", "estado"])
+        try:
+            return _leer("""
+                SELECT codigo, codigo_periodo, orden_periodo, valor, estado, false AS meta_propia
+                FROM dw_academico.v_semaforo_indicador ORDER BY orden_periodo
+            """)
+        except DBAPIError:
+            return pd.DataFrame(columns=["codigo", "codigo_periodo", "orden_periodo",
+                                         "valor", "estado", "meta_propia"])
 
 
 def ultima_carga() -> dict | None:

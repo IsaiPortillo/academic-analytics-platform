@@ -195,11 +195,11 @@ class TestSeguridadPorFila(unittest.TestCase):
                 SELECT count(*) FROM pg_policies
                 WHERE schemaname = 'academico_oltp' AND policyname = 'etl_lectura'
                   AND 'rol_etl' = ANY(roles) AND cmd = 'SELECT'""")).scalar_one()
-        # Las ocho tablas con RLS: las tres del script 16 y las cinco del 23. Sin
-        # política, el ETL leería cero filas y cargaría un almacén vacío sin un
-        # solo error, así que esta cuenta es la que avisa si alguien agrega una
-        # tabla con RLS y se olvida del ETL.
-        self.assertEqual(politicas, 8)
+        # Las nueve tablas con RLS: tres del script 16, cinco del 23 y
+        # metas_indicador del 26. Sin política, el ETL leería cero filas y
+        # cargaría un almacén vacío sin un solo error, así que esta cuenta es la
+        # que avisa si alguien agrega una tabla con RLS y se olvida del ETL.
+        self.assertEqual(politicas, 9)
 
 
 if __name__ == "__main__":

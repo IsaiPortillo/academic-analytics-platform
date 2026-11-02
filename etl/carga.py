@@ -171,30 +171,46 @@ def preparar_tablas(resultado: ResultadoTransformacion) -> dict[str, pd.DataFram
     }
 
 
-def leer_indicadores() -> pd.DataFrame | None:
+def leer_indicadores() -> tuple[pd.DataFrame, pd.DataFrame] | None:
     """Catálogo y metas del OLTP (rol_etl). None si la base todavía no tiene el
     script 20: la carga sigue funcionando sin el semáforo."""
     from .conexiones import sesion_oltp  # noqa: PLC0415
-    from .extraccion import extraer_indicadores  # noqa: PLC0415
+    from .extraccion import extraer_indicadores, extraer_metas_indicador  # noqa: PLC0415
     with sesion_oltp() as sesion:
         existe = sesion.execute(text("SELECT to_regclass('academico_oltp.metas_indicador')")).scalar()
-        return extraer_indicadores(sesion) if existe else None
+        if not existe:
+            return None
+        return (extraer_indicadores(sesion), extraer_metas_indicador(sesion))
 
 
-def _cargar_indicadores(conexion, indicadores: pd.DataFrame | None) -> dict[str, int]:
-    """dim_indicador (recarga completa) y fact_indicador_periodo (MERGE)."""
+def _cargar_indicadores(conexion,
+                        indicadores: tuple[pd.DataFrame, pd.DataFrame] | None) -> dict[str, int]:
+    """dim_indicador y meta_indicador (recarga completa) y fact_indicador_periodo (MERGE).
+
+    `indicadores` es la pareja (catálogo, metas) que devuelve leer_indicadores().
+    """
     if indicadores is None or not conexion.execute(
             text("SELECT to_regclass('dw_academico.dim_indicador')")).scalar():
         return {}
+    catalogo, metas = indicadores
     conexion.execute(text(f"TRUNCATE {ESQUEMA_DW}.dim_indicador"))
-    indicadores.to_sql("dim_indicador", conexion, schema=ESQUEMA_DW, if_exists="append", index=False)
+    catalogo.to_sql("dim_indicador", conexion, schema=ESQUEMA_DW, if_exists="append", index=False)
+    # Las metas por carrera (script 27). Si la tabla no existe todavía, el resto
+    # de la carga sigue igual: el semáforo se queda con la institucional.
+    filas_metas = 0
+    if conexion.execute(text("SELECT to_regclass('dw_academico.meta_indicador')")).scalar():
+        conexion.execute(text(f"TRUNCATE {ESQUEMA_DW}.meta_indicador"))
+        metas.to_sql("meta_indicador", conexion, schema=ESQUEMA_DW, if_exists="append", index=False)
+        filas_metas = len(metas)
     # El MERGE corre después de cargar los hechos, en la misma transacción: los
     # resultados por período nunca quedan desfasados de fact_inscripcion.
     cambios = conexion.execute(text(f"SELECT {ESQUEMA_DW}.actualizar_resultados_indicadores()")).scalar()
-    return {"dim_indicador": len(indicadores), "fact_indicador_periodo (cambios del MERGE)": int(cambios or 0)}
+    return {"dim_indicador": len(catalogo), "meta_indicador": filas_metas,
+            "fact_indicador_periodo (cambios del MERGE)": int(cambios or 0)}
 
 
-def cargar_dw(resultado: ResultadoTransformacion, indicadores: pd.DataFrame | None = None) -> dict[str, int]:
+def cargar_dw(resultado: ResultadoTransformacion,
+              indicadores: tuple[pd.DataFrame, pd.DataFrame] | None = None) -> dict[str, int]:
     """Recarga completa y atómica del DW. Devuelve filas cargadas por tabla."""
     # Se prepara todo ANTES de abrir la conexión de escritura: si los datos no
     # cuadran, ni siquiera se intenta tocar el DW.

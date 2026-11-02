@@ -195,8 +195,23 @@ def extraer_indicadores(sesion: Session) -> pd.DataFrame:
         "       i.responsable_cargo, i.meta_por_periodo, i.orden, m.meta, m.tolerancia, "
         "       m.justificacion, m.actualizado_en AS meta_actualizada_en "
         "FROM academico_oltp.indicadores i "
-        "LEFT JOIN academico_oltp.metas_indicador m ON m.codigo = i.codigo "
+        # Solo la meta institucional: desde el script 26 hay una fila por carrera
+        # además de la general, y sin este filtro dim_indicador se multiplicaría.
+        "LEFT JOIN academico_oltp.metas_indicador m "
+        "       ON m.codigo = i.codigo AND m.carrera_id IS NULL "
         "ORDER BY i.orden"
+    ))
+
+
+def extraer_metas_indicador(sesion: Session) -> pd.DataFrame:
+    """Todas las metas: la institucional (carrera_id nulo) y las de cada carrera.
+
+    Van a dw_academico.meta_indicador (script 27), que es de donde el semáforo
+    resuelve la meta: la de la carrera si existe, la institucional si no.
+    """
+    return _leer(sesion, text(
+        "SELECT codigo, carrera_id, meta, tolerancia, justificacion, actualizado_en "
+        "FROM academico_oltp.metas_indicador ORDER BY codigo, carrera_id NULLS FIRST"
     ))
 
 

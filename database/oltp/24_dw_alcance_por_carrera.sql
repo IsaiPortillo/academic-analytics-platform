@@ -87,11 +87,11 @@ END $$;
 -- permisos de quien pregunta, que es lo que aquí se necesita.
 ALTER VIEW dw_academico.v_mart_departamento SET (security_invoker = on);
 
--- Las vistas de indicadores NO se tocan a propósito: las metas son
--- institucionales (academico_oltp.metas_indicador), así que el semáforo también
--- lo es. Un coordinador de carrera ve el valor institucional frente a la meta
--- institucional; comparar su carrera contra una meta de toda la institución
--- sería engañoso. Si en el futuro hay metas por carrera, esto cambia.
+-- Las vistas de indicadores no se tocan aquí: en este script el semáforo todavía
+-- era institucional, porque la meta lo era. El script 27 lo resolvió — las metas
+-- pasaron a ser por carrera (26) y el semáforo las resuelve con la institucional
+-- de respaldo (27)—, así que ya no hace falta security_invoker en ellas: el
+-- recorte lo da el propio carrera_id de fact_indicador_periodo.
 
 COMMENT ON TABLE dw_academico.fact_inscripcion IS
     'Hechos de inscripción. Con seguridad por fila: rol_dw_carrera solo ve la '

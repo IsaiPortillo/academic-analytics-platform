@@ -49,6 +49,20 @@ def _render_error(request, usuario, mensaje):
     )
 
 
+def carrera_del_usuario(usuario: UsuarioSesion, carreras: list[dict]) -> Optional[str]:
+    """Código de la carrera de un coordinador; None para el admin y el docente.
+
+    Un coordinador de carrera tiene alcance fijo: aunque no use el filtro, lo
+    suyo es su carrera, porque su recorte viene de las políticas de fila y no de
+    la URL. Sin esto vería sus propios valores comparados contra las metas
+    institucionales, y en un total daría «favorable» siempre.
+    """
+    if usuario.carrera_id is None:
+        return None
+    return next((c["codigo_carrera"] for c in carreras
+                 if c["carrera_id"] == usuario.carrera_id), None)
+
+
 @router.get("")
 def vista_ejecutiva(
     request: Request,
@@ -87,6 +101,10 @@ def vista_ejecutiva(
     if carrera not in set(carreras_visibles["codigo_carrera"]):
         carrera = None
 
+    propia = carrera_del_usuario(usuario, carreras.to_dict("records"))
+    if propia:
+        carrera, departamento = propia, None
+
     filtros = dw.Filtros(
         sel_periodos,
         (carrera,) if carrera else (),
@@ -106,7 +124,9 @@ def vista_ejecutiva(
     def dinero(v):
         return ind.dinero(v, moneda)
 
-    metas = dw.metas_indicadores()
+    # La meta se resuelve para el alcance activo: la propia de la carrera si la
+    # tiene, la institucional si no (script 27).
+    metas = dw.metas_indicadores(carrera)
 
     # ¿El filtro recorta la institución? Entonces los totales no son comparables.
     recortado = bool(carrera) or bool(departamento)
@@ -115,17 +135,17 @@ def vista_ejecutiva(
         meta = metas.get(t.codigo)
         if not meta or meta.get("meta") is None:
             return None
-        if meta["meta_por_periodo"] and (len(sel_periodos) != 1 or recortado):
-            # Una meta en dinero es un TOTAL institucional por ciclo, así que no se
-            # compara ni con la suma de varios ciclos ni con una parte de la
-            # institución: filtrando por carrera o departamento, cualquier subtotal
-            # queda muy por debajo y el semáforo daría «favorable» siempre. Los demás
-            # indicadores son razones o promedios por estudiante, y esos sí se
-            # comparan con la meta sea cual sea el alcance.
+        # Una meta en dinero es un TOTAL por ciclo: no se compara con la suma de
+        # varios ciclos, ni con una parte de la institución cuando la meta es la
+        # institucional (cualquier subtotal quedaría muy por debajo y el semáforo
+        # diría «favorable» siempre). Si la carrera tiene meta PROPIA, el total sí
+        # es comparable: la meta ya está expresada a su escala.
+        sin_meta_a_escala = recortado and not meta.get("meta_propia")
+        if meta["meta_por_periodo"] and (len(sel_periodos) != 1 or sin_meta_a_escala):
             motivo = []
             if len(sel_periodos) != 1:
                 motivo.append("por período")
-            if recortado:
+            if sin_meta_a_escala:
                 motivo.append("para toda la institución")
             return {"estado": None,
                     "texto": f"{ind.texto_meta(meta, moneda)} {' y '.join(motivo)}"}
@@ -146,10 +166,10 @@ def vista_ejecutiva(
         for t in ind.tarjetas(totales, previos, periodo_anterior, moneda)
     ]
 
-    # Tabla institucional por período: sale tal cual de la vista
-    # v_semaforo_indicador del DW (database/oltp/20).
+    # Tabla por período: sale tal cual de la vista v_semaforo_indicador del DW
+    # (scripts 20 y 27), para la carrera elegida o para la institución.
     tabla_semaforo = []
-    semaforos = dw.semaforo_por_periodo()
+    semaforos = dw.semaforo_por_periodo(carrera)
     if not semaforos.empty:
         por_codigo = {c: g for c, g in semaforos.groupby("codigo")}
         orden_periodos = semaforos.drop_duplicates("codigo_periodo").sort_values("orden_periodo")["codigo_periodo"].tolist()
@@ -229,6 +249,11 @@ def vista_ejecutiva(
             "texto_evolucion": texto_evolucion,
             "supuesto": supuesto,
             "tabla_semaforo": tabla_semaforo,
+            # Qué alcance tienen las metas de la tabla: la carrera elegida o la
+            # institución. Antes la cabecera decía siempre «institucional».
+            "alcance_metas": (next((c["nombre_carrera"] for c in carreras.to_dict("records")
+                                    if c["codigo_carrera"] == carrera), carrera)
+                              if carrera else "institucional"),
             "periodos_semaforo": periodos_semaforo,
             "ultima_carga": dw.ultima_carga(),
             "moneda": moneda,

@@ -173,7 +173,7 @@
 {% if tabla_semaforo %}
 <div class="card mb-6">
     <div class="card-header flex flex-wrap items-center justify-between gap-2">
-        <span>Estado frente a la meta por período · institucional</span>
+        <span>Estado frente a la meta por período · {{ alcance_metas }}</span>
         {% if usuario.es_coordinador %}<a class="text-sm" href="/admin/metas">Editar metas</a>{% endif %}
     </div>
     <div class="table-wrap">
