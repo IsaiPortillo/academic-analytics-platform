@@ -108,13 +108,27 @@ def vista_ejecutiva(
 
     metas = dw.metas_indicadores()
 
+    # ¿El filtro recorta la institución? Entonces los totales no son comparables.
+    recortado = bool(carrera) or bool(departamento)
+
     def semaforo(t):
         meta = metas.get(t.codigo)
         if not meta or meta.get("meta") is None:
             return None
-        if meta["meta_por_periodo"] and len(sel_periodos) != 1:
-            # Una meta en dinero es por ciclo: la suma de varios no se compara con ella.
-            return {"estado": None, "texto": ind.texto_meta(meta, moneda) + " por período"}
+        if meta["meta_por_periodo"] and (len(sel_periodos) != 1 or recortado):
+            # Una meta en dinero es un TOTAL institucional por ciclo, así que no se
+            # compara ni con la suma de varios ciclos ni con una parte de la
+            # institución: filtrando por carrera o departamento, cualquier subtotal
+            # queda muy por debajo y el semáforo daría «favorable» siempre. Los demás
+            # indicadores son razones o promedios por estudiante, y esos sí se
+            # comparan con la meta sea cual sea el alcance.
+            motivo = []
+            if len(sel_periodos) != 1:
+                motivo.append("por período")
+            if recortado:
+                motivo.append("para toda la institución")
+            return {"estado": None,
+                    "texto": f"{ind.texto_meta(meta, moneda)} {' y '.join(motivo)}"}
         estado = ind.estado_meta(t.actual, float(meta["meta"]), float(meta["tolerancia"]), meta["sentido"])
         clase, etiqueta = ind.ESTADOS_META.get(estado, ("neutral", "Sin dato"))
         return {"estado": estado, "clase": clase, "etiqueta": etiqueta, "texto": ind.texto_meta(meta, moneda)}

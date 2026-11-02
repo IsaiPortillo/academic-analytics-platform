@@ -503,3 +503,39 @@ class TestMalla(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMetaFrenteAlFiltro(unittest.TestCase):
+    """La meta es institucional: no se compara con una parte de la institución.
+
+    Regresión: filtrando por departamento, el costo de reprobación mostraba
+    «Favorable» comparando 4.050 contra una meta institucional de 90.000. Los
+    totales no son comparables con un subconjunto; las razones sí.
+    """
+
+    def _semaforo(self, codigo, meta_por_periodo, periodos, carrera=None, departamento=None):
+        """Reproduce la decisión de vista_ejecutiva.semaforo()."""
+        recortado = bool(carrera) or bool(departamento)
+        return not (meta_por_periodo and (len(periodos) != 1 or recortado))
+
+    def test_un_total_no_se_evalua_si_el_filtro_recorta(self):
+        # costo_reprobacion es el único con meta_por_periodo = True.
+        self.assertFalse(self._semaforo("costo_reprobacion", True, ("2026-I",),
+                                        departamento="DCA"))
+        self.assertFalse(self._semaforo("costo_reprobacion", True, ("2026-I",),
+                                        carrera="I10515"))
+
+    def test_un_total_si_se_evalua_con_un_periodo_y_sin_recorte(self):
+        self.assertTrue(self._semaforo("costo_reprobacion", True, ("2026-I",)))
+
+    def test_un_total_no_se_evalua_sumando_periodos(self):
+        self.assertFalse(self._semaforo("costo_reprobacion", True, ()))
+
+    def test_las_razones_se_evaluan_siempre(self):
+        # Una tasa es una tasa sea cual sea el alcance: 14,3 % frente a 22 %
+        # significa lo mismo en un departamento que en toda la institución.
+        for codigo in ("tasa_reprobacion", "tasa_retiro", "proporcion_repeticion",
+                       "costo_por_estudiante"):
+            with self.subTest(codigo=codigo):
+                self.assertTrue(self._semaforo(codigo, False, ("2026-I",), departamento="DCA"))
+                self.assertTrue(self._semaforo(codigo, False, ()))
