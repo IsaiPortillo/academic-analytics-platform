@@ -2,8 +2,8 @@
 
 Generado automáticamente por `python -m etl.validar_dw`. No editar a mano: se regenera en cada corrida, y el historial de corridas queda en git.
 
-- **Fecha:** 2026-11-01 21:26
-- **Commit:** `2066157`
+- **Fecha:** 2026-11-01 21:36
+- **Commit:** `180561d`
 - **Última carga del DW:** 2026-11-02 03:23 UTC, fecha de corte 2026-11-01
 - **Volumen:** 53,683 hechos de inscripción, 2,303 estudiantes
 - **Resultado:** 99 de 99 verificaciones correctas ✅

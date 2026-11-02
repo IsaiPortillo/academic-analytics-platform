@@ -73,6 +73,9 @@ def mensaje_bd(exc: DBAPIError, catalogo: Catalogo) -> str:
                 "Si ya no se usa, desactívalo.")
     if codigo == "23514":   # check_violation
         return "Algún valor está fuera de lo permitido por la base de datos."
+    if codigo == "42501":   # insufficient_privilege: incluye la seguridad por fila
+        return (f"{'Esa' if catalogo.femenino else 'Ese'} {catalogo.singular} pertenece a otra "
+                f"carrera. Solo puedes administrar {'las' if catalogo.femenino else 'los'} de la tuya.")
     return diag.message_primary if diag is not None and diag.message_primary else "La base de datos rechazó la operación."
 
 
@@ -82,7 +85,10 @@ def _etiquetas_fk(db: Session, catalogo: Catalogo) -> dict:
 
 @router.get("")
 def inicio(request: Request, usuario: UsuarioSesion = Depends(COORDINADOR), db: Session = Depends(get_db)):
-    tarjetas = [(c, db.scalar(select(func.count()).select_from(c.modelo))) for c in CATALOGOS.values()]
+    # Solo los catálogos que este usuario puede abrir: ofrecer una tarjeta que
+    # va a devolver 403 es una invitación al error.
+    visibles = [c for c in CATALOGOS.values() if usuario.es_admin or not c.solo_admin]
+    tarjetas = [(c, db.scalar(select(func.count()).select_from(c.modelo))) for c in visibles]
     return templates.TemplateResponse(request, "modulos/admin_inicio.html", {
         "usuario": usuario, "tarjetas": tarjetas})
 
