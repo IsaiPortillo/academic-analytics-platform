@@ -23,8 +23,10 @@ Dos decisiones que conviene conocer:
 """
 
 from decimal import Decimal, InvalidOperation
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
@@ -46,37 +48,70 @@ MARCA_SUPUESTO = "SUPUESTO PARAMETRICO"
 MONEDAS = ("USD", "SVC", "EUR")
 
 
-def _periodos_con_costo(db: Session):
-    """Todos los períodos con su costo, incluidos los que aún no tienen ninguno."""
+SIN_COSTO, EN_TABLERO, PENDIENTE = "sin_costo", "en_tablero", "pendiente"
+
+
+def estado_en_tablero(costo, en_almacen):
+    """¿El costo guardado en el OLTP ya llegó al Data Warehouse?
+
+    `en_almacen` es lo que dim_periodo tiene hoy para el período (o None si el
+    período ni siquiera está). Se compara lo que importa para las cifras —el
+    valor por UV a dos decimales— y también la moneda y la fuente, porque la
+    fuente viaja al tablero para advertir cuando la cifra es un supuesto.
+    """
+    if costo is None:
+        return SIN_COSTO
+    if not en_almacen or en_almacen.get("costo_por_uv") is None:
+        return PENDIENTE
+    mismo_valor = Decimal(str(round(en_almacen["costo_por_uv"], 2))) == costo.costo_por_uv.quantize(Decimal("0.01"))
+    if mismo_valor and en_almacen.get("moneda") == costo.moneda and en_almacen.get("fuente") == costo.fuente:
+        return EN_TABLERO
+    return PENDIENTE
+
+
+def _periodos_con_costo(db: Session, almacen=None):
+    """Todos los períodos con su costo, incluidos los que aún no tienen ninguno.
+
+    almacen: lo que devuelve dw.costos_cargados(), o None si no se pudo consultar
+    (entonces no se afirma nada sobre el tablero: el estado queda en None).
+    """
     filas = db.execute(
         select(PeriodoAcademico, CostoUV)
         .outerjoin(CostoUV, CostoUV.periodo_id == PeriodoAcademico.periodo_id)
         .order_by(PeriodoAcademico.anio, PeriodoAcademico.codigo_periodo)
     ).all()
-    return [
-        {
+    resultado = []
+    for periodo, costo in filas:
+        en_almacen = None if almacen is None else almacen.get(periodo.periodo_id)
+        resultado.append({
             "periodo": periodo,
             "costo": costo,
             "es_supuesto": bool(costo and MARCA_SUPUESTO in (costo.fuente or "").upper()),
-        }
-        for periodo, costo in filas
-    ]
+            "estado": None if almacen is None else estado_en_tablero(costo, en_almacen),
+            "en_almacen": en_almacen,
+        })
+    return resultado
 
 
 @router.get("")
 def listar(
     request: Request,
+    guardado: Optional[int] = None,
+    recargado: Optional[int] = None,
     usuario: UsuarioSesion = Depends(requiere_rol("rol_admin")),
     db: Session = Depends(get_db),
 ):
     ok, error = tomar_aviso(request)
-    filas = _periodos_con_costo(db)
     # Si el DW no está disponible la página debe seguir sirviendo: editar costos
-    # no depende de él, solo el aviso de cuándo se cargó por última vez.
+    # no depende de él, solo el aviso de cuándo se cargó y de si el tablero está
+    # al día.
     try:
         ultima_carga = dw.ultima_carga()
+        almacen = dw.costos_cargados()
     except Exception:  # noqa: BLE001 - el detalle ya queda en el log del servidor
-        ultima_carga = None
+        ultima_carga, almacen = None, None
+    filas = _periodos_con_costo(db, almacen)
+    pendientes = [f for f in filas if f["estado"] == PENDIENTE]
     return templates.TemplateResponse(
         request,
         "modulos/costos.html",
@@ -88,6 +123,11 @@ def listar(
             "monedas": MONEDAS,
             "sin_costo": sum(1 for f in filas if f["costo"] is None),
             "con_supuesto": sum(1 for f in filas if f["es_supuesto"]),
+            "almacen_consultado": almacen is not None,
+            "pendientes": pendientes,
+            "al_dia": sum(1 for f in filas if f["estado"] == EN_TABLERO),
+            "guardado": guardado,
+            "recargado": bool(recargado),
             "ok": ok,
             "error": error,
         },
@@ -106,7 +146,9 @@ def recargar(
     """
     resultado = recarga.ejecutar_carga()
     if resultado.ok:
-        return redirigir(request, "/costos", ok=resultado.mensaje)
+        # El resultado se muestra dentro de la tarjeta de recarga (?recargado=1#recarga),
+        # a donde lleva la página: un aviso arriba quedaría fuera de la vista.
+        return RedirectResponse("/costos?recargado=1#recarga", status_code=303)
 
     mensaje = resultado.mensaje
     if resultado.detalle:
@@ -157,19 +199,15 @@ def guardar(
             db.add(CostoUV(
                 periodo_id=periodo_id, costo_por_uv=valor, moneda=moneda, fuente=fuente
             ))
-            accion = "registrado"
         else:
             registro.costo_por_uv = valor
             registro.moneda = moneda
             registro.fuente = fuente
-            accion = "actualizado"
         db.flush()
     except DBAPIError:
         db.rollback()
         return redirigir(request, "/costos", error="La base de datos rechazó la operación")
 
-    return redirigir(request, "/costos", ok=(
-        f"Costo {accion} para {periodo.codigo_periodo}. "
-        "Para que el cambio llegue al tablero hay que recargar el Data Warehouse "
-        "(python -m etl.carga)"
-    ))
+    # La confirmación va en la fila del período (?guardado=<id>#costo-<id>): con la
+    # lista larga, un aviso arriba queda fuera de la vista y no se sabe si guardó.
+    return RedirectResponse(f"/costos?guardado={periodo_id}#costo-{periodo_id}", status_code=303)

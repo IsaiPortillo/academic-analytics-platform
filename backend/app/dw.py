@@ -278,6 +278,28 @@ def ultima_carga() -> dict | None:
     return None if fila.empty else fila.iloc[0].to_dict()
 
 
+def costos_cargados() -> dict[int, dict]:
+    """El costo por UV que el almacén tiene hoy en cada período (dim_periodo).
+
+    Sirve para decirle al administrador, período por período, si el costo que
+    guardó ya llegó al tablero o falta recargar: el costo se guarda en el OLTP
+    pero el tablero lee esta copia, que solo cambia con la carga.
+    """
+    filas = _leer("""
+        SELECT periodo_id, costo_por_uv, moneda, fuente_costo
+        FROM dw_academico.dim_periodo
+    """)
+    cargados = {}
+    for fila in filas.itertuples(index=False):
+        costo = None if pd.isna(fila.costo_por_uv) else float(fila.costo_por_uv)
+        cargados[int(fila.periodo_id)] = {
+            "costo_por_uv": costo,
+            "moneda": None if pd.isna(fila.moneda) else fila.moneda,
+            "fuente": None if pd.isna(fila.fuente_costo) else fila.fuente_costo,
+        }
+    return cargados
+
+
 # ---------------------------------------------------------------------------
 # Análisis diagnóstico — Fase 4.2 (¿por qué ocurrió?)
 #

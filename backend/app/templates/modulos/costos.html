@@ -20,6 +20,28 @@
 </div>
 {% endif %}
 
+{# Estado del tablero: lo guardado vive en el OLTP y el tablero lee su copia en el Data Warehouse. #}
+{% if not almacen_consultado %}
+<div class="alert alert-warning mb-3" role="status">
+    <span>No se pudo consultar el Data Warehouse, así que no puedo confirmar si el tablero tiene
+    estos costos. Los costos que guardes aquí sí quedan guardados.</span>
+</div>
+{% elif pendientes %}
+<div class="alert alert-warning mb-3" role="status">
+    <span>
+        <strong>{{ pendientes|length }} costo{{ 's' if pendientes|length != 1 }} guardado{{ 's' if pendientes|length != 1 }}
+        todavía no {{ 'están' if pendientes|length != 1 else 'está' }} en el tablero:</strong>
+        {{ pendientes|map(attribute='periodo.codigo_periodo')|join(', ') }}.
+        El tablero seguirá mostrando las cifras anteriores hasta que recargues el Data Warehouse.
+        <a href="#recarga" class="costo-ir">Ir a recargar</a>
+    </span>
+</div>
+{% elif al_dia %}
+<div class="alert alert-success mb-3" role="status">
+    <span><strong>El tablero está al día:</strong> los {{ al_dia }} costos guardados ya están en el Data Warehouse.</span>
+</div>
+{% endif %}
+
 {% if con_supuesto or sin_costo %}
 <div class="alert alert-warning mb-3" role="alert">
     <span>
@@ -42,12 +64,19 @@
         {% for fila in filas %}
         {% set p = fila.periodo %}
         {% set c = fila.costo %}
-        <form method="post" action="/costos/{{ p.periodo_id }}" class="costo-fila" data-lock-on-submit="Guardando…">
+        {% set reciente = (guardado == p.periodo_id) %}
+        <form method="post" action="/costos/{{ p.periodo_id }}" id="costo-{{ p.periodo_id }}"
+              class="costo-fila{{ ' es-reciente' if reciente }}" data-lock-on-submit="Guardando…">
             {{ csrf_campo() }}
             <div class="costo-cabeza">
                 <span class="costo-periodo">{{ p.codigo_periodo }}</span>
                 {% if p.activo %}<span class="badge-success">activo</span>{% endif %}
                 {% if fila.es_supuesto %}<span class="badge-warning">supuesto</span>{% endif %}
+                {% if fila.estado == 'en_tablero' %}
+                <span class="costo-estado costo-estado-ok">✓ En el tablero</span>
+                {% elif fila.estado == 'pendiente' %}
+                <span class="costo-estado costo-estado-pendiente">Falta recargar</span>
+                {% endif %}
             </div>
             <div class="costo-uv">
                 <label class="field-label" for="costo-{{ p.periodo_id }}">Costo por UV</label>
@@ -71,16 +100,48 @@
             <div class="costo-accion">
                 <button type="submit" class="btn-save">{{ 'Actualizar' if c else 'Registrar' }}</button>
             </div>
+            {% if reciente %}
+            <p class="costo-recien" role="status">
+                ✓ <strong>Guardado.</strong>
+                {% if fila.estado == 'pendiente' %}
+                El tablero todavía no lo muestra: recarga el Data Warehouse (abajo) para verlo.
+                {% elif fila.estado == 'en_tablero' %}
+                El tablero ya tiene este valor.
+                {% endif %}
+            </p>
+            {% elif fila.estado == 'pendiente' %}
+            <p class="costo-nota">
+                {% if fila.en_almacen and fila.en_almacen.costo_por_uv is not none %}
+                El tablero todavía muestra {{ '%.2f'|format(fila.en_almacen.costo_por_uv) }} {{ fila.en_almacen.moneda }} por UV.
+                {% else %}
+                El tablero todavía no tiene el costo de este período.
+                {% endif %}
+            </p>
+            {% endif %}
         </form>
         {% endfor %}
     </div>
 </div>
 
-<div class="card mt-3">
+<div class="card mt-3" id="recarga">
     <div class="card-header">Llevar los costos al tablero</div>
     <div class="card-body">
+        {% if recargado %}
+        {% if pendientes %}
+        <div class="alert alert-warning mb-3" role="status">
+            <span><strong>La recarga terminó, pero {{ pendientes|length }} costo{{ 's' if pendientes|length != 1 }}
+            no {{ 'aparecen' if pendientes|length != 1 else 'aparece' }} en el tablero:</strong>
+            {{ pendientes|map(attribute='periodo.codigo_periodo')|join(', ') }}. Vuelve a guardarlos y recarga de nuevo.</span>
+        </div>
+        {% else %}
+        <div class="alert alert-success mb-3" role="status">
+            <span><strong>Recarga terminada.</strong> Los costos guardados ya están en el tablero.</span>
+        </div>
+        {% endif %}
+        {% endif %}
         <p class="text-sm text-muted mb-3">
-            Después de cambiar un costo, recarga el Data Warehouse para ver las cifras actualizadas.
+            Guardar un costo no cambia el tablero: hay que recargar el Data Warehouse para que lo muestre.
+            Cada período de arriba indica si ya está al día.
         </p>
 
         <div class="filter-bar mb-3">
