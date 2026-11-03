@@ -1659,6 +1659,52 @@
     width: 100%;
     min-height: 2.75rem;
   }
+  /* Estado de cada costo frente al tablero y confirmación de lo recién guardado.
+     Texto y marca, nunca solo color. */
+  .costo-fila {
+    scroll-margin-top: 5rem;
+  }
+  .costo-estado {
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.2;
+    padding: 0.125rem 0.5rem;
+    border: 1px solid;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .costo-estado-ok {
+    background: var(--color-success-bg);
+    border-color: var(--color-success-border);
+    color: var(--color-success-text);
+  }
+  .costo-estado-pendiente {
+    background: var(--color-warning-bg);
+    border-color: var(--color-warning-border);
+    color: var(--color-warning-text);
+  }
+  .costo-nota,
+  .costo-recien {
+    grid-column: 1 / -1;
+    margin: 0;
+    font-size: 0.875rem;
+  }
+  .costo-nota {
+    color: var(--color-warning-text);
+  }
+  .costo-recien {
+    color: var(--color-success-text);
+  }
+  .costo-fila.es-reciente {
+    background: var(--color-success-bg);
+    border-radius: 0.5rem;
+    margin-inline: -0.75rem;
+    padding-inline: 0.75rem;
+  }
+  .costo-ir {
+    font-weight: 700;
+    text-decoration: underline;
+  }
   @container (min-width: 46rem) {
     .costo-fila {
       grid-template-columns: 7rem 7rem 6rem minmax(0, 1fr) auto;
